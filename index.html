@@ -82,6 +82,12 @@ td:first-child{font-family:var(--font)}
 .flag{padding:5px 8px;border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent);margin-bottom:4px;font-size:12px}
 .flag.ok{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
 .note{font-size:12px;color:var(--muted)}
+.dropzone{display:block;margin:8px 0;padding:14px 10px;border:2px dashed var(--line);border-radius:6px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer}
+.dropzone:hover,.dropzone.over{border-color:var(--accent,#1c7ed6);color:var(--ink)}
+#dropVeil{position:fixed;inset:0;z-index:5000;display:none;align-items:center;justify-content:center;background:rgba(28,126,214,.25);border:4px dashed #1c7ed6;font-size:22px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);pointer-events:none}
+#dropVeil.on{display:flex}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:5001;max-width:80vw;padding:9px 14px;border-radius:6px;background:#212529;color:#fff;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none}
+#toast.on{display:block}#toast.err{background:#c92a2a}
 .ov{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .ov .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov input[type=range]{grid-column:2/4}
@@ -410,12 +416,15 @@ td:first-child{font-family:var(--font)}
         <h3>Project file</h3>
         <div class="row">
           <button class="btn" id="xProj">Save project (.json)</button>
-          <label class="btn" style="display:inline-block;cursor:pointer">Open project<input type="file" id="openProj" accept=".json" hidden></label>
+          <label class="btn" style="display:inline-block;cursor:pointer">Open project<input type="file" id="openProj" accept=".json,.geojson" hidden></label>
         </div>
-        <div class="note">The project also saves in this browser automatically.</div>
+        <label class="dropzone" id="dropZone" for="openProj">Drag a project (.json) or site plan (.geojson) file here, or click to choose one</label>
+        <div class="note">You can also drop a file anywhere on the page. The project also saves in this browser automatically.</div>
       </div>
     </div>
   </aside>
+<div id="dropVeil">Drop a project or site plan file to open it</div>
+<div id="toast"></div>
 
   <main id="mapwrap">
     <div id="map" class="tool-select"></div>
@@ -1710,11 +1719,110 @@ function dxfText(){
 }
 $('#xDxf').addEventListener('click',function(){download('site-plan.dxf',dxfText(),'application/dxf');});
 $('#xProj').addEventListener('click',function(){download('site-plan-project.json',JSON.stringify(projectJSON()),'application/json');});
+
+// ---------- open a project or site plan file (button or drag and drop) ----------
+var toastTimer=null;
+function toast(t,err){var e=$('#toast');e.textContent=t;e.className='on'+(err?' err':'');clearTimeout(toastTimer);toastTimer=setTimeout(function(){e.className='';},err?9000:6000);}
+var PLAN_KINDS=['site_boundary','parcel','road','road_centerline','building','area','parking_aisle','parking_aisle_centerline','parking_stall'];
+function isPlanGeoJSON(o){return o&&o.type==='FeatureCollection'&&(o.features||[]).some(function(f){return f&&f.properties&&PLAN_KINDS.indexOf(f.properties.kind)>=0;});}
+// Rebuild a project from this tool's own GeoJSON export. Settings, setbacks and per-building unit overrides that
+// the export does not carry fall back to defaults; geometry, names, types, stories, widths and stall layouts come back.
+function projectFromGeoJSON(gj){
+  var feats=(gj.features||[]).filter(function(f){return f&&f.geometry&&f.properties;});
+  function by(k){return feats.filter(function(f){return f.properties.kind===k;});}
+  function ringOf(f){return f.geometry.coordinates[0].slice(0,-1);}
+  var o={v:1,selected:[],carved:[],carveShapes:[],roads:[],lots:[],buildings:[],areas:[],counters:{},nextId:1,demo:false};
+  var site=by('site_boundary')[0],pfeats=[],seen={};
+  var ref=site||feats.filter(function(f){return /Polygon|LineString/.test(f.geometry.type);})[0];
+  var c0=turf.centroid(ref).geometry.coordinates;o.org=c0;setOrg(c0[0],c0[1]);
+  by('parcel').forEach(function(f,i){
+    var p=Object.assign({},f.properties),carved=p.carved;delete p.kind;delete p.carved;
+    var id=String(p.OBJECTID!=null?p.OBJECTID:(p.objectid!=null?p.objectid:(p.FID!=null?p.FID:'i'+i)));
+    while(seen[id])id+='_'+i;seen[id]=1;p.__pid=id;
+    pfeats.push({type:'Feature',properties:p,geometry:f.geometry});o.selected.push(id);if(carved)o.carved.push(id);
+  });
+  if(!pfeats.length&&site){pfeats.push({type:'Feature',properties:{name:'Site boundary',__pid:'site'},geometry:site.geometry});o.selected.push('site');}
+  o.parcels={type:'FeatureCollection',features:pfeats};
+  // pieces cut out of the parcels by drawn carve shapes are recovered as the difference to the exported site boundary
+  if(site&&pfeats.length){try{
+    var u=null;
+    pfeats.forEach(function(f){if(o.selected.indexOf(f.properties.__pid)>=0)u=u?turf.union(u,turf.feature(f.geometry)):turf.feature(f.geometry);});
+    pfeats.forEach(function(f){if(u&&o.carved.indexOf(f.properties.__pid)>=0)u=turf.difference(u,turf.feature(f.geometry));});
+    var d=u&&turf.difference(u,turf.feature(site.geometry));
+    if(d)polysOf(d).forEach(function(p){if(turf.area(turf.polygon(p))>5)o.carveShapes.push({id:o.nextId++,ring:p[0].slice(0,-1)});});
+  }catch(e){console.warn('carve recovery',e);}}
+  by('road_centerline').forEach(function(f){o.roads.push({id:o.nextId++,name:f.properties.name||'Road',width:f.properties.widthFt||S.roadW,pts:f.geometry.coordinates});});
+  o.counters.road=o.roads.length;
+  by('building').forEach(function(f){
+    var p=f.properties,type=Object.keys(TYPES).filter(function(k){return TYPES[k].name===p.type;})[0]||'com',ring=ringOf(f),b;
+    if(p.freeform||p.widthFt==null||p.depthFt==null){b={id:o.nextId++,type:type,name:p.name,w:0,d:0,st:p.stories||1,rot:0,units:null,custom:true,pts:ring,c:[0,0]};recenter(b);}
+    else{var cx=0,cy=0;ring.forEach(function(q){cx+=q[0];cy+=q[1];});b={id:o.nextId++,type:type,name:p.name,w:p.widthFt,d:p.depthFt,st:p.stories||1,rot:p.rotationDeg||0,units:null,c:[cx/ring.length,cy/ring.length]};}
+    if(p.units!=null&&unitsOf(b)!==p.units)b.units=p.units;
+    var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
+    o.buildings.push(b);
+  });
+  var lots={};
+  by('parking_aisle_centerline').forEach(function(f){var n=f.properties.name;
+    lots[n]={id:o.nextId++,name:n,pts:f.geometry.coordinates,aisleW:0,stallW:S.lotCfg.stallW,stallD:S.lotCfg.stallD,angle:S.lotCfg.angle,sides:'left',pos:0,neg:0};});
+  by('parking_aisle').forEach(function(f){var l=lots[f.properties.name];if(l){l.aisleW=f.properties.aisleWidthFt||0;l.angle=f.properties.stallAngleDeg;}});
+  by('parking_stall').forEach(function(f){
+    var p=f.properties,l=lots[p.lot];if(!l)return;
+    l.stallW=p.widthFt;l.stallD=p.depthFt;l.angle=p.angleDeg;
+    var r=ringOf(f).map(toLocal),c=[0,0];r.forEach(function(q){c[0]+=q[0]/r.length;c[1]+=q[1]/r.length;});
+    var P=l.pts.map(toLocal),best=null;
+    for(var i=0;i<P.length-1;i++){
+      var a=P[i],b=P[i+1],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy;if(L2<1e-9)continue;
+      var t=Math.max(0,Math.min(1,((c[0]-a[0])*dx+(c[1]-a[1])*dy)/L2)),d=Math.hypot(c[0]-a[0]-t*dx,c[1]-a[1]-t*dy);
+      if(!best||d<best.d)best={d:d,side:dx*(c[1]-a[1])-dy*(c[0]-a[0])};
+    }
+    if(best){if(best.side>=0)l.pos++;else l.neg++;}
+  });
+  Object.keys(lots).forEach(function(n){var l=lots[n];l.sides=l.pos&&l.neg?'both':(l.neg?'right':'left');delete l.pos;delete l.neg;o.lots.push(l);});
+  o.counters.lot=o.lots.length;
+  by('area').forEach(function(f){
+    var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
+    o.areas.push({id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)});
+  });
+  return o;
+}
+function planHasWork(){return !S.demo&&(S.buildings.length||S.roads.length||S.lots.length||S.areas.length);}
+function openPlanFile(file){
+  return file.text().then(function(t){
+    var o=JSON.parse(t),msgText;
+    if(o&&o.kind==='site-plan-layouts'&&Array.isArray(o.layouts)){
+      var n=lyAddFrom(o,file.name);$('[data-tab="layouts"]').click();toast(n+' layout'+(n===1?'':'s')+' added to the Layouts tab.');return;
+    }
+    if(o&&o.type==='FeatureCollection'&&!isPlanGeoJSON(o)){
+      var n2=ingestParcels(o);S.demo=false;
+      if(S.parcels&&S.parcels.features.length){var pb=turf.bbox(S.parcels);map.fitBounds([[pb[1],pb[0]],[pb[3],pb[2]]]);setOrg((pb[0]+pb[2])/2,(pb[1]+pb[3])/2);}
+      renderAll();toast(n2+' parcels read from '+file.name+'. Click parcels on the map to pick your site.');return;
+    }
+    var isPlan=isPlanGeoJSON(o);
+    if(!isPlan&&!(o&&(o.buildings||o.parcels||o.v)))throw new Error('this is not a site plan project or GeoJSON export');
+    if(planHasWork()&&!confirm('Open '+file.name+'? This replaces the plan you have on the map now.'))return;
+    if(isPlan){o=projectFromGeoJSON(o);msgText='Rebuilt the plan from GeoJSON: '+o.buildings.length+' buildings, '+o.roads.length+' roads, '+o.lots.length+' parking lots, '+o.areas.length+' areas. Setbacks and other settings are back to defaults.';}
+    else msgText='Opened '+file.name+'.';
+    undoStack.length=0;loadProject(o);
+    if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}
+    toast(msgText);
+  }).catch(function(e){toast('That file could not be opened: '+e.message,true);});
+}
 $('#openProj').addEventListener('change',function(ev){
-  var f=ev.target.files[0];if(!f)return;
-  f.text().then(function(t){undoStack.length=0;var o=JSON.parse(t);loadProject(o);if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}}).catch(function(e){alert('That project file could not be read: '+e.message);});
+  var f=ev.target.files[0];if(f)openPlanFile(f);
   ev.target.value='';
 });
+(function(){
+  var depth=0,veil=$('#dropVeil'),zone=$('#dropZone');
+  function hasFiles(e){var t=e.dataTransfer&&e.dataTransfer.types;return !!t&&Array.prototype.indexOf.call(t,'Files')>=0;}
+  function hide(){depth=0;veil.classList.remove('on');zone.classList.remove('over');}
+  window.addEventListener('dragenter',function(e){if(!hasFiles(e))return;e.preventDefault();depth++;veil.classList.add('on');});
+  window.addEventListener('dragover',function(e){if(!hasFiles(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';zone.classList.toggle('over',zone.contains(e.target));});
+  window.addEventListener('dragleave',function(e){if(!hasFiles(e))return;depth--;if(depth<=0)hide();});
+  window.addEventListener('drop',function(e){
+    if(!hasFiles(e))return;e.preventDefault();hide();
+    var f=e.dataTransfer.files[0];if(f)openPlanFile(f);
+  });
+})();
 
 // ---------- freeform buildings ----------
 function rotatePts(b,deg){
@@ -1953,15 +2061,16 @@ $('#lyCsv').addEventListener('click',function(){
   rows.forEach(function(r){var m=r[1];out.push(m?[r[0],m.units,m.acres?(m.units/m.acres).toFixed(1):'',m.cov.toFixed(1),m.imp.toFixed(1),Math.round(m.gfa),Math.round(m.comm),m.prov,m.req,m.flags,m.acres.toFixed(2)].map(q).join(','):q(r[0]));});
   download('layout-comparison.csv',out.join('\r\n'),'text/csv');
 });
+function lyAddFrom(o,fileName){
+  var n=0;
+  if(o.kind==='site-plan-layouts'&&Array.isArray(o.layouts)){o.layouts.forEach(function(l){if(l.proj){LY.items.push({id:lyId(),name:l.name||lyNameDefault(),saved:l.saved||Date.now(),json:JSON.stringify(l.proj),sum:l.sum||null});n++;}});}
+  else if(o.buildings&&o.parcels){LY.items.push({id:lyId(),name:fileName.replace(/\.json$/i,''),saved:Date.now(),json:JSON.stringify(o),sum:null});n=1;}
+  else throw new Error('not a layout or project file');
+  lyStore();renderLayouts();return n;
+}
 $('#lyImport').addEventListener('change',function(ev){
   var f=ev.target.files[0];if(!f)return;
-  f.text().then(function(t){
-    var o=JSON.parse(t),n=0;
-    if(o.kind==='site-plan-layouts'&&Array.isArray(o.layouts)){o.layouts.forEach(function(l){if(l.proj){LY.items.push({id:lyId(),name:l.name||lyNameDefault(),saved:l.saved||Date.now(),json:JSON.stringify(l.proj),sum:l.sum||null});n++;}});}
-    else if(o.buildings&&o.parcels){LY.items.push({id:lyId(),name:f.name.replace(/\.json$/i,''),saved:Date.now(),json:JSON.stringify(o),sum:null});n=1;}
-    else throw new Error('not a layout or project file');
-    lyStore();renderLayouts();
-  }).catch(function(e){$('#lyList').insertAdjacentHTML('afterbegin','<div class="flag">That file could not be imported: '+esc(e.message)+'</div>');});
+  f.text().then(function(t){lyAddFrom(JSON.parse(t),f.name);}).catch(function(e){$('#lyList').insertAdjacentHTML('afterbegin','<div class="flag">That file could not be imported: '+esc(e.message)+'</div>');});
   ev.target.value='';
 });
 // ---------- start ----------
