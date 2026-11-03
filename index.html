@@ -1,0 +1,1985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site Plan Sketcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+/* Layout: toolbar across the top, planning panel on the left, map filling the rest.
+   Palette: drafting-paper neutrals, one survey-teal accent, plan colors are fixed constants in JS. */
+:root{
+  --bg:#eceeed; --panel:#f8f9f8; --ink:#1a2225; --muted:#59666b; --line:#d2d8d7;
+  --accent:#0a6e83; --accent-ink:#ffffff; --warn:#c2255c; --ok:#2b8a3e; --field:#ffffff;
+  --font:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1416; --panel:#161c1f; --ink:#e5ebed; --muted:#93a1a7; --line:#2a3438;
+    --accent:#3bb5cf; --accent-ink:#04181d; --warn:#ff8fb1; --ok:#69db7c; --field:#0e1315; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1416; --panel:#161c1f; --ink:#e5ebed; --muted:#93a1a7; --line:#2a3438;
+  --accent:#3bb5cf; --accent-ink:#04181d; --warn:#ff8fb1; --ok:#69db7c; --field:#0e1315; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:13px/1.45 var(--font)}
+button,input,select{font:inherit;color:inherit}
+#app{display:grid;grid-template-columns:350px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100%}
+#top{grid-column:1/3;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:600;font-size:14px;letter-spacing:.02em;white-space:nowrap}
+.brand small{font-weight:400;color:var(--muted);margin-left:8px}
+#tools{display:flex;flex-wrap:wrap;gap:4px}
+.tool,.btn{border:1px solid var(--line);background:var(--field);border-radius:4px;padding:5px 10px;cursor:pointer}
+.tool:hover,.btn:hover{border-color:var(--accent)}
+.tool.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--warn)}
+.btn.small{padding:3px 8px;font-size:12px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.top-actions{margin-left:auto;display:flex;gap:6px}
+#side{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;min-width:0}
+.card{padding:12px;border-bottom:1px solid var(--line)}
+#summary{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.stat{min-width:0}
+.stat .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font:500 17px/1.2 var(--mono);font-variant-numeric:tabular-nums}
+.stat .s{font:12px var(--mono);color:var(--muted)}
+.stat.bad .v{color:var(--warn)} .stat.good .v{color:var(--ok)}
+.tabs{display:flex;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
+.tabs button{flex:1;border:0;background:none;padding:9px 4px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.pane{padding:12px;display:none;gap:14px;flex-direction:column}
+.pane.on{display:flex}
+h3{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+label{display:block;font-size:12px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.row>*{min-width:0}
+.field{flex:1 1 70px;display:flex;flex-direction:column;gap:2px}
+input[type=text],input[type=number],input[type=url],select{width:100%;background:var(--field);border:1px solid var(--line);border-radius:4px;padding:5px 7px}
+input[type=number]{font-family:var(--mono)}
+input[type=range]{width:100%}
+.chk{display:flex;gap:7px;align-items:center;color:var(--ink);font-size:13px}
+.msg{font-size:12px;color:var(--muted);min-height:1.2em}
+.msg.err{color:var(--warn)}
+.types{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.typebtn{display:flex;gap:7px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--field);border-radius:4px;padding:6px 8px;cursor:pointer}
+.typebtn.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sw{width:12px;height:12px;border-radius:2px;flex:none}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:4px 5px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted)}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--font)}
+.scroll-x{overflow-x:auto}
+.flag{padding:5px 8px;border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent);margin-bottom:4px;font-size:12px}
+.flag.ok{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.note{font-size:12px;color:var(--muted)}
+.ov{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.ov .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov input[type=range]{grid-column:2/4}
+#mapwrap{position:relative;min-width:0;min-height:0}
+#map{position:absolute;inset:0;background:#cfd6d4}
+#hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(18,24,27,.88);color:#fff;padding:6px 12px;border-radius:4px;font-size:12px;z-index:900;pointer-events:none;max-width:90%;text-align:center}
+#drawbar{position:absolute;right:12px;top:12px;z-index:900;display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:calc(100% - 24px)}
+#drawbar select{width:auto}
+#banner{position:absolute;left:12px;top:12px;z-index:900;max-width:min(420px,60%);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);padding:6px 10px;border-radius:4px;font-size:12px}
+.leaflet-container{font-family:var(--font)}
+[hidden]{display:none!important}
+.vh{width:12px;height:12px;margin:-6px 0 0 -6px;background:#fff;border:2px solid #0a6e83;border-radius:2px;cursor:move}
+#drawInfo{font-family:var(--mono);white-space:nowrap}
+#lenBox{width:96px;font-family:var(--mono)}
+#map:not(.tool-select) .obj-path{pointer-events:none!important}
+#map:not(.tool-parcels):not(.tool-carve) .parcel-path{pointer-events:none!important}
+#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
+.blabel{background:none;border:0;color:#fff;font:500 11px/1.25 var(--font);text-align:center;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;pointer-events:none}
+.dim{background:none;border:0;font:500 11px var(--mono);white-space:nowrap;pointer-events:none;text-align:center}
+.dim span{padding:1px 4px;border-radius:3px;background:rgba(15,20,22,.82);color:#fff;border:1px solid currentColor}
+.dim.property span{color:#ff8fb1}.dim.building span{color:#ffd43b}.dim.road span{color:#74c0fc}
+.dim.bad span{background:#c2255c;color:#fff;border-color:#fff}
+@media (max-width:820px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto 62vh auto;height:auto;min-height:100%}
+  #top{grid-column:1}
+  #mapwrap{order:2;min-height:62vh} #side{order:3;border-right:0}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand">Site Plan Sketcher<small id="projName"></small></div>
+    <div id="tools" role="toolbar" aria-label="Drawing tools">
+      <button class="tool on" data-tool="select" title="Select, move and rotate objects">Select</button>
+      <button class="tool" data-tool="parcels" title="Click parcels to add them to the project site">Pick parcels</button>
+      <button class="tool" data-tool="carve" title="Click parcels to carve them out of the site">Carve parcel</button>
+      <button class="tool" data-tool="carvepoly" title="Draw a shape to carve out of the site">Carve shape</button>
+      <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
+      <button class="tool" data-tool="lot" title="Draw a parking aisle centerline; striped stalls fill in along both sides">Parking lot</button>
+      <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
+      <button class="tool" data-tool="bpoly" title="Draw any building shape corner by corner">Draw building</button>
+      <button class="tool" data-tool="area" title="Draw landscaping, parking or open space">Area</button>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="undoBtn" title="Ctrl+Z">Undo</button>
+      <button class="btn danger" id="newBtn">New project</button>
+    </div>
+  </header>
+
+  <aside id="side">
+    <div class="card" id="summary"></div>
+    <nav class="tabs" role="tablist">
+      <button class="on" data-tab="site">Site</button>
+      <button data-tab="build">Build</button>
+      <button data-tab="check">Check</button>
+      <button data-tab="layers">Layers</button>
+      <button data-tab="layouts">Layouts</button>
+      <button data-tab="export">Export</button>
+    </nav>
+
+    <!-- SITE -->
+    <div class="pane on" id="pane-site">
+      <div>
+        <h3>Parcel service</h3>
+        <label for="svcUrl">ArcGIS REST layer URL (MapServer or FeatureServer)</label>
+        <input type="url" id="svcUrl" value="https://gis.cuyahogacounty.gov/server/rest/services/Open_Data_Parcels/MapServer" spellcheck="false">
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="svcLayer">Layer</label><select id="svcLayer" hidden></select></div>
+          <button class="btn primary" id="loadBtn">Load parcels in view</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn small" id="demoBtn">Use sample parcels</button>
+          <label class="btn small" style="display:inline-block;color:var(--ink);cursor:pointer">Load GeoJSON file<input type="file" id="parcelFile" accept=".geojson,.json" hidden></label>
+        </div>
+        <div class="msg" id="loadMsg"></div>
+        <div class="field" style="margin-top:6px"><label for="labelField">Parcel label field</label><select id="labelField"></select></div>
+      </div>
+      <div>
+        <h3>Go to address</h3>
+        <div class="row"><div class="field"><input type="text" id="addr" placeholder="e.g. 9069 Brecksville Rd, Brecksville OH"></div><button class="btn" id="goBtn">Go</button></div>
+        <div class="msg" id="goMsg"></div>
+      </div>
+      <div>
+        <h3>Project parcels</h3>
+        <div id="parcelSummary" class="note"></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="clearPicks">Clear picks and carve-outs</button></div>
+        <p class="note">Use Pick parcels to click the parcels you are developing. They merge into one boundary. Use Carve parcel or Carve shape to cut out land you are not including.</p>
+      </div>
+    </div>
+
+    <!-- BUILD -->
+    <div class="pane" id="pane-build">
+      <div>
+        <h3>New building</h3>
+        <div class="types" id="types"></div>
+        <div class="row" style="margin-top:8px">
+          <div class="field"><label for="tW">Width ft</label><input type="number" id="tW" min="4" step="1"></div>
+          <div class="field"><label for="tD">Depth ft</label><input type="number" id="tD" min="4" step="1"></div>
+          <div class="field"><label for="tSt">Stories</label><input type="number" id="tSt" min="1" max="20" step="1"></div>
+          <div class="field"><label for="tRot">Rotation °</label><input type="number" id="tRot" step="1"></div>
+        </div>
+        <div class="note" id="tplInfo"></div>
+        <div class="row" style="margin-top:6px"><button class="btn primary" id="placeBtn">Place rectangle</button><button class="btn" id="drawBtn">Draw custom shape</button></div>
+      </div>
+
+      <div id="insB" hidden>
+        <h3>Selected building</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="iName">Name</label><input type="text" id="iName"></div>
+          <div class="field"><label for="iType">Type</label><select id="iType"></select></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field rect-only"><label for="iW">Width ft</label><input type="number" id="iW" min="4" step="0.5"></div>
+          <div class="field rect-only"><label for="iD">Depth ft</label><input type="number" id="iD" min="4" step="0.5"></div>
+          <div class="field"><label for="iSt">Stories</label><input type="number" id="iSt" min="1" max="20"></div>
+          <div class="field"><label for="iUnits">Units</label><input type="number" id="iUnits" min="0" placeholder="auto"></div>
+          <div class="field"><label for="iFood" title="Share of the commercial floor area that is restaurant / bar customer area (1 stall per 50 sf instead of 1 per 200 sf)">Food &amp; drink %</label><input type="number" id="iFood" min="0" max="100" step="5" placeholder="0"></div>
+        </div>
+        <div class="row rect-only" style="margin-top:6px">
+          <div class="field"><label for="iRot">Rotation °</label><input type="number" id="iRot" step="0.1"></div>
+          <div class="field" style="flex:2 1 120px"><label for="iRotRange">&nbsp;</label><input type="range" id="iRotRange" min="-180" max="180" step="1"></div>
+        </div>
+        <div id="iFree" style="margin-top:8px" hidden>
+          <label>Side lengths (type a new length to stretch that side)</label>
+          <div class="scroll-x" id="iSeg"></div>
+          <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="iRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="iRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="iRotBy">Rotate by °</label><input type="number" id="iRotBy" step="0.1" placeholder="e.g. 2.5"></div><button class="btn small" id="iSq" title="Turn so the longest side is parallel or square to the nearest edge">Square to nearest edge</button></div>
+          <div class="note" style="margin-top:4px">Sides that meet at a right angle stay square. Drag the white corner handles on the map to reshape. Q / E rotates.</div>
+        </div>
+        <div class="note" id="iInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn small rect-only" id="iAlign">Align to nearest edge</button>
+          <button class="btn small rect-only" id="iFreeform">Edit as freeform shape</button>
+          <button class="btn small" id="iDup">Duplicate</button>
+          <button class="btn small danger" id="iDel">Delete</button>
+        </div>
+        <h3 style="margin-top:12px">Offsets to neighbors</h3>
+        <div id="iOffs" class="scroll-x"></div>
+      </div>
+
+      <div id="insR" hidden>
+        <h3>Selected road</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="rName">Name</label><input type="text" id="rName"></div>
+          <div class="field"><label for="rWidth">Width ft</label><input type="number" id="rWidth" min="6" step="1"></div>
+        </div>
+        <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="rRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="rRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="rRotBy">Rotate by °</label><input type="number" id="rRotBy" step="1" placeholder="e.g. 30"></div></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="rSq" title="Turn so the longest side is parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small danger" id="rDel">Delete road</button></div>
+      </div>
+
+      <div id="insP" hidden>
+        <h3>Selected parking lot</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="pName">Name</label><input type="text" id="pName"></div>
+          <div class="field"><label for="pAngle">Stall angle</label><select id="pAngle"><option value="0">0° parallel</option><option value="90">90°</option><option value="60">60°</option><option value="45">45°</option></select></div>
+          <div class="field"><label for="pSides">Stalls on</label><select id="pSides"><option value="both">Both sides</option><option value="left">Left</option><option value="right">Right</option></select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="pAisle" title="0 = no aisle: the line is the edge of the stalls">Aisle ft (0 = none)</label><input type="number" id="pAisle" min="0" step="1"></div>
+          <div class="field"><label for="pStallW">Stall width ft</label><input type="number" id="pStallW" min="7" step="0.5"></div>
+          <div class="field"><label for="pStallD">Stall depth ft</label><input type="number" id="pStallD" min="12" step="0.5"></div>
+        </div>
+        <div class="note" id="pInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="pRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="pRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="pRotBy">Rotate by °</label><input type="number" id="pRotBy" step="0.1" placeholder="e.g. 30"></div></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="pSq" title="Turn so the aisle runs parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small" id="pFlip" title="Reverse the aisle direction. Angled stalls lean the other way and left / right swap.">Reverse direction</button><button class="btn small" id="pDup" title="Copy this lot beside the original">Duplicate</button><button class="btn small danger" id="pDel">Delete lot</button></div>
+      </div>
+
+      <div id="insM" hidden>
+        <h3><span id="mCount"></span> shapes selected</h3>
+        <div class="note">Shift+click adds or removes a shape. Shift+drag a box selects everything fully inside it. Drag any selected shape, or use the arrow keys (Shift = 5 ft), to move them together. Q / E rotates the group (Shift = 1°, Alt = 0.1°).</div>
+        <div class="row" style="margin-top:6px;align-items:flex-end">
+          <div class="field"><label for="mDx">East + / West − ft</label><input type="number" id="mDx" step="1" placeholder="0"></div>
+          <div class="field"><label for="mDy">North + / South − ft</label><input type="number" id="mDy" step="1" placeholder="0"></div>
+          <button class="btn small" id="mMove">Move</button>
+        </div>
+        <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="mRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="mRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="mRotBy">Rotate by °</label><input type="number" id="mRotBy" step="1" placeholder="e.g. 30"></div></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="mSq" title="Turn so the longest side is parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small danger" id="mDel">Delete selected</button><button class="btn small" id="mClear">Clear selection</button></div>
+      </div>
+
+      <div id="insA" hidden>
+        <h3>Selected area</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="aName">Name</label><input type="text" id="aName"></div>
+          <div class="field"><label for="aKind">Kind</label><select id="aKind"></select></div>
+        </div>
+        <div class="note" id="aInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="aRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="aRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="aRotBy">Rotate by °</label><input type="number" id="aRotBy" step="1" placeholder="e.g. 30"></div></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="aSq" title="Turn so the longest side is parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small danger" id="aDel">Delete area</button></div>
+      </div>
+
+      <div>
+        <h3>Roads</h3>
+        <div class="row">
+          <div class="field"><label for="roadPreset">Type</label>
+            <select id="roadPreset">
+              <option value="26">Local street 26 ft</option><option value="36">Collector 36 ft</option>
+              <option value="24">Drive aisle 24 ft</option><option value="20">Private drive 20 ft</option>
+              <option value="16">Alley 16 ft</option><option value="0">Custom…</option>
+            </select></div>
+          <div class="field"><label for="roadW">Width ft</label><input type="number" id="roadW" min="6" step="1" value="26"></div>
+        </div>
+      </div>
+      <div>
+        <h3>Parking lots</h3>
+        <div class="note">Choose Parking lot, then click points to pull a line; stalls appear along it, spaced to fit. For a bare row with no drive aisle pick "Row of stalls" or "Parallel" (aisle 0). Use Stalls on / Flip to put them on either side; set the angle to 0° for parallel parking (Width is the depth off the line, Depth is the length along it).</div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="lotPreset">Layout</label>
+            <select id="lotPreset">
+              <option value="row">Row of stalls, 90° (no aisle)</option><option value="par">Parallel parking, 8 × 22 (no aisle)</option>
+              <option value="std">90° two-way, 24 ft aisle</option><option value="a60">60° one-way, 16 ft aisle</option>
+              <option value="a45">45° one-way, 13 ft aisle</option><option value="compact">90° compact 8.5 × 16 (needs Commission OK)</option><option value="custom">Custom…</option>
+            </select></div>
+          <div class="field"><label for="lotSides">Stalls on</label><select id="lotSides"><option value="both">Both sides</option><option value="left">Left of the line</option><option value="right">Right of the line</option></select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="lotAngle">Angle</label><select id="lotAngle"><option value="0">0° parallel</option><option value="90">90°</option><option value="60">60°</option><option value="45">45°</option></select></div>
+          <div class="field"><label for="lotAisle" title="0 = no aisle: the line is the edge of the stalls">Aisle ft (0 = none)</label><input type="number" id="lotAisle" min="0" step="1" value="0"></div>
+          <div class="field"><label for="lotStallW">Stall W ft</label><input type="number" id="lotStallW" min="7" step="0.5" value="10"></div>
+          <div class="field"><label for="lotStallD">Depth ft</label><input type="number" id="lotStallD" min="12" step="0.5" value="20"></div>
+        </div>
+      </div>
+      <div>
+        <h3>Areas</h3>
+        <div class="field"><label for="areaKind">Draw as</label><select id="areaKind"></select></div>
+      </div>
+      <div>
+        <h3>Snapping</h3>
+        <label class="chk"><input type="checkbox" id="oVsnap" checked> Snap drawn points to parcel corners and edges</label>
+        <label class="chk"><input type="checkbox" id="oAlign" checked> Rotate buildings to match the nearest property or road edge</label>
+        <label class="chk"><input type="checkbox" id="oHold" checked> Hold the required setback near an edge (needs the rotation snap above)</label>
+        <label class="chk"><input type="checkbox" id="oEdge" checked> Snap to the edges and corners of other buildings, areas and roads (gap is set on the Check tab)</label>
+        <div class="note">Hold Shift to turn snapping off for one move. Q / E rotates 15° (Shift = 1°, Alt = 0.1°). Arrow keys nudge 1 ft (Shift for 5 ft). While drawing, type a number and press Enter to set the next side to that exact length.</div>
+      </div>
+    </div>
+
+    <!-- CHECK -->
+    <div class="pane" id="pane-check">
+      <div>
+        <h3>Rules</h3>
+        <div class="row">
+          <div class="field"><label for="sSetback">Setback to property line ft</label><input type="number" id="sSetback" min="0" step="1"></div>
+          <div class="field"><label for="sSnapGap">Gap when snapping to another shape ft</label><input type="number" id="sSnapGap" min="0" step="0.5"></div>
+          <div class="field"><label for="sSetRoad">Setback to road edge ft</label><input type="number" id="sSetRoad" min="0" step="1"></div>
+          <div class="field"><label for="sSep">Building separation ft</label><input type="number" id="sSep" min="0" step="1"></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="sParkRes">Stalls per house / townhome</label><input type="number" id="sParkRes" min="0" step="0.25"></div>
+          <div class="field"><label for="sParkApt">Stalls per apartment</label><input type="number" id="sParkApt" min="0" step="0.25"></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="sParkComm">Stalls per 1,000 sf business / office</label><input type="number" id="sParkComm" min="0" step="0.5"></div>
+          <div class="field"><label for="sParkFood">Stalls per 1,000 sf food &amp; drink</label><input type="number" id="sParkFood" min="0" step="0.5"></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="sStall">Gross sf per stall (with aisle)</label><input type="number" id="sStall" min="150" step="5"></div>
+          <div class="field"><label for="sUnitSf">Average unit sf</label><input type="number" id="sUnitSf" min="300" step="50"></div>
+        </div>
+        <div class="note">Defaults are Brecksville Codified Ordinances §1183.05 (house/townhome 2 enclosed; apartment 2.25 incl. 1 enclosed; business/office 1 per 200 sf; food &amp; drink 1 per 50 sf). Confirm with Planning &amp; Zoning. Offsets turn magenta when they fall short.</div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="oDimsAll"> Show offset dimensions for every building</label>
+      </div>
+      <div><h3>Checks</h3><div id="checks"></div></div>
+      <div><h3>Schedule</h3><div class="scroll-x" id="sched"></div></div>
+    </div>
+
+    <!-- LAYERS -->
+    <div class="pane" id="pane-layers">
+      <div class="field"><label for="baseSel">Basemap</label>
+        <select id="baseSel"><option value="imagery">Aerial imagery</option><option value="streets">Streets</option></select></div>
+      <div>
+        <h3>Reference layers</h3>
+        <div class="row">
+          <div class="field"><label for="ovPreset">Add a known layer</label><select id="ovPreset"></select></div>
+          <button class="btn" id="ovPresetAdd">Add</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="field"><label for="ovUrl">Or paste any ArcGIS REST URL</label><input type="url" id="ovUrl" placeholder="https://…/MapServer or …/FeatureServer/0" spellcheck="false"></div>
+          <button class="btn" id="ovUrlAdd">Add</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label class="btn small" style="display:inline-block;color:var(--ink);cursor:pointer">Add GeoJSON file (utility lines, CAD exports)<input type="file" id="ovFile" accept=".geojson,.json" hidden></label>
+        </div>
+        <div class="msg" id="ovMsg"></div>
+        <div id="ovList"></div>
+      </div>
+      <div class="note" id="utilNote"></div>
+    </div>
+
+    <!-- EXPORT -->
+    <!-- LAYOUTS -->
+    <div class="pane" id="pane-layouts">
+      <div>
+        <h3>Save this layout</h3>
+        <div class="note">Keep several versions of the same site and flip between them. Layouts are stored in this browser, and you can download any of them as a file.</div>
+        <div class="row" style="margin-top:6px;align-items:flex-end">
+          <div class="field" style="flex:2 1 150px"><label for="lyName">Name</label><input type="text" id="lyName" placeholder="Option A: U-shape, courtyard parking"></div>
+          <button class="btn primary" id="lySave">Save as new layout</button>
+        </div>
+      </div>
+      <div>
+        <h3>Saved layouts</h3>
+        <div id="lyList"></div>
+      </div>
+      <div>
+        <h3>Compare</h3>
+        <div class="scroll-x" id="lyCompare"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn small" id="lyCsv">Download comparison (CSV)</button>
+          <button class="btn small" id="lyAll">Download all layouts (.json)</button>
+          <label class="btn small" style="display:inline-block;cursor:pointer">Import layouts or a project file<input type="file" id="lyImport" accept=".json" hidden></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-export">
+      <div>
+        <h3>Site plan files</h3>
+        <div class="row" style="flex-direction:column;align-items:stretch">
+          <button class="btn primary" id="xGeo">GeoJSON (WGS84) for ArcGIS Pro or QGIS</button>
+          <button class="btn" id="xCsv">Building schedule (CSV)</button>
+          <div class="field"><label for="dxfCoords">DXF coordinates</label>
+            <select id="dxfCoords"><option value="sp">Ohio North State Plane (ftUS)</option><option value="local">Local feet from site corner</option></select></div>
+          <button class="btn" id="xDxf">DXF for CAD</button>
+        </div>
+      </div>
+      <div>
+        <h3>Project file</h3>
+        <div class="row">
+          <button class="btn" id="xProj">Save project (.json)</button>
+          <label class="btn" style="display:inline-block;cursor:pointer">Open project<input type="file" id="openProj" accept=".json" hidden></label>
+        </div>
+        <div class="note">The project also saves in this browser automatically.</div>
+      </div>
+    </div>
+  </aside>
+
+  <main id="mapwrap">
+    <div id="map" class="tool-select"></div>
+    <div id="banner" hidden></div>
+    <div id="drawbar" hidden>
+      <select id="drawType" title="Building type" aria-label="Building type"></select>
+      <select id="angMode" title="Angle snapping" aria-label="Angle snapping"><option value="ortho">Right angles</option><option value="step15">15° steps</option><option value="free">Free angle</option></select>
+      <input type="text" id="lenBox" inputmode="decimal" placeholder="Length ft" autocomplete="off" aria-label="Exact length of the next side in feet">
+      <span id="drawInfo"></span>
+      <button class="btn primary" id="finishBtn">Finish</button><button class="btn" id="cancelBtn">Cancel</button>
+    </div>
+    <div id="hint"></div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+<script>
+(function(){
+'use strict';
+
+/*<<CORE*/
+// Local planar coordinates in feet, east = +x, north = +y, around a movable origin.
+var ORG={lng:-81.6268,lat:41.3198,kx:1,ky:1};
+function setOrg(lng,lat){
+  ORG.lng=lng; ORG.lat=lat; var p=lat*Math.PI/180;
+  var mLat=111132.92-559.82*Math.cos(2*p)+1.175*Math.cos(4*p);
+  var mLng=111412.84*Math.cos(p)-93.5*Math.cos(3*p);
+  ORG.ky=mLat/0.3048; ORG.kx=mLng/0.3048;
+}
+setOrg(ORG.lng,ORG.lat);
+function toLocal(ll){return [(ll[0]-ORG.lng)*ORG.kx,(ll[1]-ORG.lat)*ORG.ky];}
+function toLL(p){return [ORG.lng+p[0]/ORG.kx,ORG.lat+p[1]/ORG.ky];}
+function normAngle(a){a=((a+180)%360+360)%360-180;return a;}
+function ptSegDist(p,a,b){
+  var dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy,t=l2?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2:0;
+  t=Math.max(0,Math.min(1,t)); var x=a[0]+t*dx,y=a[1]+t*dy;
+  return {d:Math.hypot(p[0]-x,p[1]-y),pt:[x,y]};
+}
+function segRay(p,r,a,b){ // ray p + t*r (t>0) against segment a-b, returns t or null
+  var sx=b[0]-a[0],sy=b[1]-a[1],den=r[0]*sy-r[1]*sx;
+  if(Math.abs(den)<1e-12) return null;
+  var qx=a[0]-p[0],qy=a[1]-p[1];
+  var t=(qx*sy-qy*sx)/den,u=(qx*r[1]-qy*r[0])/den;
+  if(t>1e-9&&u>=-1e-9&&u<=1+1e-9) return t;
+  return null;
+}
+function segsOf(ring){
+  var n=ring.length; if(n<2) return [];
+  var closed=ring[0][0]===ring[n-1][0]&&ring[0][1]===ring[n-1][1];
+  var m=closed?n-1:n,out=[];
+  for(var i=0;i<m;i++) out.push([ring[i],ring[(i+1)%m]]);
+  return out;
+}
+function pointInRing(p,ring){
+  var c=false,n=ring.length;
+  for(var i=0,j=n-1;i<n;j=i++){
+    var xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>p[1])!==(yj>p[1]))&&(p[0]<(xj-xi)*(p[1]-yi)/(yj-yi)+xi)) c=!c;
+  }
+  return c;
+}
+function pointInPoly(p,poly){
+  if(!pointInRing(p,poly[0])) return false;
+  for(var i=1;i<poly.length;i++) if(pointInRing(p,poly[i])) return false;
+  return true;
+}
+function pointInAny(p,polys){for(var i=0;i<polys.length;i++) if(pointInPoly(p,polys[i])) return true;return false;}
+function segCross(a,b,c,d){
+  function o(p,q,r){return (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);}
+  var d1=o(a,b,c),d2=o(a,b,d),d3=o(c,d,a),d4=o(c,d,b);
+  return ((d1>0&&d2<0)||(d1<0&&d2>0))&&((d3>0&&d4<0)||(d3<0&&d4>0));
+}
+function ringsCross(A,B){
+  var sa=segsOf(A),sb=segsOf(B);
+  for(var i=0;i<sa.length;i++) for(var j=0;j<sb.length;j++) if(segCross(sa[i][0],sa[i][1],sb[j][0],sb[j][1])) return true;
+  return false;
+}
+function minRingDist(A,B){
+  var best={d:Infinity,pa:null,pb:null},sa=segsOf(A),sb=segsOf(B),i,j,r;
+  for(i=0;i<A.length;i++) for(j=0;j<sb.length;j++){r=ptSegDist(A[i],sb[j][0],sb[j][1]);if(r.d<best.d)best={d:r.d,pa:A[i],pb:r.pt};}
+  for(i=0;i<B.length;i++) for(j=0;j<sa.length;j++){r=ptSegDist(B[i],sa[j][0],sa[j][1]);if(r.d<best.d)best={d:r.d,pa:r.pt,pb:B[i]};}
+  return best;
+}
+function polyAreaSigned(r){var s=0,n=r.length;for(var i=0;i<n;i++){var a=r[i],b=r[(i+1)%n];s+=a[0]*b[1]-b[0]*a[1];}return s/2;}
+function polyCentroid(r){
+  var A=polyAreaSigned(r),n=r.length,cx=0,cy=0,i;
+  if(Math.abs(A)<1e-9){var sx=0,sy=0;for(i=0;i<n;i++){sx+=r[i][0];sy+=r[i][1];}return [sx/n,sy/n];}
+  for(i=0;i<n;i++){var a=r[i],b=r[(i+1)%n],f=a[0]*b[1]-b[0]*a[1];cx+=(a[0]+b[0])*f;cy+=(a[1]+b[1])*f;}
+  return [cx/(6*A),cy/(6*A)];
+}
+function bldgRingLocal(b){
+  if(b.pts)return b.pts.map(toLocal);
+  var c=toLocal(b.c),a=b.rot*Math.PI/180,co=Math.cos(a),si=Math.sin(a),hw=b.w/2,hd=b.d/2;
+  return [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(function(q){return [c[0]+q[0]*co-q[1]*si,c[1]+q[0]*si+q[1]*co];});
+}
+function compass(n){
+  var bearing=(Math.atan2(n[0],n[1])*180/Math.PI+360)%360;
+  return ['North','Northeast','East','Southeast','South','Southwest','West','Northwest'][Math.round(bearing/45)%8];
+}
+// One perpendicular ray from the middle of each side to the nearest property line, road edge or other building.
+function computeOffsets(b,ring,ctx,others){
+  var n=ring.length,sgn=polyAreaSigned(ring)>=0?1:-1,res=[];
+  for(var i=0;i<n;i++){
+    var p0=ring[i],p1=ring[(i+1)%n],dx=p1[0]-p0[0],dy=p1[1]-p0[1],len=Math.hypot(dx,dy);
+    if(len<6) continue;
+    var m=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2],nr=[sgn*dy/len,-sgn*dx/len],best=null;
+    var test=function(rings,kind){
+      for(var k=0;k<rings.length;k++){
+        var sg=segsOf(rings[k]);
+        for(var j=0;j<sg.length;j++){var t=segRay(m,nr,sg[j][0],sg[j][1]);if(t!==null&&(!best||t<best.t))best={t:t,kind:kind};}
+      }
+    };
+    test(ctx.siteRings,'property'); test(ctx.roadRings,'road'); test([ring],'self');
+    for(var q=0;q<others.length;q++) test([others[q].ring],'building');
+    if(best&&best.kind==='self') continue;
+    res.push(best?{side:i,dir:compass(nr),from:m,to:[m[0]+nr[0]*best.t,m[1]+nr[1]*best.t],dist:best.t,kind:best.kind}:{side:i,dir:compass(nr),from:m,to:null,dist:null,kind:null});
+  }
+  return res;
+}
+/*>>CORE*/
+
+// ---------- constants ----------
+var SQFT=10.7639104, ACRE=43560;
+var TYPES={
+  sf:{name:'Single-family',w:42,d:55,st:2,color:'#f59f00',code:'SF'},
+  th:{name:'Townhome row',w:88,d:42,st:3,color:'#e8590c',code:'TH',unitW:22},
+  mu:{name:'Mixed-use',w:70,d:110,st:4,color:'#ae3ec9',code:'MU'},
+  apt:{name:'Apartment',w:90,d:160,st:4,color:'#1c7ed6',code:'APT'},
+  com:{name:'Commercial',w:80,d:120,st:1,color:'#2f9e44',code:'COM'},
+  acc:{name:'Garage / accessory',w:24,d:24,st:1,color:'#868e96',code:'GAR'}
+};
+var AREAS={
+  land:{name:'Landscaping',color:'#51cf66'},
+  open:{name:'Open space',color:'#a9e34b'},
+  park:{name:'Parking',color:'#adb5bd',imperv:true},
+  pond:{name:'Detention / stormwater',color:'#4dabf7'},
+  hard:{name:'Sidewalk / plaza',color:'#dee2e6',imperv:true}
+};
+var PRESETS=[
+  {name:'Cuyahoga parcels (open data)',url:'https://gis.cuyahogacounty.gov/server/rest/services/Open_Data_Parcels/MapServer'},
+  {name:'Cuyahoga sewer-assessed parcels',url:'https://gis.cuyahogacounty.gov/server/rest/services/CCDPW/Sewer_Assessed_Parcels/MapServer'},
+  {name:'FEMA flood hazard (NFHL tiles)',url:'https://tiles.arcgis.com/tiles/hGdibHYSPO59RG1h/arcgis/rest/services/FEMA_National_Flood_Hazard_Layer/MapServer',tiled:true}
+];
+
+function $(s){return document.querySelector(s);}
+function $$(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function n0(x){return Math.round(x).toLocaleString();}
+function n1(x){return (Math.round(x*10)/10).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});}
+function ftf(x){return n1(x)+'′';}
+function num(el,def){var v=parseFloat(el.value);return isFinite(v)?v:def;}
+function closeRing(r){var a=r.slice();if(a.length&&(a[0][0]!==a[a.length-1][0]||a[0][1]!==a[a.length-1][1]))a.push(a[0]);return a;}
+
+// ---------- state ----------
+var S={
+  tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
+  roads:[],buildings:[],areas:[],sel:null,
+  tpl:{type:'th',w:88,d:42,st:3,rot:0},
+  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15},
+  opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
+  roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
+  angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free'},snapSkip:null
+};
+var undoStack=[],shiftHeld=false,drag=null,D=null,ghostLL=null,raf=0;
+
+// ---------- map ----------
+var map=L.map('map',{doubleClickZoom:false,maxZoom:21,zoomSnap:0.5}).setView([41.3198,-81.6268],17);
+var panes=[['pParcels',405],['pAreas',410],['pRoads',415],['pLots',417],['pSite',420],['pBldg',430],['pDims',440],['pDraw',450]];
+panes.forEach(function(p){var e=map.createPane(p[0]);e.style.zIndex=p[1];});
+var baseLayers={
+  imagery:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,maxZoom:21,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}),
+  streets:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxNativeZoom:19,maxZoom:21,attribution:'© OpenStreetMap contributors'})
+};
+var gParcels=L.layerGroup().addTo(map),gAreas=L.layerGroup().addTo(map),gRoads=L.layerGroup().addTo(map),
+    gSite=L.layerGroup().addTo(map),gBldg=L.layerGroup().addTo(map),gDims=L.layerGroup().addTo(map),
+    gDraw=L.layerGroup().addTo(map),gGhost=L.layerGroup().addTo(map),gHandles=L.layerGroup().addTo(map);
+function setBase(k){
+  Object.keys(baseLayers).forEach(function(x){if(map.hasLayer(baseLayers[x]))map.removeLayer(baseLayers[x]);});
+  baseLayers[k].addTo(map);baseLayers[k].bringToBack();S.base=k;
+  if(S.parcels)drawParcels();
+}
+
+// ---------- undo / persistence ----------
+function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,nextId:S.nextId,counters:S.counters});}
+function pushUndo(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();}
+function restore(str){
+  var o=JSON.parse(str);
+  S.selected=new Set(o.selected);S.carved=new Set(o.carved);S.carveShapes=o.carveShapes;S.roads=o.roads;
+  S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
+  siteChanged();
+}
+function undo(){if(D){D.pts.pop();drawPreview();return;}if(!undoStack.length)return;restore(undoStack.pop());}
+function projectJSON(){
+  var keep=[];
+  if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.push(f);});
+  return {v:1,org:[ORG.lng,ORG.lat],labelField:S.labelField,parcels:{type:'FeatureCollection',features:keep},
+    selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,roads:S.roads,buildings:S.buildings,
+    areas:S.areas,lots:S.lots,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
+    overlays:S.overlays.filter(function(o){return o.url;}).map(function(o){return {name:o.name,url:o.url,tiled:o.tiled,opacity:o.opacity};})};
+}
+function saveLocal(){try{localStorage.setItem('sitePlanSketcher.v1',JSON.stringify(projectJSON()));}catch(e){}if(typeof renderLayouts==='function'&&$('#pane-layouts').classList.contains('on'))renderLayouts();}
+function loadProject(o){
+  if(o.org)setOrg(o.org[0],o.org[1]);
+  S.parcels=o.parcels||null;S.labelField=o.labelField||null;
+  S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
+  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];
+  if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
+  S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
+  fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
+  if(o.overlays&&o.overlays.length&&!S.overlays.length)o.overlays.forEach(addOverlay);
+}
+
+// ---------- site geometry ----------
+var siteWarn=0;
+function computeSite(){
+  siteWarn=0;
+  if(!S.parcels)return null;
+  var u=null;
+  S.parcels.features.forEach(function(f){
+    if(!S.selected.has(f.properties.__pid))return;
+    try{u=u?turf.union(u,turf.feature(f.geometry)):turf.feature(f.geometry);}catch(e){console.warn('union',e);siteWarn++;}
+  });
+  if(!u)return null;
+  S.parcels.features.forEach(function(f){
+    if(!u||!S.carved.has(f.properties.__pid))return;
+    try{u=turf.difference(u,turf.feature(f.geometry));}catch(e){console.warn('carve',e);siteWarn++;}
+  });
+  S.carveShapes.forEach(function(c){
+    if(!u)return;
+    try{u=turf.difference(u,turf.polygon([closeRing(c.ring)]));}catch(e){console.warn('carve shape',e);siteWarn++;}
+  });
+  return u;
+}
+var roadCache=new Map();
+function roadPoly(r){
+  var key=r.width+'|'+r.pts.map(function(p){return p[0].toFixed(7)+','+p[1].toFixed(7);}).join(';');
+  if(roadCache.has(key))return roadCache.get(key);
+  if(roadCache.size>200)roadCache.clear();
+  var f=null;
+  try{f=turf.buffer(turf.lineString(r.pts),r.width/2*0.3048,{units:'meters',steps:8});}catch(e){console.warn('buffer',e);}
+  roadCache.set(key,f);return f;
+}
+function polysOf(f){if(!f)return [];var g=f.geometry;return g.type==='Polygon'?[g.coordinates]:g.coordinates;}
+function buildCtx(){
+  var sitePolys=[],siteRings=[],roadPolys=[];
+  polysOf(S.site).forEach(function(p){var lp=p.map(function(r){return r.map(toLocal);});sitePolys.push(lp);lp.forEach(function(r){siteRings.push(r);});});
+  S.roads.forEach(function(r){polysOf(roadPoly(r)).forEach(function(p){roadPolys.push(p.map(function(ring){return ring.map(toLocal);}));});});
+  var roadRings=[];roadPolys.forEach(function(p){p.forEach(function(r){roadRings.push(r);});});
+  var lines=siteRings.map(function(r){return {ring:r,kind:'property'};}).concat(roadRings.map(function(r){return {ring:r,kind:'road'};}));
+  var rings={};S.buildings.forEach(function(b){rings[b.id]=bldgRingLocal(b);});
+  var shapeLines=[];
+  S.buildings.forEach(function(b){shapeLines.push({ring:rings[b.id],id:b.id,k:'b'});});
+  S.areas.forEach(function(a){shapeLines.push({ring:a.ring.map(toLocal),id:a.id,k:'a'});});
+  S.ctx={sitePolys:sitePolys,siteRings:siteRings,roadPolys:roadPolys,roadRings:roadRings,lines:lines,rings:rings,shapeLines:shapeLines};
+  // snap candidates in lng/lat
+  var v=[],sg=[];
+  polysOf(S.site).forEach(function(p){p.forEach(function(r){r.forEach(function(q){v.push(q);});for(var i=0;i<r.length-1;i++)sg.push([r[i],r[i+1]]);});});
+  S.buildings.forEach(function(b){if(b.id===S.snapSkip)return;bldgRingLocal(b).forEach(function(q){v.push(toLL(q));});});
+  S.roads.forEach(function(r){r.pts.forEach(function(q){v.push(q);});});
+  S.areas.forEach(function(a){a.ring.forEach(function(q){v.push(q);});});
+  function addSegs(r){for(var i=0;i<r.length;i++){var a=r[i],b2=r[(i+1)%r.length];if(a[0]!==b2[0]||a[1]!==b2[1])sg.push([a,b2]);}}
+  S.buildings.forEach(function(b){if(b.id!==S.snapSkip)addSegs(bldgRingLocal(b).map(toLL));});
+  S.areas.forEach(function(a){addSegs(a.ring);});
+  roadRings.forEach(function(r){var rl=r.map(toLL);rl.forEach(function(q){v.push(q);});addSegs(rl);});
+  S.lotG={};
+  S.lots.forEach(function(l){
+    var g=lotGeom(l);S.lotG[l.id]=g;
+    l.pts.forEach(function(q){v.push(q);});
+    if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(r){r.forEach(function(q){v.push(q);});addSegs(r);});});
+    g.stalls.forEach(function(r){addSegs(r.map(toLL));});
+  });
+  S.snapV=v;S.snapSegs=sg;
+}
+// Do two convex outlines overlap by more than eps feet? (separating-axis test)
+function quadsOverlap(A,B,eps){
+  var polys=[A,B];
+  for(var k=0;k<2;k++){
+    var P=polys[k];
+    for(var i=0;i<P.length;i++){
+      var a=P[i],b=P[(i+1)%P.length],nx=a[1]-b[1],ny=b[0]-a[0],l=Math.hypot(nx,ny);if(l<1e-9)continue;nx/=l;ny/=l;
+      var a0=1e18,a1=-1e18,b0=1e18,b1=-1e18,j,d;
+      for(j=0;j<A.length;j++){d=A[j][0]*nx+A[j][1]*ny;if(d<a0)a0=d;if(d>a1)a1=d;}
+      for(j=0;j<B.length;j++){d=B[j][0]*nx+B[j][1]*ny;if(d<b0)b0=d;if(d>b1)b1=d;}
+      if(a1<=b0+eps||b1<=a0+eps)return false;
+    }
+  }
+  return true;
+}
+// ---- parking lot geometry: a drive aisle with stalls striped on one or both sides ----
+// lot = {pts: aisle centerline (lng/lat), aisleW, stallW, stallD (depth square to the aisle), angle (90/60/45), sides}
+function lotGeom(lot){
+  var res={aisle:null,stalls:[],count:0,stallSf:0};
+  if(!lot.pts||lot.pts.length<2)return res;
+  var f=null;
+  if(lot.aisleW>0){try{f=turf.buffer(turf.lineString(lot.pts),lot.aisleW/2*0.3048,{units:'meters',steps:8});}catch(e){return res;}}
+  res.aisle=f;res.row=!f;
+  var ctx=S.ctx,P=lot.pts.map(toLocal),th=lot.angle*Math.PI/180,
+      par=lot.angle<1, // 0 deg = parallel: the long side (Depth) runs along the line, the short side (Width) is the depth off the line
+      pitch=par?lot.stallD:lot.stallW/Math.sin(th),perp=par?lot.stallW:lot.stallD,
+      shift=(par||lot.angle>=89.9)?0:lot.stallD/Math.tan(th),half=(lot.aisleW||0)/2,
+      aisleRings=(f?polysOf(f):[]).map(function(pl){return pl.map(function(r){return r.map(toLocal);});}),
+      sides=lot.sides==='left'?[1]:(lot.sides==='right'?[-1]:[1,-1]),centers=[];
+  function ok(c,q){
+    // the stall's far corners and side midpoints must not run into any aisle (this keeps corners of a bent aisle clean)
+    var probes=[q[2],q[3],[(q[0][0]+q[3][0])/2,(q[0][1]+q[3][1])/2],[(q[1][0]+q[2][0])/2,(q[1][1]+q[2][1])/2]];
+    for(var pi=0;pi<probes.length;pi++)if(pointInAny(probes[pi],aisleRings))return false;
+    if(ctx){
+      if(ctx.sitePolys.length&&!pointInAny(c,ctx.sitePolys))return false;
+      if(pointInAny(c,ctx.roadPolys))return false;
+      for(var id in ctx.rings)if(pointInRing(c,ctx.rings[id]))return false;
+    }
+    if(pointInAny(c,aisleRings))return false;
+    for(var i=0;i<centers.length;i++){
+      if(Math.hypot(c[0]-centers[i][0],c[1]-centers[i][1])>lot.stallD*2+lot.stallW)continue;
+      if(quadsOverlap(q,res.stalls[i],0.5))return false;
+    }
+    return true;
+  }
+  for(var i=0;i<P.length-1;i++){
+    var a=P[i],b=P[i+1],len=Math.hypot(b[0]-a[0],b[1]-a[1]);if(len<1e-6)continue;
+    var u=[(b[0]-a[0])/len,(b[1]-a[1])/len];
+    sides.forEach(function(sd){
+      var nn=[-u[1]*sd,u[0]*sd],cnt=Math.floor((len-shift)/pitch+1e-9);
+      for(var j=0;j<cnt;j++){
+        var q0=[a[0]+u[0]*j*pitch+nn[0]*half,a[1]+u[1]*j*pitch+nn[1]*half],
+            q1=[q0[0]+u[0]*pitch,q0[1]+u[1]*pitch],
+            q2=[q1[0]+nn[0]*perp+u[0]*shift,q1[1]+nn[1]*perp+u[1]*shift],
+            q3=[q0[0]+nn[0]*perp+u[0]*shift,q0[1]+nn[1]*perp+u[1]*shift],
+            c=[(q0[0]+q1[0]+q2[0]+q3[0])/4,(q0[1]+q1[1]+q2[1]+q3[1])/4];
+        if(!ok(c,[q0,q1,q2,q3]))continue;
+        centers.push(c);res.stalls.push([q0,q1,q2,q3]);res.stallSf+=Math.abs(polyAreaSigned([q0,q1,q2,q3]));
+      }
+    });
+  }
+  res.count=res.stalls.length;
+  return res;
+}
+function bType(b){return TYPES[b.type]||TYPES.sf;}
+function fpOf(b){return b.pts?Math.abs(polyAreaSigned(b.pts.map(toLocal))):b.w*b.d;}
+function recenter(b){b.c=toLL(polyCentroid(b.pts.map(toLocal)));}
+function unitsAuto(b){
+  var fp=fpOf(b);
+  if(b.type==='sf')return 1;
+  if(b.type==='th')return Math.max(1,Math.round(b.pts?fp/(TYPES.th.unitW*TYPES.th.d):b.w/TYPES.th.unitW));
+  if(b.type==='mu')return Math.max(0,Math.round((b.st-1)*fp*0.85/S.set.unitSf));
+  if(b.type==='apt')return Math.max(0,Math.round(b.st*fp*0.85/S.set.unitSf));
+  return 0;
+}
+function unitsOf(b){return (b.units===null||b.units===undefined||b.units==='')?unitsAuto(b):b.units;}
+function commSf(b){var fp=fpOf(b);return b.type==='mu'?fp:(b.type==='com'?fp*b.st:0);}
+// Brecksville Codified Ordinances 1183.05: per-use minimum parking
+function parkReq(b){
+  var u=unitsOf(b),cs=commSf(b),fs=Math.min(100,Math.max(0,+b.fs||0))/100,n=0,enc=0,r=[];
+  if(b.type==='sf'||b.type==='th'){n+=u*S.set.parkRes;enc+=u*2;if(u)r.push(u+' dwelling'+(u>1?'s':'')+' × '+S.set.parkRes+' (§1183.05(a)(1))');}
+  else if(b.type==='apt'||b.type==='mu'){n+=u*S.set.parkApt;enc+=u;if(u)r.push(u+' apt units × '+S.set.parkApt+' (§1183.05(a)(2))');}
+  if(cs>0){
+    var fd=cs*fs,gen=cs-fd;
+    if(gen>0){n+=gen/1000*S.set.parkComm;r.push(n0(gen)+' sf business ÷ '+Math.round(1000/(S.set.parkComm||1))+' (§1183.05(c)(1))');}
+    if(fd>0){n+=fd/1000*S.set.parkFood;r.push(n0(fd)+' sf food/drink ÷ '+Math.round(1000/(S.set.parkFood||1))+' (§1183.05(c)(2))');}
+  }
+  return {n:n,enc:enc,rule:r.join(' + ')};
+}
+function codeRound(x){var f=Math.floor(x+1e-9);return f+((x-f)>0.5+1e-9?1:0);}// fraction over 1/2 counts as one space (§1183.04(b))
+function areaOf(f){return turf.area(f)*SQFT;}
+function areaInSite(f){
+  if(!S.site)return areaOf(f);
+  try{var i=turf.intersect(f,S.site);return i?areaOf(i):0;}catch(e){return areaOf(f);}
+}
+function areaFeat(a){return turf.polygon([closeRing(a.ring)]);}
+
+// ---------- checks and stats ----------
+function computeChecks(){
+  var res=[],c=S.ctx;
+  S.buildings.forEach(function(b){
+    var ring=c.rings[b.id],msgs=[],info={b:b,minProp:null,offsets:null};
+    var inside=!!S.site&&ring.every(function(p){return pointInAny(p,c.sitePolys);})&&!c.siteRings.some(function(r){return ringsCross(ring,r);});
+    if(S.site){
+      if(!inside)msgs.push('Crosses or sits outside the site boundary.');
+      else{
+        var best=Infinity;c.siteRings.forEach(function(r){var m=minRingDist(ring,r);if(m.d<best)best=m.d;});
+        info.minProp=best;
+        if(best<S.set.setback-0.05)msgs.push('Closest approach to a property line is '+ftf(best)+', setback is '+ftf(S.set.setback)+'.');
+      }
+    }
+    S.buildings.forEach(function(o){
+      if(o.id<=b.id)return;
+      var r2=c.rings[o.id];
+      var overlap=ringsCross(ring,r2)||ring.some(function(p){return pointInRing(p,r2);})||r2.some(function(p){return pointInRing(p,ring);});
+      if(overlap){msgs.push('Overlaps '+o.name+'.');return;}
+      var d=minRingDist(ring,r2).d;
+      if(d<S.set.sep-0.05)msgs.push(ftf(d)+' to '+o.name+', separation is '+ftf(S.set.sep)+'.');
+    });
+    var roadHit=false;
+    c.roadPolys.forEach(function(rp){
+      if(roadHit)return;
+      if(ring.some(function(p){return pointInPoly(p,rp);})||rp[0].some(function(p){return pointInRing(p,ring);})||rp.some(function(r){return ringsCross(ring,r);}))roadHit=true;
+    });
+    if(roadHit)msgs.push('Overlaps a road.');
+    else if(c.roadRings.length){
+      var rb=Infinity;c.roadRings.forEach(function(r){var m=minRingDist(ring,r);if(m.d<rb)rb=m.d;});
+      if(rb<S.set.setRoad-0.05)msgs.push(ftf(rb)+' to a road edge, setback is '+ftf(S.set.setRoad)+'.');
+    }
+    var others=S.buildings.filter(function(o){return o.id!==b.id;}).map(function(o){return {ring:c.rings[o.id]};});
+    info.offsets=computeOffsets(b,ring,c,others);
+    info.msgs=msgs;res.push(info);
+  });
+  return res;
+}
+function computeStats(checks){
+  var st={siteSf:0,fp:0,gfa:0,units:0,comm:0,roadSf:0,parkSf:0,hardSf:0,greenSf:0,pondSf:0,reqStalls:0,provStalls:0};
+  if(S.site)st.siteSf=areaOf(S.site);
+  S.buildings.forEach(function(b){var f=fpOf(b);st.fp+=f;st.gfa+=f*b.st;st.units+=unitsOf(b);st.comm+=commSf(b);});
+  var ru=null;S.roads.forEach(function(r){var f=roadPoly(r);if(!f)return;try{ru=ru?turf.union(ru,f):f;}catch(e){}});
+  if(ru)st.roadSf=areaInSite(ru);
+  S.areas.forEach(function(a){
+    var sf=areaInSite(areaFeat(a)),k=a.kind;
+    if(k==='park')st.parkSf+=sf;else if(k==='hard')st.hardSf+=sf;else if(k==='pond')st.pondSf+=sf;else st.greenSf+=sf;
+  });
+  st.lotStalls=0;st.lotSf=0;
+  S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g)return;st.lotStalls+=g.count;st.lotSf+=(g.aisle?areaInSite(g.aisle):0)+g.stallSf;});
+  var rq=0,re=0;S.buildings.forEach(function(b){var q=parkReq(b);rq+=q.n;re+=q.enc;});st.reqStalls=codeRound(rq);st.reqEnclosed=Math.round(re);
+  st.provStalls=Math.floor(st.parkSf/S.set.stall)+st.lotStalls;
+  st.imperv=st.fp+st.roadSf+st.parkSf+st.hardSf+st.lotSf;
+  st.acres=st.siteSf/ACRE;
+  st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0);
+  return st;
+}
+
+// ---------- rendering ----------
+function parcelStyle(f){
+  var id=f.properties.__pid,line=S.base==='imagery'?'#ffffff':'#5b6b72';
+  if(S.carved.has(id))return {color:'#ff6b6b',weight:1.5,dashArray:'5 4',fillColor:'#ff6b6b',fillOpacity:.28,opacity:1};
+  if(S.selected.has(id))return {color:'#ffd43b',weight:2,fillColor:'#ffd43b',fillOpacity:.2,opacity:1};
+  return {color:line,weight:1,opacity:.75,fillColor:line,fillOpacity:.02};
+}
+function parcelLabel(f){var p=f.properties;return p[S.labelField]!=null?String(p[S.labelField]):p.__pid;}
+function drawParcels(){
+  gParcels.clearLayers();if(!S.parcels)return;
+  var g=L.geoJSON(S.parcels,{pane:'pParcels',className:'parcel-path',style:parcelStyle,onEachFeature:function(f,layer){
+    layer.bindTooltip(function(){var ac=turf.area(f)/4046.8564;return esc(parcelLabel(f))+' · '+ac.toFixed(2)+' ac';},{sticky:true});
+    layer.on('click',function(e){
+      var id=f.properties.__pid;
+      if(S.tool==='parcels'){pushUndo();if(S.selected.has(id))S.selected.delete(id);else S.selected.add(id);siteChanged();L.DomEvent.stopPropagation(e);}
+      else if(S.tool==='carve'){pushUndo();if(S.carved.has(id))S.carved.delete(id);else S.carved.add(id);siteChanged();L.DomEvent.stopPropagation(e);}
+    });
+  }});
+  g.addTo(gParcels);
+}
+function restyleParcels(){gParcels.eachLayer(function(grp){if(grp.eachLayer)grp.eachLayer(function(l){l.setStyle(parcelStyle(l.feature));});});}
+function ll2(c){return [c[1],c[0]];}
+function ringsToLatLngs(polys){return polys.map(function(p){return p.map(function(r){return r.map(ll2);});});}
+
+function renderMap(){
+  buildCtx();
+  gSite.clearLayers();gRoads.clearLayers();gAreas.clearLayers();gBldg.clearLayers();gDims.clearLayers();
+  // site outline
+  if(S.site){
+    L.polygon(ringsToLatLngs(polysOf(S.site)),{pane:'pSite',color:'#ff4d6d',weight:3,dashArray:'10 5',fill:false,interactive:false}).addTo(gSite);
+  }
+  // areas
+  S.areas.forEach(function(a){
+    var k=AREAS[a.kind]||AREAS.land;
+    var poly=L.polygon(a.ring.map(ll2),{pane:'pAreas',className:'obj-path',color:k.color,weight:selIs('a',a.id)?3:1.5,fillColor:k.color,fillOpacity:.5}).addTo(gAreas);
+    poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('a',a.id);else select({k:'a',id:a.id});L.DomEvent.stopPropagation(e);}});
+    poly.on('mousedown',function(e){groupDown('a',a.id,e);});
+    poly.bindTooltip(esc(a.name||k.name),{sticky:true});
+  });
+  // roads
+  S.roads.forEach(function(r){
+    var f=roadPoly(r);if(!f)return;
+    var poly=L.polygon(ringsToLatLngs(polysOf(f)),{pane:'pRoads',className:'obj-path',color:selIs('r',r.id)?'#ffffff':'#495057',weight:selIs('r',r.id)?3:1.5,fillColor:'#343a40',fillOpacity:.82}).addTo(gRoads);
+    poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('r',r.id);else select({k:'r',id:r.id});L.DomEvent.stopPropagation(e);}});
+    poly.on('mousedown',function(e){groupDown('r',r.id,e);});
+    poly.bindTooltip(esc((r.name||'Road')+' · '+r.width+' ft'),{sticky:true});
+    L.polyline(r.pts.map(ll2),{pane:'pRoads',color:'#f1f3f5',weight:1.5,dashArray:'8 6',interactive:false}).addTo(gRoads);
+  });
+  // parking lots
+  S.lots.forEach(function(l){
+    var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;var sel=selIs('p',l.id);
+    function lotClick(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('p',l.id);else select({k:'p',id:l.id});L.DomEvent.stopPropagation(e);}}
+    function wire(poly){poly.on('click',lotClick);poly.on('mousedown',function(e){groupDown('p',l.id,e);});poly.bindTooltip(esc((l.name||'Parking lot')+' · '+g.count+' stalls'),{sticky:true});}
+    if(g.aisle)wire(L.polygon(ringsToLatLngs(polysOf(g.aisle)),{pane:'pLots',className:'obj-path',color:sel?'#ffffff':'#495057',weight:sel?3:1.5,fillColor:'#3b4249',fillOpacity:.85}).addTo(gRoads));
+    if(g.stalls.length)wire(L.polygon(g.stalls.map(function(r){return r.map(toLL).map(ll2);}),{pane:'pLots',className:'obj-path',color:'#f8f9fa',weight:1.3,fillColor:'#4a525a',fillOpacity:.6}).addTo(gRoads));
+    L.polyline(l.pts.map(ll2),{pane:'pLots',color:'#adb5bd',weight:1,dashArray:'3 6',interactive:false}).addTo(gRoads);
+    var mi=Math.floor((l.pts.length-1)/2),ma=l.pts[mi],mb=l.pts[mi+1]||ma;
+    L.marker([(ma[1]+mb[1])/2,(ma[0]+mb[0])/2],{pane:'pLots',interactive:false,icon:L.divIcon({className:'blabel',iconSize:[110,30],iconAnchor:[55,15],html:g.count+' stalls'})}).addTo(gRoads);
+  });
+  // buildings
+  S.buildings.forEach(function(b){
+    var t=bType(b),ring=S.ctx.rings[b.id].map(toLL).map(ll2),sel=selIs('b',b.id);
+    var poly=L.polygon(ring,{pane:'pBldg',className:'obj-path',color:sel?'#ffffff':'#1a2225',weight:sel?3:1.5,fillColor:t.color,fillOpacity:.88}).addTo(gBldg);
+    poly.on('mousedown',function(e){
+      if(S.tool!=='select')return;
+      bldgDownAt=Date.now();
+      if(e.originalEvent&&e.originalEvent.shiftKey){toggleMulti('b',b.id);L.DomEvent.stopPropagation(e);return;}
+      if(groupDown('b',b.id,e))return;
+      select({k:'b',id:b.id});
+      drag={id:b.id,start:[e.latlng.lng,e.latlng.lat],orig:b.c.slice(),moved:false,snap:snapshot()};
+      map.dragging.disable();L.DomEvent.stopPropagation(e);
+    });
+    var fp=fpOf(b);
+    L.marker(ring.length?toLL(bCenterLocal(b)).reverse():[0,0],{pane:'pBldg',interactive:false,icon:L.divIcon({className:'blabel',iconSize:[110,30],iconAnchor:[55,15],html:esc(b.name)+'<br>'+n0(fp)+' sf'})}).addTo(gBldg);
+  });
+  renderDims();
+}
+function bCenterLocal(b){return toLocal(b.c);}
+function renderDims(){
+  gDims.clearLayers();
+  var checks=S.checks||[],show=S.opt.dimsAll?checks:checks.filter(function(c){return selIs('b',c.b.id);});
+  show.forEach(function(c){
+    c.offsets.forEach(function(o){
+      if(o.dist===null)return;
+      var bad=(o.kind==='property'&&o.dist<S.set.setback-0.05)||(o.kind==='building'&&o.dist<S.set.sep-0.05)||(o.kind==='road'&&o.dist<S.set.setRoad-0.05);
+      var col={property:'#ff4d6d',building:'#ffd43b',road:'#74c0fc'}[o.kind];
+      var a=toLL(o.from),b=toLL(o.to);
+      L.polyline([ll2(a),ll2(b)],{pane:'pDims',color:bad?'#ff4d6d':col,weight:2,interactive:false}).addTo(gDims);
+      var mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      L.marker(ll2(mid),{pane:'pDims',interactive:false,icon:L.divIcon({className:'dim '+o.kind+(bad?' bad':''),iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%)">'+ftf(o.dist)+'</span>'})}).addTo(gDims);
+    });
+  });
+}
+function selIs(k,id){return (S.sel&&S.sel.k===k&&S.sel.id===id)||S.multi.some(function(m){return m.k===k&&m.id===id;});}
+
+function renderPanels(){
+  var st=S.stats,cov=st.siteSf?st.fp/st.siteSf*100:0,imp=st.siteSf?st.imperv/st.siteSf*100:0,
+      dens=st.acres?st.units/st.acres:0,parkOk=st.provStalls>=st.reqStalls;
+  $('#summary').innerHTML=
+    stat('Site area',st.siteSf?n1(st.acres)+' ac':'—',st.siteSf?n0(st.siteSf)+' sf':'Pick parcels')+
+    stat('Building coverage',st.siteSf?n1(cov)+'%':'—',n0(st.fp)+' sf footprint')+
+    stat('Units',n0(st.units),st.acres?n1(dens)+' per acre':'')+
+    stat('Floor area',n0(st.gfa)+' sf',st.comm?n0(st.comm)+' sf commercial':'gross, all floors')+
+    stat('Impervious',st.siteSf?n1(imp)+'%':'—',n0(st.imperv)+' sf')+
+    stat('Parking',st.provStalls+' / '+st.reqStalls,(parkOk?'stalls provided / required':'short by '+(st.reqStalls-st.provStalls))+(st.lotStalls?' · '+st.lotStalls+' striped':'')+(st.reqEnclosed?' · '+st.reqEnclosed+' of the required must be enclosed':''),st.reqStalls?(parkOk?'good':'bad'):'');
+  var n=S.parcels?S.parcels.features.length:0;
+  $('#parcelSummary').textContent=n?(n+' parcels loaded, '+S.selected.size+' picked, '+S.carved.size+' carved out'+(S.carveShapes.length?', '+S.carveShapes.length+' carved shape(s)':'')+'.'+(siteWarn?' '+siteWarn+' parcel shape(s) could not be merged and were left out, so check the site outline.':'')):'No parcels loaded yet.';
+  // checks
+  var ch=S.checks,html='';
+  if(!ch.length)html='<div class="note">Place a building to see setback and spacing checks.</div>';
+  else if(!st.flags)html='<div class="flag ok">All '+ch.length+(ch.length>1?' buildings meet':' building meets')+' the current rules.</div>';
+  ch.forEach(function(c){c.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(c.b.name)+'</b> '+esc(m)+'</div>';});});
+  var pn=[];
+  if(st.provStalls>=100)pn.push('100+ spaces: §1183.15(b) wants 10% of the parking area as planting areas (min 10 ft wide, a tree in each) and no more than 20 cars in a line without an island.');
+  else if(st.provStalls>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
+  if(st.reqStalls&&!st.comm&&st.provStalls>st.reqStalls*1.5+1e-9)pn.push('Open residential parking is capped at 150% of required ('+Math.floor(st.reqStalls*1.5)+') unless approved as a conditional use (§1183.08(a)).');
+  if(st.reqStalls&&st.units&&st.comm)pn.push('Mixed residential and commercial use: required spaces are added together unless the Commission approves shared parking (up to 50%, §1183.06(b)).');
+  pn.forEach(function(m){html+='<div class="note" style="margin-top:4px">'+esc(m)+'</div>';});
+  $('#checks').innerHTML=html;
+  // schedule
+  var rows=S.buildings.map(function(b){
+    var t=bType(b),fp=fpOf(b);
+    return '<tr><td>'+esc(b.name)+'</td><td>'+(b.pts?'freeform':n1(b.w)+'×'+n1(b.d))+'</td><td>'+b.st+'</td><td>'+n0(fp)+'</td><td>'+n0(fp*b.st)+'</td><td>'+unitsOf(b)+'</td><td title="'+esc(parkReq(b).rule)+'">'+n1(parkReq(b).n)+'</td></tr>';
+  }).join('');
+  $('#sched').innerHTML=S.buildings.length?'<table><thead><tr><th>Building</th><th>W×D ft</th><th>Fl</th><th>Footprint</th><th>GFA</th><th>Units</th><th>Stalls req.</th></tr></thead><tbody>'+rows+
+    '<tr><td><b>Total</b></td><td></td><td></td><td>'+n0(st.fp)+'</td><td>'+n0(st.gfa)+'</td><td>'+st.units+'</td><td>'+st.reqStalls+'</td></tr></tbody></table><div class="note">Hover a stalls figure for the rule applied. Total rounds fractions over ½ up (§1183.04(b)).</div>':'<div class="note">No buildings yet.</div>';
+  // inspector offsets
+  if(S.sel&&S.sel.k==='b')renderOffsetTable();
+  var bn=$('#banner');
+  if(S.demo){bn.hidden=false;bn.innerHTML='<b>Example site on sample parcels.</b> Load your own parcels on the Site tab, then press New project to clear this.';}
+  else bn.hidden=true;
+}
+function stat(k,v,s,cls){return '<div class="stat '+(cls||'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';}
+function renderOffsetTable(){
+  var c=(S.checks||[]).filter(function(x){return x.b.id===S.sel.id;})[0];
+  if(!c){$('#iOffs').innerHTML='';return;}
+  var html='<table><thead><tr><th>Side</th><th>Distance</th><th>To</th></tr></thead><tbody>';
+  c.offsets.forEach(function(o){html+='<tr><td>'+o.dir+'</td><td>'+(o.dist===null?'—':ftf(o.dist))+'</td><td style="font-family:var(--font)">'+(o.kind?{property:'property line',building:'building',road:'road edge'}[o.kind]:'nothing in range')+'</td></tr>';});
+  html+='</tbody></table>';
+  if(c.minProp!==null)html+='<div class="note" style="margin-top:4px">Closest point to a property line: '+ftf(c.minProp)+'</div>';
+  $('#iOffs').innerHTML=html;
+}
+function siteChanged(){S.site=computeSite();restyleParcels();renderAll();}
+function renderAll(){
+  buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);
+  renderMap();renderHandles();renderPanels();fillInspector();saveLocal();
+}
+function renderLight(){ // during drags: no stats recompute beyond checks
+  buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);renderMap();if(!S.snapSkip)renderHandles();renderPanels();
+}
+
+// ---------- selection and inspector ----------
+function select(sel){S.sel=sel;renderAll();if(sel){showTab('build');}}
+// ---------- multi-select ----------
+function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:S.areas));}
+function multiObjs(){return S.multi.map(function(m){return {k:m.k,id:m.id,o:arrOf(m.k).filter(function(x){return x.id===m.id;})[0]};}).filter(function(m){return m.o;});}
+function setMulti(list){S.multi=list.length>=2?list:[];S.sel=list.length===1?list[0]:null;renderAll();if(list.length)showTab('build');}
+function toggleMulti(k,id){
+  var cur=S.multi.length?S.multi.slice():(S.sel?[S.sel]:[]),hit=-1;
+  cur.forEach(function(m,i){if(m.k===k&&m.id===id)hit=i;});
+  if(hit>=0)cur.splice(hit,1);else cur.push({k:k,id:id});
+  setMulti(cur);
+}
+function shapePts(k,o){return k==='b'?(S.ctx&&S.ctx.rings[o.id]?S.ctx.rings[o.id].map(toLL):[o.c]):((k==='r'||k==='p')?o.pts:o.ring);}
+function nudgeAny(k,o,dx,dy){
+  function sh(q){var p=toLocal(q);return toLL([p[0]+dx,p[1]+dy]);}
+  if(k==='b'){o.c=sh(o.c);if(o.pts)o.pts=o.pts.map(sh);}else if(k==='r'||k==='p')o.pts=o.pts.map(sh);else o.ring=o.ring.map(sh);
+}
+function rotateAny(k,o,ctr,deg){
+  var a=deg*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
+  function rt(q){var p=toLocal(q),x=p[0]-ctr[0],y=p[1]-ctr[1];return toLL([ctr[0]+x*co-y*si,ctr[1]+x*si+y*co]);}
+  if(k==='b'){o.c=rt(o.c);if(o.pts)o.pts=o.pts.map(rt);else o.rot=normAngle(o.rot+deg);}
+  else if(k==='r'||k==='p')o.pts=o.pts.map(rt);else o.ring=o.ring.map(rt);
+}
+function groupCenter(objs){
+  // mean of each shape's vertex-average: a point that turns with the group, so Q after E lands exactly back where it started
+  var sx=0,sy=0;objs.forEach(function(m){var pts=shapePts(m.k,m.o).map(toLocal),mx=0,my=0;pts.forEach(function(p){mx+=p[0];my+=p[1];});sx+=mx/pts.length;sy+=my/pts.length;});
+  return [sx/objs.length,sy/objs.length];
+}
+function moveGroup(dx,dy){var os=multiObjs();if(!os.length||(!dx&&!dy))return;pushUndo();os.forEach(function(m){nudgeAny(m.k,m.o,dx,dy);});renderAll();}
+function rotateGroup(deg){var os=multiObjs();if(!os.length||!deg)return;pushUndo();var c=groupCenter(os);os.forEach(function(m){rotateAny(m.k,m.o,c,deg);});renderAll();}
+function deleteGroup(){var os=multiObjs();if(!os.length)return;pushUndo();os.forEach(function(m){var arr=arrOf(m.k);arr.splice(arr.indexOf(m.o),1);});S.sel=null;S.multi=[];renderAll();}
+var gdrag=null,gdragAt=0,mq=null,marqueeAt=0;
+// mouse down on a member of a multi-selection starts dragging the whole group
+function groupDown(k,id,e){
+  if(S.tool!=='select'||S.multi.length<2||!selIs(k,id)||(e.originalEvent&&e.originalEvent.shiftKey))return false;
+  gdrag={start:[e.latlng.lng,e.latlng.lat],moved:false,snap:snapshot(),items:multiObjs().map(function(m){return {m:m,orig:JSON.parse(JSON.stringify({c:m.o.c,pts:m.o.pts,ring:m.o.ring}))};})};
+  map.dragging.disable();L.DomEvent.stopPropagation(e);return true;
+}
+function getSel(){
+  if(!S.sel)return null;
+  var arr=arrOf(S.sel.k);
+  return arr.filter(function(x){return x.id===S.sel.id;})[0]||null;
+}
+function fillInspector(){
+  $('#insM').hidden=S.multi.length<2;if(S.multi.length>=2)$('#mCount').textContent=S.multi.length;
+  var o=getSel();
+  $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');
+  if(!o)return;
+  var ae=document.activeElement;
+  function setv(id,v){var e=$(id);if(e!==ae)e.value=v;}
+  if(S.sel.k==='b'){
+    var cust=!!o.pts;
+    $$('.rect-only').forEach(function(e){e.hidden=cust;});$('#iFree').hidden=!cust;
+    setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);
+    setv('#iUnits',(o.units===null||o.units===undefined)?'':o.units);setv('#iFood',o.fs||'');$('#iFood').closest('.field').hidden=!(o.type==='mu'||o.type==='com');
+    if(cust)renderSegTable(o);
+    else{setv('#iW',o.w);setv('#iD',o.d);setv('#iRot',Math.round(o.rot*10)/10);setv('#iRotRange',Math.round(normAngle(o.rot)));}
+    var fp=fpOf(o);$('#iInfo').textContent=n0(fp)+' sf footprint · '+n0(fp*o.st)+' sf gross · '+unitsOf(o)+' units'+(o.units===null||o.units===undefined?' (auto)':'')+(commSf(o)?' · '+n0(commSf(o))+' sf commercial':'')+(parkReq(o).rule?' · parking '+n1(parkReq(o).n)+' = '+parkReq(o).rule:'')+(cust?angTxt([{k:'b',id:o.id,o:o}]):'');
+  }else if(S.sel.k==='r'){setv('#rName',o.name||'');setv('#rWidth',o.width);}
+  else if(S.sel.k==='p'){fillLot(o);}
+  else{setv('#aName',o.name||'');setv('#aKind',o.kind);$('#aInfo').textContent=n0(areaOf(areaFeat(o)))+' sf'+angTxt([{k:'a',id:o.id,o:o}]);}
+}
+function deleteSel(){
+  if(S.multi.length>=2){deleteGroup();return;}
+  var o=getSel();if(!o)return;pushUndo();
+  var arr=arrOf(S.sel.k);
+  arr.splice(arr.indexOf(o),1);S.sel=null;S.multi=[];renderAll();
+}
+
+// ---------- tools ----------
+var HINTS={
+  select:'Click a building, road or area to select it. Shift+click or Shift+drag a box to select several, then drag or use the arrow keys to move them together.',
+  parcels:'Click the parcels you plan to develop. Click again to remove one.',
+  carve:'Click parcels to carve them out of the project site. Click again to restore.',
+  carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
+  road:'Click along the road centerline. Double-click or press Enter to finish.',
+  lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
+  building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
+  area:'Click corners of the area. Double-click or press Enter to finish.',
+  bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
+};
+function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly';}
+function updateDrawbar(){
+  var on=isDrawTool(S.tool);$('#drawbar').hidden=!on;
+  $('#drawType').hidden=S.tool!=='bpoly';
+  if(on)$('#angMode').value=S.angMode[S.tool]||'free';
+}
+function setTool(t){
+  cancelDraw();S.tool=t;
+  $$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===t);});
+  var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
+  $('#hint').textContent=HINTS[t];gGhost.clearLayers();ghostLL=null;
+  if(t==='building'||t==='road'||t==='lot'||t==='area'||t==='bpoly')showTab('build');
+  updateDrawbar();renderHandles();
+}
+function cancelDraw(){D=null;gDraw.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
+function startDraw(kind){D={kind:kind,pts:[],cursor:null,typed:null,ref:0};}
+// Snap targets for moving a whole shape: corners and edges of everything that is not moving.
+function ftPerPx(){var a=map.containerPointToLatLng([100,100]),b=map.containerPointToLatLng([200,100]),pa=toLocal([a.lng,a.lat]),pb=toLocal([b.lng,b.lat]);return Math.hypot(pb[0]-pa[0],pb[1]-pa[1])/100||1;}
+function snapTargets(excl){
+  var v=[],sg=[];
+  function ring(r){var n=r.length;for(var i=0;i<n;i++){v.push(r[i]);var a=r[i],b=r[(i+1)%n];if(a[0]!==b[0]||a[1]!==b[1])sg.push([a,b]);}}
+  polysOf(S.site).forEach(function(pl){pl.forEach(ring);});
+  S.buildings.forEach(function(b){if(!excl['b:'+b.id])ring(bldgRingLocal(b).map(toLL));});
+  S.areas.forEach(function(a){if(!excl['a:'+a.id])ring(a.ring);});
+  S.lots.forEach(function(l){if(excl['p:'+l.id])return;l.pts.forEach(function(q){v.push(q);});var g=S.lotG[l.id];if(g){if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(ring);});g.stalls.forEach(function(r){ring(r.map(toLL));});}});
+  S.roads.forEach(function(r){if(excl['r:'+r.id])return;r.pts.forEach(function(q){v.push(q);});var f=roadPoly(r);if(f)polysOf(f).forEach(function(pl){pl.forEach(ring);});});
+  function cp(c){return map.latLngToContainerPoint(L.latLng(c[1],c[0]));}
+  return {v:v,vp:v.map(cp),sgl:sg.map(function(x){return [toLocal(x[0]),toLocal(x[1])];})};
+}
+// How far (in lng/lat) a moving outline should slip so a corner meets a corner, or a corner meets an edge. null = nothing close.
+function snapShift(pts,T){
+  if(!T||!S.opt.vsnap||!S.opt.edge||shiftHeld)return null;
+  var R=12,best=null,bd=R,P=pts.map(function(c){return map.latLngToContainerPoint(L.latLng(c[1],c[0]));});
+  P.forEach(function(pp,i){T.vp.forEach(function(q,j){var d=pp.distanceTo(q);if(d<bd){bd=d;best=[T.v[j][0]-pts[i][0],T.v[j][1]-pts[i][1]];}});});
+  if(best)return best;
+  var ed=R*ftPerPx();
+  pts.forEach(function(c){var pl=toLocal(c);T.sgl.forEach(function(sg){var r=ptSegDist(pl,sg[0],sg[1]);if(r.d<ed){ed=r.d;var q=toLL(r.pt);best=[q[0]-c[0],q[1]-c[1]];}});});
+  return best;
+}
+function snapInfo(latlng){
+  var out={pt:[latlng.lng,latlng.lat],type:'none'};
+  if(!S.opt.vsnap||shiftHeld||!S.snapV)return out;
+  var p=map.latLngToContainerPoint(latlng),best=null,bd=14,cands=S.snapV;
+  if(D&&D.kind!=='road'&&D.kind!=='lot'&&D.pts.length>=3)cands=cands.concat([D.pts[0]]);
+  cands.forEach(function(v){var q=map.latLngToContainerPoint(L.latLng(v[1],v[0])),d=p.distanceTo(q);if(d<bd){bd=d;best=v;}});
+  if(best)return {pt:best,type:'vertex'};
+  // edges are measured in local feet (not screen pixels) so the snapped point sits exactly on the line
+  var be=null,pl=toLocal([latlng.lng,latlng.lat]),ed=10*ftPerPx();
+  S.snapSegs.forEach(function(sg){
+    var r=ptSegDist(pl,toLocal(sg[0]),toLocal(sg[1]));
+    if(r.d<ed){ed=r.d;be=toLL(r.pt);}
+  });
+  return be?{pt:be,type:'edge'}:out;
+}
+function snapLL(latlng){return snapInfo(latlng).pt;}
+function nearestLineAngle(ll){
+  if(!S.opt.align||!S.ctx)return 0;
+  var p=toLocal(ll),best=null;
+  S.ctx.lines.forEach(function(ln){segsOf(ln.ring).forEach(function(sg){var r=ptSegDist(p,sg[0],sg[1]);if(r.d<90&&(!best||r.d<best.d))best={d:r.d,a:sg[0],b:sg[1]};});});
+  return best?Math.atan2(best.b[1]-best.a[1],best.b[0]-best.a[0])*180/Math.PI:0;
+}
+function constrainAngle(lastLL,rawLL,mode){
+  var a=toLocal(lastLL),p=toLocal(rawLL),v=[p[0]-a[0],p[1]-a[1]],len=Math.hypot(v[0],v[1]);
+  if(len<1e-6)return rawLL;
+  var ref=D.ref||0,step=mode==='ortho'?90:15,ang=Math.atan2(v[1],v[0])*180/Math.PI;
+  var sn=Math.round(normAngle(ang-ref)/step)*step+ref,r=sn*Math.PI/180,u=[Math.cos(r),Math.sin(r)];
+  var Lp=Math.max(0,v[0]*u[0]+v[1]*u[1]);
+  return toLL([a[0]+u[0]*Lp,a[1]+u[1]*Lp]);
+}
+// The point a drawing tool would place for this mouse position: corners first, then angle snap, then edges.
+function drawPoint(latlng){
+  var raw=[latlng.lng,latlng.lat];
+  if(shiftHeld)return raw;
+  var sn=snapInfo(latlng);
+  if(!D)return sn.pt;
+  var mode=S.angMode[D.kind]||'free';
+  if(sn.type==='vertex')return sn.pt;
+  if(D.pts.length&&mode!=='free')return constrainAngle(D.pts[D.pts.length-1],raw,mode);
+  return sn.pt;
+}
+function typedPoint(){
+  var last=toLocal(D.pts[D.pts.length-1]),cur=D.cursor?toLocal(D.cursor):last,v=[cur[0]-last[0],cur[1]-last[1]],len=Math.hypot(v[0],v[1]),u;
+  if(len<1e-6){var r=(D.ref||0)*Math.PI/180;u=[Math.cos(r),Math.sin(r)];}else u=[v[0]/len,v[1]/len];
+  return toLL([last[0]+u[0]*D.typed,last[1]+u[1]*D.typed]);
+}
+function effCursor(){
+  if(!D)return null;
+  if(D.pts.length&&D.typed>0)return typedPoint();
+  return D.cursor;
+}
+function drawPreview(){
+  gDraw.clearLayers();if(!D)return;
+  var pts=D.pts.slice(),cur=effCursor();if(cur&&D.pts.length)pts.push(cur);
+  var col=(D.kind==='road'||D.kind==='lot')?'#74c0fc':(D.kind==='carvepoly'?'#ff6b6b':(D.kind==='bpoly'?TYPES[S.tpl.type].color:'#ffffff'));
+  if(D.kind==='lot'){
+    if(pts.length>=2){
+      var g=lotGeom(Object.assign({pts:pts},S.lotCfg));
+      if(g.aisle)L.polygon(ringsToLatLngs(polysOf(g.aisle)),{pane:'pDraw',color:col,weight:1,fillColor:'#3b4249',fillOpacity:.6,interactive:false}).addTo(gDraw);
+      if(g.stalls.length)L.polygon(g.stalls.map(function(r){return r.map(toLL).map(ll2);}),{pane:'pDraw',color:'#f8f9fa',weight:1.2,fillColor:'#4a525a',fillOpacity:.4,interactive:false}).addTo(gDraw);
+      D.lotCount=g.count;
+    }
+    if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',interactive:false}).addTo(gDraw);
+  }else if(D.kind==='road'){
+    if(pts.length>=2){var f=null;try{f=turf.buffer(turf.lineString(pts),S.roadW/2*0.3048,{units:'meters',steps:8});}catch(e){}
+      if(f)L.polygon(ringsToLatLngs(polysOf(f)),{pane:'pDraw',color:col,weight:1,fillColor:col,fillOpacity:.25,interactive:false}).addTo(gDraw);}
+    if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',interactive:false}).addTo(gDraw);
+  }else if(pts.length>=2){
+    L.polygon(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',fillColor:col,fillOpacity:.22,interactive:false}).addTo(gDraw);
+  }
+  D.pts.forEach(function(p,i){L.circleMarker(ll2(p),{pane:'pDraw',radius:i===0&&D.pts.length>=3&&D.kind!=='road'&&D.kind!=='lot'?6:4,color:'#fff',weight:2,fillColor:col,fillOpacity:1,interactive:false}).addTo(gDraw);});
+  var info='';
+  if(cur&&D.pts.length){
+    var last=D.pts[D.pts.length-1],a=toLocal(last),b=toLocal(cur),segLen=Math.hypot(a[0]-b[0],a[1]-b[1]);
+    var mid=[(last[0]+cur[0])/2,(last[1]+cur[1])/2];
+    L.marker(ll2(mid),{pane:'pDraw',interactive:false,icon:L.divIcon({className:'dim building',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%)">'+ftf(segLen)+'</span>'})}).addTo(gDraw);
+    info='Side '+ftf(segLen);if(D.kind==='lot'&&D.lotCount!==undefined)info+=' · '+D.lotCount+' stalls';
+    if(D.kind!=='road'&&D.kind!=='lot'&&pts.length>=3)info+=' · '+n0(Math.abs(polyAreaSigned(pts.map(toLocal))))+' sf';
+  }
+  $('#drawInfo').textContent=info;
+}
+function newCustomBuilding(pts,type,st){
+  var t=TYPES[type];S.counters[type]=(S.counters[type]||0)+1;
+  var b={id:S.nextId++,type:type,name:t.code+'-'+S.counters[type],w:0,d:0,st:st,rot:0,units:null,custom:true,pts:pts,c:[0,0]};
+  recenter(b);return b;
+}
+function finishDraw(){
+  if(!D)return;
+  var kind=D.kind,pts=D.pts.slice();
+  // double-click adds the final point twice; drop the duplicate
+  if(pts.length>1){var a=pts[pts.length-1],b=pts[pts.length-2];if(a[0]===b[0]&&a[1]===b[1])pts.pop();}
+  if(kind==='road'&&pts.length>=2){
+    pushUndo();var id=S.nextId++;S.counters.road=(S.counters.road||0)+1;
+    S.roads.push({id:id,name:'Road '+S.counters.road,width:S.roadW,pts:pts});S.sel=null;S.multi=[];cancelDraw();renderAll();
+  }else if(kind==='lot'&&pts.length>=2){
+    pushUndo();var lid=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;
+    S.lots.push(Object.assign({id:lid,name:'Parking lot '+S.counters.lot,pts:pts},S.lotCfg));S.sel={k:'p',id:lid};S.multi=[];cancelDraw();renderAll();
+  }else if(kind==='bpoly'&&pts.length>=3){
+    var f0=pts[0],l0=pts[pts.length-1];if(f0[0]===l0[0]&&f0[1]===l0[1])pts.pop();
+    if(pts.length>=3&&Math.abs(polyAreaSigned(pts.map(toLocal)))>20){
+      pushUndo();var nb=newCustomBuilding(pts,S.tpl.type,S.tpl.st);S.buildings.push(nb);S.sel={k:'b',id:nb.id};cancelDraw();renderAll();
+    }else cancelDraw();
+  }else if((kind==='area'||kind==='carvepoly')&&pts.length>=3){
+    pushUndo();
+    if(kind==='area'){var id2=S.nextId++;S.areas.push({id:id2,kind:S.areaKind,name:AREAS[S.areaKind].name,ring:pts});cancelDraw();renderAll();}
+    else{S.carveShapes.push({id:S.nextId++,ring:pts});cancelDraw();siteChanged();}
+  }else{cancelDraw();}
+}
+function addDrawPoint(pt){
+  if(!D)startDraw(S.tool);
+  D.pts.push(pt);
+  if(D.pts.length===1)D.ref=nearestLineAngle(pt);
+  else if(D.pts.length===2){var a=toLocal(D.pts[0]),b=toLocal(D.pts[1]);D.ref=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;}
+  D.typed=null;$('#lenBox').value='';
+  drawPreview();
+}
+function commitTyped(){if(D&&D.pts.length&&D.typed>0)addDrawPoint(typedPoint());}
+
+// building placement
+function newBuilding(type,w,d,st,rot,c){
+  var t=TYPES[type];S.counters[type]=(S.counters[type]||0)+1;
+  return {id:S.nextId++,type:type,name:t.code+'-'+S.counters[type],w:w,d:d,st:st,rot:rot,units:null,c:c};
+}
+function snapPlacement(ll,w,d,rot0,skipId){
+  var out={c:ll,rot:rot0,snapped:false};
+  if(shiftHeld||!(S.opt.align||S.opt.hold)||!S.ctx)return out;
+  var p=toLocal(ll),best=null;
+  S.ctx.lines.forEach(function(ln){segsOf(ln.ring).forEach(function(sg){var r=ptSegDist(p,sg[0],sg[1]);if(r.d<90&&(!best||r.d<best.d))best={d:r.d,a:sg[0],b:sg[1],kind:ln.kind};});});
+  if(S.opt.edge&&S.ctx.shapeLines)S.ctx.shapeLines.forEach(function(sl){
+    if(sl.k==='b'&&sl.id===skipId)return;
+    if(pointInRing(p,sl.ring))return;
+    segsOf(sl.ring).forEach(function(sg){var r=ptSegDist(p,sg[0],sg[1]);if(r.d<90&&(!best||r.d<best.d))best={d:r.d,a:sg[0],b:sg[1],kind:'shape'};});
+  });
+  if(!best)return out;
+  var len=Math.hypot(best.b[0]-best.a[0],best.b[1]-best.a[1]);if(len<1e-6)return out;
+  var ang=Math.atan2(best.b[1]-best.a[1],best.b[0]-best.a[0])*180/Math.PI,k=0,bd=1e9;
+  for(var i=0;i<4;i++){var diff=Math.abs(normAngle(ang+90*i-rot0));if(diff<bd){bd=diff;k=i;}}
+  var rot=normAngle(ang+90*k);
+  if(S.opt.align){out.rot=rot;out.snapped=true;}
+  if(S.opt.hold&&S.opt.align){
+    var ux=(best.b[0]-best.a[0])/len,uy=(best.b[1]-best.a[1])/len,nx=-uy,ny=ux;
+    var s=(p[0]-best.a[0])*nx+(p[1]-best.a[1])*ny,sign=s>=0?1:-1,d0=Math.abs(s);
+    var ext=(k%2===0)?d/2:w/2,target=ext+(best.kind==='property'?S.set.setback:(best.kind==='road'?S.set.setRoad:S.set.snapGap));
+    if(Math.abs(d0-target)<=25){
+      var np=[p[0]+nx*sign*(target-d0),p[1]+ny*sign*(target-d0)];out.c=toLL(np);out.snapped=true;
+    }
+  }
+  return out;
+}
+function updateGhost(ll){
+  gGhost.clearLayers();if(S.tool!=='building'||!ll)return;
+  var t=S.tpl,sp=snapPlacement([ll.lng,ll.lat],t.w,t.d,t.rot);
+  ghostLL=sp;
+  var b={c:sp.c,w:t.w,d:t.d,rot:sp.rot},ring=bldgRingLocal(b).map(toLL).map(ll2);
+  L.polygon(ring,{pane:'pDraw',color:'#fff',weight:2,dashArray:'6 4',fillColor:TYPES[t.type].color,fillOpacity:.5,interactive:false}).addTo(gGhost);
+}
+
+// ---------- map events ----------
+map.on('click',function(e){
+  var t=S.tool;
+  if(isDrawTool(t)){
+    if(D&&D.pts.length&&D.typed>0){commitTyped();return;}
+    var pt=drawPoint(e.latlng);
+    if(D&&D.kind!=='road'&&D.kind!=='lot'&&D.pts.length>=3&&pt[0]===D.pts[0][0]&&pt[1]===D.pts[0][1]){finishDraw();return;}
+    addDrawPoint(pt);
+  }
+  else if(t==='building'){
+    var sp=ghostLL||snapPlacement([e.latlng.lng,e.latlng.lat],S.tpl.w,S.tpl.d,S.tpl.rot);
+    pushUndo();var b=newBuilding(S.tpl.type,S.tpl.w,S.tpl.d,S.tpl.st,sp.rot,sp.c);
+    S.buildings.push(b);S.sel={k:'b',id:b.id};renderAll();
+  }else if(t==='select'){if(Date.now()-bldgDownAt<500||Date.now()-marqueeAt<300)return;if(S.sel||S.multi.length){S.sel=null;S.multi=[];renderAll();}}
+});
+var bldgDownAt=0;
+map.on('dblclick',function(e){if(D)finishDraw();});
+map.on('contextmenu',function(){if(D)cancelDraw();else if(S.tool!=='select')setTool('select');});
+map.boxZoom.disable();
+map.on('mousedown',function(e){
+  if(S.tool!=='select'||D||!e.originalEvent||!e.originalEvent.shiftKey)return;
+  mq={start:e.latlng,cur:e.latlng,cp:e.containerPoint,rect:null,moved:false};map.dragging.disable();
+});
+map.on('mousemove',function(e){
+  if(mq){
+    mq.cur=e.latlng;if(e.containerPoint.distanceTo(mq.cp)>4)mq.moved=true;
+    if(mq.moved){if(mq.rect)gDraw.removeLayer(mq.rect);mq.rect=L.rectangle(L.latLngBounds(mq.start,mq.cur),{pane:'pDraw',color:'#4dabf7',weight:1,dashArray:'4 3',fillColor:'#4dabf7',fillOpacity:.12,interactive:false}).addTo(gDraw);}
+    return;
+  }
+  if(gdrag){
+    var gdx=e.latlng.lng-gdrag.start[0],gdy=e.latlng.lat-gdrag.start[1];
+    if(!gdrag.moved&&(Math.abs(gdx)>1e-8||Math.abs(gdy)>1e-8)){gdrag.moved=true;undoStack.push(gdrag.snap);}
+    if(gdrag.moved){
+      if(!gdrag.T){var ex2={},mp=[];gdrag.items.forEach(function(it){ex2[it.m.k+':'+it.m.id]=true;shapePts(it.m.k,it.m.o).forEach(function(q){mp.push(q);});});gdrag.T=snapTargets(ex2);gdrag.mp=mp;}
+      var gc=snapShift(gdrag.mp.map(function(q){return [q[0]+gdx,q[1]+gdy];}),gdrag.T);
+      if(gc){gdx+=gc[0];gdy+=gc[1];}
+      gdrag.items.forEach(function(it){
+        var o=it.m.o,g=it.orig;
+        function sh(q){return [q[0]+gdx,q[1]+gdy];}
+        if(it.m.k==='b'){o.c=sh(g.c);if(g.pts)o.pts=g.pts.map(sh);}else if(it.m.k==='r'||it.m.k==='p')o.pts=g.pts.map(sh);else o.ring=g.ring.map(sh);
+      });
+      if(!raf)raf=requestAnimationFrame(function(){raf=0;renderLight();});
+    }
+    return;
+  }
+  if(drag){
+    var dx=e.latlng.lng-drag.start[0],dy=e.latlng.lat-drag.start[1];
+    if(!drag.moved&&(Math.abs(dx)>1e-8||Math.abs(dy)>1e-8)){drag.moved=true;undoStack.push(drag.snap);}
+    if(drag.moved){
+      var b=S.buildings.filter(function(x){return x.id===drag.id;})[0];
+      if(b&&b.pts){
+        if(!drag.pts0){drag.pts0=b.pts.map(function(q){return q.slice();});var ex={};ex['b:'+b.id]=true;drag.T=snapTargets(ex);}
+        var cr=snapShift(drag.pts0.map(function(q){return [q[0]+dx,q[1]+dy];}),drag.T)||[0,0],tx=dx+cr[0],ty=dy+cr[1];
+        b.pts=drag.pts0.map(function(q){return [q[0]+tx,q[1]+ty];});b.c=[drag.orig[0]+tx,drag.orig[1]+ty];
+        if(!raf)raf=requestAnimationFrame(function(){raf=0;renderLight();fillInspector();});
+      }else if(b){
+        var sp=snapPlacement([drag.orig[0]+dx,drag.orig[1]+dy],b.w,b.d,b.rot,b.id);
+        b.c=sp.c;if(S.opt.align&&!shiftHeld&&sp.snapped)b.rot=sp.rot;
+        if(!raf)raf=requestAnimationFrame(function(){raf=0;renderLight();fillInspector();});
+      }
+    }
+    return;
+  }
+  if(S.tool==='building'){updateGhost(e.latlng);}
+  if(D){D.cursor=drawPoint(e.latlng);if(!raf)raf=requestAnimationFrame(function(){raf=0;drawPreview();});}
+});
+function endDrag(){
+  if(mq){
+    var q=mq;mq=null;map.dragging.enable();if(q.rect)gDraw.removeLayer(q.rect);
+    if(q.moved){
+      marqueeAt=Date.now();var bd=L.latLngBounds(q.start,q.cur),cur=S.multi.length?S.multi.slice():(S.sel?[S.sel]:[]);
+      ['b','r','p','a'].forEach(function(k){arrOf(k).forEach(function(o){
+        var pts=shapePts(k,o);if(!pts.length||!pts.every(function(c){return bd.contains(L.latLng(c[1],c[0]));}))return;
+        if(!cur.some(function(m){return m.k===k&&m.id===o.id;}))cur.push({k:k,id:o.id});
+      });});
+      setMulti(cur);
+    }
+  }
+  if(gdrag){map.dragging.enable();var gm=gdrag.moved;gdrag=null;if(gm){gdragAt=Date.now();renderAll();}}
+  if(drag){map.dragging.enable();var m=drag.moved;drag=null;if(m)renderAll();}}
+map.on('mouseup',endDrag);document.addEventListener('mouseup',endDrag);
+
+function rotKey(e){return e.code==='KeyQ'?'q':(e.code==='KeyE'?'e':(e.key||'').toLowerCase());}
+function rotStepFor(e){return e.altKey?0.1:(e.shiftKey?1:S.set.rotStep);}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Shift')shiftHeld=true;
+  var tag=(e.target&&e.target.tagName)||'',typing=/INPUT|TEXTAREA|SELECT/.test(tag);
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing){e.preventDefault();undo();return;}
+  if(typing)return;
+  if(D&&D.pts.length&&/^[0-9.]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    var lb=$('#lenBox');lb.focus();lb.value=e.key;var tv=parseFloat(e.key);D.typed=tv>0?tv:null;e.preventDefault();drawPreview();return;
+  }
+  if(e.key==='Escape'){if(D)cancelDraw();else if(S.tool!=='select')setTool('select');else if(S.sel||S.multi.length){S.sel=null;S.multi=[];renderAll();}return;}
+  if(e.key==='Enter'&&D){finishDraw();return;}
+  if(e.key==='Backspace'&&D){D.pts.pop();drawPreview();e.preventDefault();return;}
+  if((e.key==='Delete'||e.key==='Backspace')&&(S.sel||S.multi.length)){deleteSel();e.preventDefault();return;}
+  if(S.multi.length>=2&&S.tool==='select'){
+    var rk0=rotKey(e);
+    if(rk0==='q'||rk0==='e'){rotateGroup((rk0==='e'?-1:1)*rotStepFor(e));return;}
+    if(/^Arrow/.test(e.key)){var am0=e.shiftKey?5:1,gx=0,gy=0;if(e.key==='ArrowLeft')gx=-am0;if(e.key==='ArrowRight')gx=am0;if(e.key==='ArrowUp')gy=am0;if(e.key==='ArrowDown')gy=-am0;moveGroup(gx,gy);e.preventDefault();return;}
+  }
+  var rk=rotKey(e);
+  if(rk==='q'||rk==='e'){
+    var dir=rk==='e'?1:-1,step=rotStepFor(e);
+    if(S.tool==='building'){S.tpl.rot=Math.round(normAngle(S.tpl.rot-dir*step)*1000)/1000;syncTpl();if(lastMouse)updateGhost(lastMouse);}
+    else if(S.sel&&S.sel.k==='b'){var b=getSel();pushUndo();if(b.pts)rotatePts(b,-dir*step);else b.rot=Math.round(normAngle(b.rot-dir*step)*1000)/1000;renderAll();}
+    else if(S.sel&&(S.sel.k==='a'||S.sel.k==='r'||S.sel.k==='p')){var o2=getSel();if(o2){pushUndo();rotateShape(o2,-dir*step);renderAll();}}
+    return;
+  }
+  if(S.sel&&(S.sel.k==='a'||S.sel.k==='r'||S.sel.k==='p')&&/Arrow/.test(e.key)){
+    var o3=getSel(),am=e.shiftKey?5:1,mx=0,my=0;
+    if(e.key==='ArrowLeft')mx=-am;if(e.key==='ArrowRight')mx=am;if(e.key==='ArrowUp')my=am;if(e.key==='ArrowDown')my=-am;
+    if(o3){pushUndo();nudgeShape(o3,mx,my);renderAll();e.preventDefault();}return;
+  }
+  if(S.sel&&S.sel.k==='b'&&/Arrow/.test(e.key)){
+    var b2=getSel(),amt=e.shiftKey?5:1,p=toLocal(b2.c);pushUndo();
+    if(e.key==='ArrowLeft')p[0]-=amt;if(e.key==='ArrowRight')p[0]+=amt;if(e.key==='ArrowUp')p[1]+=amt;if(e.key==='ArrowDown')p[1]-=amt;
+    var nc=toLL(p);if(b2.pts){var sx2=nc[0]-b2.c[0],sy2=nc[1]-b2.c[1];b2.pts=b2.pts.map(function(q){return [q[0]+sx2,q[1]+sy2];});}b2.c=nc;renderAll();e.preventDefault();
+  }
+});
+document.addEventListener('keyup',function(e){if(e.key==='Shift')shiftHeld=false;});
+var lastMouse=null;map.on('mousemove',function(e){lastMouse=e.latlng;});
+
+// ---------- sidebar wiring ----------
+function showTab(t){
+  if(t==='layouts'&&typeof renderLayouts==='function')setTimeout(renderLayouts,0);
+  $$('.tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.tab===t);});
+  $$('.pane').forEach(function(p){p.classList.toggle('on',p.id==='pane-'+t);});
+}
+$$('.tabs button').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab);});});
+$$('.tool').forEach(function(b){b.addEventListener('click',function(){setTool(b.dataset.tool);});});
+$('#undoBtn').addEventListener('click',undo);
+$('#finishBtn').addEventListener('click',finishDraw);
+$('#cancelBtn').addEventListener('click',cancelDraw);
+$('#newBtn').addEventListener('click',function(){
+  if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.selected.size&&!S.demo){return;}
+  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};
+  if(!S.parcels)gParcels.clearLayers();siteChanged();
+});
+$('#clearPicks').addEventListener('click',function(){pushUndo();S.selected.clear();S.carved.clear();S.carveShapes=[];siteChanged();});
+
+// building types and template
+var typesEl=$('#types'),iType=$('#iType');
+Object.keys(TYPES).forEach(function(k){
+  var t=TYPES[k],b=document.createElement('button');b.className='typebtn';b.dataset.type=k;
+  b.innerHTML='<span class="sw" style="background:'+t.color+'"></span>'+esc(t.name);typesEl.appendChild(b);
+  b.addEventListener('click',function(){S.tpl.type=k;S.tpl.w=t.w;S.tpl.d=t.d;S.tpl.st=t.st;syncTpl();setTool('building');});
+  var o=document.createElement('option');o.value=k;o.textContent=t.name;iType.appendChild(o);
+});
+var aKind=$('#aKind'),areaKind=$('#areaKind');
+Object.keys(AREAS).forEach(function(k){[aKind,areaKind].forEach(function(sel){var o=document.createElement('option');o.value=k;o.textContent=AREAS[k].name;sel.appendChild(o);});});
+areaKind.value=S.areaKind;
+function syncTpl(){
+  $$('.typebtn').forEach(function(b){b.classList.toggle('on',b.dataset.type===S.tpl.type);});
+  $('#tW').value=S.tpl.w;$('#tD').value=S.tpl.d;$('#tSt').value=S.tpl.st;$('#tRot').value=Math.round(S.tpl.rot*10)/10;
+  var fp=S.tpl.w*S.tpl.d;$('#tplInfo').textContent=n0(fp)+' sf footprint · '+n0(fp*S.tpl.st)+' sf gross';
+}
+['#tW','#tD','#tSt','#tRot'].forEach(function(id){$(id).addEventListener('input',function(){
+  S.tpl.w=Math.max(4,num($('#tW'),S.tpl.w));S.tpl.d=Math.max(4,num($('#tD'),S.tpl.d));S.tpl.st=Math.max(1,Math.round(num($('#tSt'),S.tpl.st)));S.tpl.rot=num($('#tRot'),0);
+  var fp=S.tpl.w*S.tpl.d;$('#tplInfo').textContent=n0(fp)+' sf footprint · '+n0(fp*S.tpl.st)+' sf gross';
+  if(lastMouse&&S.tool==='building')updateGhost(lastMouse);
+});});
+$('#placeBtn').addEventListener('click',function(){setTool('building');});
+
+// inspector edits
+var pendingUndo=false;
+function inspUpdate(fn){
+  var o=getSel();if(!o)return;
+  if(!pendingUndo){pushUndo();pendingUndo=true;setTimeout(function(){pendingUndo=false;},800);}
+  fn(o);renderAll();
+}
+$('#iName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#iName').value;});});
+$('#iType').addEventListener('change',function(){inspUpdate(function(o){o.type=$('#iType').value;});});
+$('#iW').addEventListener('input',function(){inspUpdate(function(o){o.w=Math.max(4,num($('#iW'),o.w));});});
+$('#iD').addEventListener('input',function(){inspUpdate(function(o){o.d=Math.max(4,num($('#iD'),o.d));});});
+$('#iSt').addEventListener('input',function(){inspUpdate(function(o){o.st=Math.max(1,Math.round(num($('#iSt'),o.st)));});});
+$('#iFood').addEventListener('input',function(){inspUpdate(function(o){var v=parseFloat($('#iFood').value);o.fs=isFinite(v)?Math.min(100,Math.max(0,v)):0;});});
+$('#iUnits').addEventListener('input',function(){inspUpdate(function(o){var v=$('#iUnits').value;o.units=v===''?null:Math.max(0,Math.round(parseFloat(v)||0));});});
+$('#iRot').addEventListener('input',function(){inspUpdate(function(o){o.rot=Math.round(normAngle(num($('#iRot'),o.rot))*1000)/1000;});});
+$('#iRotRange').addEventListener('input',function(){inspUpdate(function(o){o.rot=parseFloat($('#iRotRange').value);});});
+$('#iDel').addEventListener('click',deleteSel);$('#rDel').addEventListener('click',deleteSel);$('#aDel').addEventListener('click',deleteSel);
+$('#iDup').addEventListener('click',function(){
+  var o=getSel();if(!o)return;pushUndo();var b;
+  if(o.pts){
+    var P=o.pts.map(toLocal),xs=P.map(function(q){return q[0];}),shift=Math.max.apply(null,xs)-Math.min.apply(null,xs)+S.set.sep+8;
+    b=newCustomBuilding(P.map(function(q){return toLL([q[0]+shift,q[1]]);}),o.type,o.st);
+  }else{
+    var p=toLocal(o.c);p[0]+=o.w*0.5+S.set.sep+8;
+    b=newBuilding(o.type,o.w,o.d,o.st,o.rot,toLL(p));
+  }
+  b.units=o.units;S.buildings.push(b);S.sel={k:'b',id:b.id};renderAll();
+});
+$('#iAlign').addEventListener('click',function(){
+  var o=getSel();if(!o)return;
+  var p=toLocal(o.c),best=null;
+  S.ctx.lines.forEach(function(ln){segsOf(ln.ring).forEach(function(sg){var r=ptSegDist(p,sg[0],sg[1]);if(!best||r.d<best.d)best={d:r.d,a:sg[0],b:sg[1]};});});
+  if(!best)return;
+  var ang=Math.atan2(best.b[1]-best.a[1],best.b[0]-best.a[0])*180/Math.PI,k=0,bd=1e9;
+  for(var i=0;i<4;i++){var diff=Math.abs(normAngle(ang+90*i-o.rot));if(diff<bd){bd=diff;k=i;}}
+  pushUndo();o.rot=normAngle(ang+90*k);renderAll();
+});
+$('#rName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#rName').value;});});
+$('#rWidth').addEventListener('input',function(){inspUpdate(function(o){o.width=Math.max(6,num($('#rWidth'),o.width));});});
+$('#aName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#aName').value;});});
+$('#aKind').addEventListener('change',function(){inspUpdate(function(o){o.kind=$('#aKind').value;});});
+
+// road and area defaults, snapping
+$('#roadPreset').addEventListener('change',function(){var v=parseFloat($('#roadPreset').value);if(v>0){S.roadW=v;$('#roadW').value=v;}});
+$('#roadW').addEventListener('input',function(){S.roadW=Math.max(6,num($('#roadW'),26));});
+$('#areaKind').addEventListener('change',function(){S.areaKind=$('#areaKind').value;});
+$('#oVsnap').addEventListener('change',function(){S.opt.vsnap=$('#oVsnap').checked;});
+$('#oAlign').addEventListener('change',function(){S.opt.align=$('#oAlign').checked;});
+$('#oHold').addEventListener('change',function(){S.opt.hold=$('#oHold').checked;});
+$('#oEdge').addEventListener('change',function(){S.opt.edge=$('#oEdge').checked;});
+$('#oDimsAll').addEventListener('change',function(){S.opt.dimsAll=$('#oDimsAll').checked;renderDims();});
+
+// rules
+var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf'};
+function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});}
+Object.keys(SET_MAP).forEach(function(id){$(id).addEventListener('input',function(){
+  var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;renderAll();
+});});
+
+// ---------- parcel loading ----------
+function detectIdField(p){
+  var keys=Object.keys(p||{}),pref=['PARCEL_ID','PARCELPIN','PARCEL_PIN','PIN','PARCELID','PARCEL','APN','PPN','PARCEL_NUM','PARCEL_NUMBER','par_id'];
+  for(var i=0;i<pref.length;i++){var k=keys.filter(function(x){return x.toLowerCase()===pref[i].toLowerCase();})[0];if(k)return k;}
+  var s=keys.filter(function(k){return typeof p[k]==='string'&&k!=='__pid';})[0];
+  return s||keys[0]||'__pid';
+}
+function fillLabelFields(){
+  var f=S.parcels&&S.parcels.features[0];var sel=$('#labelField');
+  if(!f){sel.innerHTML='';return;}
+  var keys=Object.keys(f.properties).filter(function(k){return k!=='__pid';});
+  sel.innerHTML=keys.map(function(k){return '<option>'+esc(k)+'</option>';}).join('');
+  if(!S.labelField||keys.indexOf(S.labelField)<0)S.labelField=detectIdField(f.properties);
+  sel.value=S.labelField;
+}
+$('#labelField').addEventListener('change',function(){S.labelField=$('#labelField').value;drawParcels();});
+function ingestParcels(gj){
+  var feats=(gj.features||[]).filter(function(f){return f.geometry&&/Polygon/.test(f.geometry.type);});
+  var idF=detectIdField((feats[0]&&feats[0].properties)||{}),keep=new Map();
+  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
+  if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.set(id,f);});
+  feats.forEach(function(f,i){
+    var p=f.properties||(f.properties={});
+    var id=String(p.OBJECTID!=null?p.OBJECTID:(p.objectid!=null?p.objectid:(p.FID!=null?p.FID:(p[idF]!=null?p[idF]:'i'+i))));
+    p.__pid=id;keep.set(id,f);
+  });
+  S.parcels={type:'FeatureCollection',features:Array.from(keep.values())};
+  S.labelField=null;fillLabelFields();drawParcels();
+  return feats.length;
+}
+function msg(t,err){var e=$('#loadMsg');e.textContent=t;e.className='msg'+(err?' err':'');}
+async function loadParcels(){
+  var url=$('#svcUrl').value.trim().replace(/\/+$/,'');
+  if(!url){msg('Paste a parcel layer URL first.',true);return;}
+  if(map.getZoom()<16){msg('Zoom the map in to your site first (level 16 or closer) so the request stays small.',true);return;}
+  msg('Loading parcels in view…');
+  try{
+    var m=url.match(/^(.*)\/(\d+)$/),base=url,layerId=null;
+    if(m){base=m[1];layerId=m[2];}
+    if(layerId===null){
+      if(S.svcBase!==base){
+        var j=await (await fetch(base+'?f=json')).json();
+        if(!j.layers||!j.layers.length)throw new Error('No layers found at that URL. Add the layer number, like …/MapServer/0.');
+        var sel=$('#svcLayer');sel.innerHTML=j.layers.map(function(l){return '<option value="'+l.id+'">'+l.id+' · '+esc(l.name)+'</option>';}).join('');
+        sel.hidden=j.layers.length<2;S.svcBase=base;
+      }
+      layerId=$('#svcLayer').value;
+    }
+    var b=map.getBounds(),env={xmin:b.getWest(),ymin:b.getSouth(),xmax:b.getEast(),ymax:b.getNorth(),spatialReference:{wkid:4326}};
+    var q=new URLSearchParams({f:'geojson',where:'1=1',geometry:JSON.stringify(env),geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'*',returnGeometry:'true'});
+    var r=await fetch(base+'/'+layerId+'/query?'+q.toString());
+    if(!r.ok)throw new Error('The server answered '+r.status+'.');
+    var gj=await r.json();
+    if(gj.error)throw new Error(gj.error.message||'The server returned an error.');
+    var n=ingestParcels(gj);
+    S.demo=false;
+    if(n===0)msg('No polygons came back for this view. Check the layer number or move the map.',true);
+    else msg(n+' parcels loaded'+(gj.exceededTransferLimit||(gj.properties&&gj.properties.exceededTransferLimit)?'. The server limit was reached, so zoom in and load again.':'. Pan and load again to add more.'));
+    renderAll();
+  }catch(e){
+    msg('Could not load parcels: '+e.message+' If this is a browser security block (CORS), open the file from a web server or use a GeoJSON export instead.',true);
+  }
+}
+$('#loadBtn').addEventListener('click',loadParcels);
+$('#parcelFile').addEventListener('change',function(ev){
+  var f=ev.target.files[0];if(!f)return;
+  f.text().then(function(t){
+    var gj=JSON.parse(t);var n=ingestParcels(gj);S.demo=false;
+    if(S.parcels&&S.parcels.features.length){var bb=turf.bbox(S.parcels);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);setOrg((bb[0]+bb[2])/2,(bb[1]+bb[3])/2);}
+    msg(n+' parcels read from '+f.name+'.');renderAll();
+  }).catch(function(e){msg('That file could not be read: '+e.message,true);});
+  ev.target.value='';
+});
+
+// geocode
+$('#goBtn').addEventListener('click',goAddress);
+$('#addr').addEventListener('keydown',function(e){if(e.key==='Enter')goAddress();});
+async function goAddress(){
+  var q=$('#addr').value.trim();if(!q)return;
+  $('#goMsg').textContent='Searching…';
+  try{
+    var r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));
+    var j=await r.json();
+    if(!j.length){$('#goMsg').textContent='No match found.';return;}
+    map.setView([parseFloat(j[0].lat),parseFloat(j[0].lon)],18);setOrg(parseFloat(j[0].lon),parseFloat(j[0].lat));
+    $('#goMsg').textContent=j[0].display_name;
+  }catch(e){$('#goMsg').textContent='Address search failed: '+e.message;}
+}
+
+// ---------- sample data ----------
+function demoProject(){
+  var c=map.getCenter();setOrg(c.lng,c.lat);
+  var cols=6,rows=3,w=100,h=150,ox=-300,oy=-225,feats=[];
+  for(var r=0;r<rows;r++)for(var cc=0;cc<cols;cc++){
+    var x0=ox+cc*w,y0=oy+r*h;
+    var ring=[[x0,y0],[x0+w,y0],[x0+w,y0+h],[x0,y0+h],[x0,y0]].map(toLL);
+    feats.push({type:'Feature',properties:{OBJECTID:r*cols+cc+1,PARCEL_ID:'SAMPLE-'+(r+1)+'-'+(cc+1),OWNER:'Example owner'},geometry:{type:'Polygon',coordinates:[ring]}});
+  }
+  S.selected=new Set();S.carved=new Set();
+  ingestParcels({features:feats});
+  for(var r2=0;r2<rows;r2++)for(var c2=0;c2<4;c2++)S.selected.add(String(r2*cols+c2+1));
+  S.carved.add(String(1*cols+2+1));
+  S.roads=[{id:1,name:'Private drive',width:24,pts:[toLL([-300,-75]),toLL([-120,-75])]}];
+  var bs=[];
+  function mk(t,x,y,w2,d2,st,rot){var b=newBuilding(t,w2,d2,st,rot,toLL([x,y]));bs.push(b);}
+  mk('th',-240,-170,88,42,3,0);mk('th',-130,-170,88,42,3,0);mk('mu',-50,150,60,90,3,90);mk('sf',-240,-20,42,55,2,0);
+  S.buildings=bs;
+  S.areas=[{id:S.nextId++,kind:'park',name:'Parking',ring:[[-65,-215],[95,-215],[95,-90],[-65,-90]].map(toLL)},
+           {id:S.nextId++,kind:'land',name:'Landscaping',ring:[[-300,60],[-200,60],[-200,225],[-300,225]].map(toLL)}];
+  S.demo=true;S.sel=null;S.multi=[];
+  map.setView([c.lat,c.lng],17.5);
+  $('#labelField').value=S.labelField;
+  siteChanged();
+}
+$('#demoBtn').addEventListener('click',function(){undoStack.length=0;demoProject();msg('Sample parcels loaded around the map center.');});
+
+// ---------- layers ----------
+function renderOvList(){
+  $('#ovList').innerHTML=S.overlays.map(function(o,i){
+    return '<div class="ov"><input type="checkbox" data-i="'+i+'" class="ovOn" '+(o.on?'checked':'')+' aria-label="Show '+esc(o.name)+'"><span class="nm" title="'+esc(o.url||o.name)+'">'+esc(o.name)+'</span><button class="btn small ovDel" data-i="'+i+'">Remove</button><input type="range" class="ovOp" data-i="'+i+'" min="0.1" max="1" step="0.05" value="'+(o.opacity||0.7)+'" aria-label="Opacity"></div>';
+  }).join('');
+  $$('.ovOn').forEach(function(e){e.addEventListener('change',function(){var o=S.overlays[+e.dataset.i];o.on=e.checked;if(e.checked)o.layer.addTo(map);else map.removeLayer(o.layer);});});
+  $$('.ovOp').forEach(function(e){e.addEventListener('input',function(){var o=S.overlays[+e.dataset.i];o.opacity=parseFloat(e.value);if(o.layer.setOpacity)o.layer.setOpacity(o.opacity);else if(o.layer.setStyle)o.layer.setStyle({opacity:o.opacity,fillOpacity:o.opacity*.4});});});
+  $$('.ovDel').forEach(function(e){e.addEventListener('click',function(){var o=S.overlays[+e.dataset.i];map.removeLayer(o.layer);S.overlays.splice(+e.dataset.i,1);renderOvList();saveLocal();});});
+}
+function addOverlay(o){
+  var lyr;
+  try{
+    if(o.data){lyr=L.geoJSON(o.data,{style:{color:'#fab005',weight:2,opacity:o.opacity||.9},pointToLayer:function(f,ll){return L.circleMarker(ll,{radius:4,color:'#fab005'});}});}
+    else if(!window.L||!L.esri){throw new Error('The ArcGIS layer library did not load. Check your internet connection.');}
+    else if(o.tiled){lyr=L.esri.tiledMapLayer({url:o.url,opacity:o.opacity||.7});}
+    else if(/\/(FeatureServer|MapServer)\/\d+$/.test(o.url)){lyr=L.esri.featureLayer({url:o.url,style:function(){return {color:'#fab005',weight:2};}});}
+    else{lyr=L.esri.dynamicMapLayer({url:o.url,opacity:o.opacity||.7});}
+    lyr.addTo(map);
+  }catch(e){$('#ovMsg').textContent='Could not add that layer: '+e.message;$('#ovMsg').className='msg err';return;}
+  o.layer=lyr;o.on=true;S.overlays.push(o);renderOvList();saveLocal();
+  $('#ovMsg').textContent='Added '+o.name+'.';$('#ovMsg').className='msg';
+}
+$('#ovPreset').innerHTML=PRESETS.map(function(p,i){return '<option value="'+i+'">'+esc(p.name)+'</option>';}).join('');
+$('#ovPresetAdd').addEventListener('click',function(){var p=PRESETS[+$('#ovPreset').value];addOverlay({name:p.name,url:p.url,tiled:p.tiled,opacity:.7});});
+$('#ovUrlAdd').addEventListener('click',function(){var u=$('#ovUrl').value.trim().replace(/\/+$/,'');if(!u)return;addOverlay({name:u.split('/').slice(-3).join('/'),url:u,opacity:.7});$('#ovUrl').value='';});
+$('#ovFile').addEventListener('change',function(ev){
+  var f=ev.target.files[0];if(!f)return;
+  f.text().then(function(t){addOverlay({name:f.name,data:JSON.parse(t),opacity:.9});}).catch(function(e){$('#ovMsg').textContent='That file could not be read: '+e.message;$('#ovMsg').className='msg err';});
+  ev.target.value='';
+});
+$('#baseSel').addEventListener('change',function(){setBase($('#baseSel').value);});
+$('#utilNote').innerHTML='<b>Utilities for Brecksville.</b> I did not find a public utility line layer (water, sanitary or storm) for Brecksville. Cuyahoga County Public Works publishes a PDF sewer service map for the city, and the county GIS server above holds sewer-assessed parcels. For pipe locations, ask the Brecksville City Engineer or Service Department for a GIS or CAD export, then add it here as a GeoJSON file or paste the service URL.';
+
+// ---------- export ----------
+function download(name,text,mime){
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime||'text/plain'}));a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},600);
+}
+function exportFeatures(){
+  var feats=[];
+  if(S.site)feats.push(turf.feature(S.site.geometry,{kind:'site_boundary',areaSf:Math.round(areaOf(S.site)),areaAc:+(areaOf(S.site)/ACRE).toFixed(3)}));
+  if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)){var p=Object.assign({},f.properties);delete p.__pid;p.kind='parcel';p.carved=S.carved.has(id);feats.push(turf.feature(f.geometry,p));}});
+  S.roads.forEach(function(r){var f=roadPoly(r);if(f)feats.push(turf.feature(f.geometry,{kind:'road',name:r.name,widthFt:r.width}));feats.push(turf.lineString(r.pts,{kind:'road_centerline',name:r.name,widthFt:r.width}));});
+  S.lots.forEach(function(l){
+    var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;
+    if(g.aisle)feats.push(turf.feature(g.aisle.geometry,{kind:'parking_aisle',name:l.name,aisleWidthFt:l.aisleW,stallAngleDeg:l.angle,stalls:g.count}));
+    feats.push(turf.lineString(l.pts,{kind:'parking_aisle_centerline',name:l.name}));
+    g.stalls.forEach(function(r,i){feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_stall',lot:l.name,stall:i+1,widthFt:l.stallW,depthFt:l.stallD,angleDeg:l.angle}));});
+  });
+  S.buildings.forEach(function(b){
+    var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+  });
+  S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
+  return feats;
+}
+$('#xGeo').addEventListener('click',function(){download('site-plan.geojson',JSON.stringify(turf.featureCollection(exportFeatures())),'application/geo+json');});
+$('#xCsv').addEventListener('click',function(){
+  var rows=[['Name','Type','Width ft','Depth ft','Stories','Rotation deg','Footprint sf','Gross floor area sf','Units','Commercial sf']];
+  S.buildings.forEach(function(b){var fp=fpOf(b);rows.push([b.name,TYPES[b.type].name,b.pts?'':b.w,b.pts?'':b.d,b.st,b.pts?'':b.rot.toFixed(1),Math.round(fp),Math.round(fp*b.st),unitsOf(b),Math.round(commSf(b))]);});
+  var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);
+  rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
+  rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
+  download('building-schedule.csv',rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n'),'text/csv');
+});
+function dxfText(){
+  var mode=$('#dxfCoords').value,project;
+  if(mode==='sp'&&window.proj4){
+    proj4.defs('EPSG:3734','+proj=lcc +lat_1=41.7 +lat_2=40.43333333333333 +lat_0=39.66666666666666 +lon_0=-82.5 +x_0=600000 +y_0=0 +ellps=GRS80 +datum=NAD83 +to_meter=0.3048006096012192 +no_defs');
+    project=function(ll){return proj4('EPSG:4326','EPSG:3734',ll);};
+  }else{
+    var o=S.site?toLocal(turf.bbox(S.site).slice(0,2)):[0,0];
+    project=function(ll){var p=toLocal(ll);return [p[0]-o[0],p[1]-o[1]];};
+  }
+  var layers={SITE:1,PARCELS:8,ROADS:5,BUILDINGS:2,PARKING:9,STRIPING:7,LANDSCAPE:3,OPENSPACE:3,STORMWATER:4,HARDSCAPE:7,LABELS:7},ents=[];
+  function poly(layer,ring,closed){
+    var s='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n'+(closed?1:0)+'\n';
+    ring.forEach(function(p){var q=project(p);s+='0\nVERTEX\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n';});
+    return s+'0\nSEQEND\n8\n'+layer+'\n';
+  }
+  function text(layer,ll,h,t){var q=project(ll);return '0\nTEXT\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n40\n'+h+'\n1\n'+t.replace(/[^\x20-\x7e]/g,'')+'\n72\n1\n11\n'+q[0].toFixed(3)+'\n21\n'+q[1].toFixed(3)+'\n31\n0\n';}
+  polysOf(S.site).forEach(function(p){p.forEach(function(r){ents.push(poly('SITE',r.slice(0,-1),true));});});
+  if(S.parcels)S.parcels.features.forEach(function(f){if(S.selected.has(f.properties.__pid)){var g=f.geometry,ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;ps.forEach(function(p){ents.push(poly('PARCELS',p[0].slice(0,-1),true));});}});
+  S.roads.forEach(function(r){polysOf(roadPoly(r)).forEach(function(p){p.forEach(function(ring){ents.push(poly('ROADS',ring.slice(0,-1),true));});});});
+  S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(ring){ents.push(poly('PARKING',ring.slice(0,-1),true));});});g.stalls.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});});
+  S.buildings.forEach(function(b){ents.push(poly('BUILDINGS',S.ctx.rings[b.id].map(toLL),true));ents.push(text('LABELS',b.c,4,b.name+' '+n0(fpOf(b))+' SF'));});
+  var amap={park:'PARKING',land:'LANDSCAPE',open:'OPENSPACE',pond:'STORMWATER',hard:'HARDSCAPE'};
+  S.areas.forEach(function(a){ents.push(poly(amap[a.kind],a.ring,true));});
+  var s='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n70\n1\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n';
+  s+='0\nTABLE\n2\nLAYER\n70\n'+Object.keys(layers).length+'\n';
+  Object.keys(layers).forEach(function(k){s+='0\nLAYER\n2\n'+k+'\n70\n0\n62\n'+layers[k]+'\n6\nCONTINUOUS\n';});
+  s+='0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n'+ents.join('')+'0\nENDSEC\n0\nEOF\n';
+  return s;
+}
+$('#xDxf').addEventListener('click',function(){download('site-plan.dxf',dxfText(),'application/dxf');});
+$('#xProj').addEventListener('click',function(){download('site-plan-project.json',JSON.stringify(projectJSON()),'application/json');});
+$('#openProj').addEventListener('change',function(ev){
+  var f=ev.target.files[0];if(!f)return;
+  f.text().then(function(t){undoStack.length=0;var o=JSON.parse(t);loadProject(o);if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}}).catch(function(e){alert('That project file could not be read: '+e.message);});
+  ev.target.value='';
+});
+
+// ---------- freeform buildings ----------
+function rotatePts(b,deg){
+  var c=toLocal(b.c),a=deg*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
+  b.pts=b.pts.map(function(q){var p=toLocal(q),x=p[0]-c[0],y=p[1]-c[1];return toLL([c[0]+x*co-y*si,c[1]+x*si+y*co]);});
+}
+// Rotate an area or road about the middle of its bounding box. Positive = counter-clockwise.
+function rotateShape(o,deg){var k0=o.ring?'a':'r';rotateAny(k0,o,groupCenter([{k:k0,o:o}]),deg);}
+function rotateShapeOld(o,deg){
+  var key=o.ring?'ring':'pts',P=o[key].map(toLocal),xs=P.map(function(q){return q[0];}),ys=P.map(function(q){return q[1];});
+  var cx=(Math.min.apply(null,xs)+Math.max.apply(null,xs))/2,cy=(Math.min.apply(null,ys)+Math.max.apply(null,ys))/2,a=deg*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
+  o[key]=P.map(function(q){var x=q[0]-cx,y=q[1]-cy;return toLL([cx+x*co-y*si,cy+x*si+y*co]);});
+}
+function nudgeShape(o,dx,dy){
+  var key=o.ring?'ring':'pts';o[key]=o[key].map(function(q){var p=toLocal(q);return toLL([p[0]+dx,p[1]+dy]);});
+}
+$('#mMove').addEventListener('click',function(){var dx=parseFloat($('#mDx').value)||0,dy=parseFloat($('#mDy').value)||0;moveGroup(dx,dy);$('#mDx').value='';$('#mDy').value='';});
+$('#mRotL').addEventListener('click',function(){rotateGroup(S.set.rotStep);});
+$('#mRotR').addEventListener('click',function(){rotateGroup(-S.set.rotStep);});
+$('#mRotBy').addEventListener('change',function(){var v=parseFloat(this.value);this.value='';if(isFinite(v))rotateGroup(-v);});
+$('#mDel').addEventListener('click',deleteGroup);
+$('#mSq').addEventListener('click',function(){squareObjs(multiObjs());});
+$('#aSq').addEventListener('click',function(){squareObjs(selObjs());});
+$('#rSq').addEventListener('click',function(){squareObjs(selObjs());});
+$('#iSq').addEventListener('click',function(){squareObjs(selObjs());});
+function rotFree(deg){var o=getSel();if(!o||!o.pts||!deg)return;pushUndo();rotatePts(o,deg);renderAll();}
+$('#iRotL').addEventListener('click',function(){rotFree(S.set.rotStep);});
+$('#iRotR').addEventListener('click',function(){rotFree(-S.set.rotStep);});
+$('#iRotBy').addEventListener('change',function(){var v=parseFloat(this.value);this.value='';if(isFinite(v))rotFree(-v);});
+$('#mClear').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
+['a','r','p'].forEach(function(k){
+  function go(deg){var o=getSel();if(!o||!(o.ring||o.pts)||!deg)return;pushUndo();rotateShape(o,deg);renderAll();}
+  $('#'+k+'RotL').addEventListener('click',function(){go(S.set.rotStep);});
+  $('#'+k+'RotR').addEventListener('click',function(){go(-S.set.rotStep);});
+  $('#'+k+'RotBy').addEventListener('change',function(){var v=parseFloat(this.value);this.value='';if(isFinite(v))go(-v);});
+});
+// ---- squaring a shape to its surroundings ----
+function flash(t){var h=$('#hint');h.textContent=t;clearTimeout(flash.t);flash.t=setTimeout(function(){h.textContent=HINTS[S.tool]||'';},3500);}
+// Degrees (counter-clockwise +) to turn objs so their longest side runs parallel or square to the nearest property line, road edge or other shape. null = nothing nearby.
+function squareDelta(objs){
+  var le=null,hasRoad=false,excl={};
+  objs.forEach(function(m){
+    excl[m.k+':'+(m.id!==undefined?m.id:m.o.id)]=true;if(m.k==='r')hasRoad=true;
+    var P=shapePts(m.k,m.o).map(toLocal),n=P.length,lim=(m.k==='r'||m.k==='p')?n-1:n;
+    for(var i=0;i<lim;i++){var a=P[i],b=P[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>1e-6&&(!le||l>le.len))le={len:l,ang:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI};}
+  });
+  if(!le||!S.ctx)return null;
+  var c=groupCenter(objs),best=null;
+  function scan(ring){segsOf(ring).forEach(function(sg){var r=ptSegDist(c,sg[0],sg[1]);if(r.d<200&&(!best||r.d<best.d)&&Math.hypot(sg[1][0]-sg[0][0],sg[1][1]-sg[0][1])>1e-6)best={d:r.d,a:sg[0],b:sg[1]};});}
+  S.ctx.lines.forEach(function(ln){if(!(hasRoad&&ln.kind==='road'))scan(ln.ring);});
+  if(S.opt.edge&&S.ctx.shapeLines)S.ctx.shapeLines.forEach(function(sl){if(!excl[sl.k+':'+sl.id])scan(sl.ring);});
+  if(!best)return null;
+  var ref=Math.atan2(best.b[1]-best.a[1],best.b[0]-best.a[0])*180/Math.PI,d=ref-le.ang;
+  return ((d%90)+90+45)%90-45;
+}
+function squareObjs(objs){
+  var d=squareDelta(objs);
+  if(d===null){flash('Nothing nearby to square up to. Move the shape closer to a property line, road or another shape.');return;}
+  if(Math.abs(d)<0.005){flash('Already square to the nearest edge.');return;}
+  pushUndo();var c=groupCenter(objs);objs.forEach(function(m){rotateAny(m.k,m.o,c,d);});renderAll();
+  flash('Turned '+Math.abs(d).toFixed(2)+'° '+(d>0?'counter-clockwise':'clockwise')+' to square up.');
+}
+function angTxt(objs){
+  var d=squareDelta(objs);if(d===null)return '';
+  return Math.abs(d)<0.05?' · square to the nearest edge':' · longest side is '+Math.abs(d).toFixed(1)+'° off the nearest edge';
+}
+function selObjs(){var o=getSel();return o?[{k:S.sel.k,id:o.id,o:o}]:[];}
+// Stretch side i to a new length. A neighbour that meets it at a right angle slides along with it, so rectilinear shapes stay square.
+function setEdgeLength(b,i,newLen){
+  var P=b.pts.map(toLocal),n=P.length,j=(i+1)%n,k=(i+2)%n,a=P[i],c=P[j];
+  var len=Math.hypot(c[0]-a[0],c[1]-a[1]);if(len<1e-6||!(newLen>=1))return;
+  var u=[(c[0]-a[0])/len,(c[1]-a[1])/len],delta=newLen-len,d=[u[0]*delta,u[1]*delta];
+  var e=[P[k][0]-P[j][0],P[k][1]-P[j][1]],el=Math.hypot(e[0],e[1]);
+  var perp=n>3&&el>1e-6&&Math.abs((e[0]*u[0]+e[1]*u[1])/el)<0.02;
+  P[j]=[P[j][0]+d[0],P[j][1]+d[1]];
+  if(perp)P[k]=[P[k][0]+d[0],P[k][1]+d[1]];
+  b.pts=P.map(toLL);recenter(b);
+}
+function renderSegTable(o){
+  var box=$('#iSeg'),n=o.pts.length,key=o.id+':'+n,P=o.pts.map(toLocal);
+  if(box.dataset.key!==key){
+    var t='<table><thead><tr><th>Side</th><th>Length ft</th></tr></thead><tbody>';
+    for(var i=0;i<n;i++)t+='<tr><td>'+(i+1)+'</td><td><input type="number" class="segIn" data-i="'+i+'" min="1" step="0.5"></td></tr>';
+    box.innerHTML=t+'</tbody></table>';box.dataset.key=key;
+    $$('.segIn').forEach(function(inp){inp.addEventListener('change',function(){
+      var cur=getSel(),v=parseFloat(inp.value);if(!cur||!cur.pts)return;
+      if(!(v>=1)){var Q=cur.pts.map(toLocal),ii=+inp.dataset.i,A=Q[ii],B=Q[(ii+1)%Q.length];inp.value=Math.round(Math.hypot(B[0]-A[0],B[1]-A[1])*100)/100;return;}
+      pushUndo();setEdgeLength(cur,+inp.dataset.i,v);renderAll();
+    });});
+  }
+  $$('.segIn').forEach(function(inp){
+    if(inp===document.activeElement)return;
+    var i=+inp.dataset.i,a=P[i],b=P[(i+1)%n];inp.value=Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])*100)/100;
+  });
+}
+function renderHandles(){
+  gHandles.clearLayers();
+  var b=(S.sel&&S.sel.k==='b'&&S.tool==='select')?getSel():null;
+  if(!b||!b.pts)return;
+  b.pts.forEach(function(pt,i){
+    var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
+    m.on('dragstart',function(){pushUndo();S.snapSkip=b.id;buildCtx();});
+    m.on('drag',function(){b.pts[i]=snapLL(m.getLatLng());recenter(b);renderLight();fillInspector();});
+    m.on('dragend',function(){S.snapSkip=null;renderAll();});
+  });
+}
+$('#drawBtn').addEventListener('click',function(){setTool('bpoly');});
+$('#iFreeform').addEventListener('click',function(){
+  var o=getSel();if(!o||o.pts)return;pushUndo();
+  o.pts=S.ctx.rings[o.id].map(toLL);o.custom=true;recenter(o);renderAll();
+});
+$('#angMode').addEventListener('change',function(){S.angMode[S.tool]=$('#angMode').value;});
+var dt=$('#drawType');
+Object.keys(TYPES).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=TYPES[k].name;dt.appendChild(o);});
+dt.value=S.tpl.type;
+dt.addEventListener('change',function(){var k=dt.value;S.tpl.type=k;S.tpl.st=TYPES[k].st;syncTpl();if(D)drawPreview();});
+$('#lenBox').addEventListener('input',function(){var v=parseFloat(this.value);if(D)D.typed=(isFinite(v)&&v>0)?v:null;drawPreview();});
+$('#lenBox').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();if(D&&D.typed>0)commitTyped();else finishDraw();this.blur();}
+  else if(e.key==='Escape'){this.value='';if(D)D.typed=null;this.blur();drawPreview();}
+});
+
+// ---------- parking lot inspector and settings ----------
+function fillLot(o){
+  var ae=document.activeElement;
+  function sv(id,v){var e=$(id);if(e!==ae)e.value=v;}
+  sv('#pName',o.name||'');sv('#pAngle',String(o.angle));sv('#pSides',o.sides);sv('#pAisle',o.aisleW);sv('#pStallW',o.stallW);sv('#pStallD',o.stallD);
+  var g=S.lotG[o.id];
+  if(g){var len=0,P=o.pts.map(toLocal);for(var i=0;i<P.length-1;i++)len+=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]);
+    var sf=(g.aisle?areaOf(g.aisle):0)+g.stallSf;
+    $('#pInfo').textContent=g.count+' stalls · '+(g.row?'row ':'aisle ')+n0(len)+' ft long · '+n0(sf)+' sf paved'+(g.count?' · '+n0(sf/g.count)+' sf per stall':'');}
+}
+var NEG0={aisleW:1,angle:1}; // these may be 0
+var LOT_PRESETS={row:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},par:{aisleW:0,stallW:8,stallD:22,angle:0,sides:'left'},std:{aisleW:24,stallW:10,stallD:20,angle:90,sides:'both'},a60:{aisleW:16,stallW:10,stallD:20,angle:60,sides:'both'},a45:{aisleW:13,stallW:10,stallD:20,angle:45,sides:'both'},compact:{aisleW:24,stallW:8.5,stallD:16,angle:90,sides:'both'}};
+function lotFieldsFromCfg(){var c=S.lotCfg;$('#lotAngle').value=String(c.angle);$('#lotAisle').value=c.aisleW;$('#lotStallW').value=c.stallW;$('#lotStallD').value=c.stallD;$('#lotSides').value=c.sides;}
+lotFieldsFromCfg();
+$('#lotPreset').addEventListener('change',function(){var p=LOT_PRESETS[this.value];if(p){Object.assign(S.lotCfg,p);lotFieldsFromCfg();}});
+[['#lotAngle','angle',true],['#lotAisle','aisleW'],['#lotStallW','stallW'],['#lotStallD','stallD'],['#lotSides','sides',false,true]].forEach(function(f){
+  $(f[0]).addEventListener('input',function(){
+    var v=f[3]?this.value:parseFloat(this.value);if(!f[3]&&!(v>(NEG0[f[1]]?-1:0)))return;S.lotCfg[f[1]]=v;if(!f[3])$('#lotPreset').value='custom';
+  });
+});
+[['#pName','name',1],['#pAngle','angle'],['#pSides','sides',1],['#pAisle','aisleW'],['#pStallW','stallW'],['#pStallD','stallD']].forEach(function(f){
+  $(f[0]).addEventListener('input',function(){var raw=this.value,v=f[2]?raw:parseFloat(raw);if(!f[2]&&!(v>(NEG0[f[1]]?-1:0)))return;inspUpdate(function(o){o[f[1]]=v;});});
+});
+$('#pDel').addEventListener('click',deleteSel);
+$('#pFlip').addEventListener('click',function(){var o=getSel();if(!o||!o.pts)return;pushUndo();o.pts=o.pts.slice().reverse();renderAll();});
+$('#pDup').addEventListener('click',function(){
+  var o=getSel();if(!o)return;pushUndo();
+  var c=JSON.parse(JSON.stringify(o));c.id=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;c.name='Parking lot '+S.counters.lot;
+  var P=c.pts.map(toLocal),dx=P[1][0]-P[0][0],dy=P[1][1]-P[0][1],l=Math.hypot(dx,dy)||1,off=o.aisleW+(o.sides==='both'?2:1)*(o.angle<1?o.stallW:o.stallD)+(o.aisleW?0:2);
+  c.pts=c.pts.map(function(q){var p=toLocal(q);return toLL([p[0]-dy/l*off,p[1]+dx/l*off]);});
+  S.lots.push(c);S.sel={k:'p',id:c.id};S.multi=[];renderAll();
+});
+$('#pSq').addEventListener('click',function(){squareObjs(selObjs());});
+// ---------- saved layouts ----------
+var LY_KEY='sitePlanSketcher.layouts.v1',LY={active:null,items:[]};
+function lyLoad(){try{var o=JSON.parse(localStorage.getItem(LY_KEY)||'null');if(o&&Array.isArray(o.items))LY=o;}catch(e){}}
+function lyStore(){try{localStorage.setItem(LY_KEY,JSON.stringify(LY));return true;}catch(e){$('#lyList').insertAdjacentHTML('afterbegin','<div class="flag">This browser would not store that layout (storage full or blocked). Use Download on the layout to keep a file.</div>');return false;}}
+function lySummary(){
+  var st=S.stats;if(!st)return null;
+  return {acres:st.acres,siteSf:st.siteSf,units:st.units,fp:st.fp,gfa:st.gfa,comm:st.comm,
+    cov:st.siteSf?st.fp/st.siteSf*100:0,imp:st.siteSf?st.imperv/st.siteSf*100:0,prov:st.provStalls,req:st.reqStalls,flags:st.flags,nb:S.buildings.length};
+}
+function lyId(){return 'ly'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function lyFind(id){return LY.items.filter(function(x){return x.id===id;})[0];}
+function lyNameDefault(){var n=LY.items.length+1;return 'Layout '+n;}
+function lyJson(){return JSON.stringify(projectJSON());}
+function lySaveNew(){
+  var name=$('#lyName').value.trim()||lyNameDefault();
+  var e={id:lyId(),name:name,saved:Date.now(),json:lyJson(),sum:lySummary()};
+  LY.items.push(e);LY.active=e.id;if(lyStore())$('#lyName').value='';renderLayouts();
+}
+function lyUpdate(id){var e=lyFind(id);if(!e)return;e.json=lyJson();e.sum=lySummary();e.saved=Date.now();LY.active=id;lyStore();renderLayouts();}
+function lyOpen(id){
+  var e=lyFind(id);if(!e)return;var o=JSON.parse(e.json);
+  pushUndo();
+  // keep the parcels already on the map and add the ones this layout needs
+  var have={},feats=[];
+  if(S.parcels)S.parcels.features.forEach(function(f){have[f.properties.__pid]=1;feats.push(f);});
+  ((o.parcels&&o.parcels.features)||[]).forEach(function(f){if(!have[f.properties.__pid])feats.push(f);});
+  o.parcels={type:'FeatureCollection',features:feats};
+  o.demo=false;
+  loadProject(o);
+  LY.active=id;if(!e.sum)e.sum=lySummary();lyStore();
+  if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}
+  renderLayouts();
+}
+function lyDelete(id){var e=lyFind(id);if(!e||!confirm('Delete the layout "'+e.name+'"? This cannot be undone.'))return;LY.items=LY.items.filter(function(x){return x.id!==id;});if(LY.active===id)LY.active=null;lyStore();renderLayouts();}
+function lyRename(id){var e=lyFind(id);if(!e)return;var n=prompt('Layout name',e.name);if(n&&n.trim()){e.name=n.trim();lyStore();renderLayouts();}}
+function lyDup(id){var e=lyFind(id);if(!e)return;LY.items.push({id:lyId(),name:e.name+' copy',saved:Date.now(),json:e.json,sum:e.sum});lyStore();renderLayouts();}
+function slug(t){return String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'layout';}
+function lyLine(m){return m?n0(m.units)+' units · '+n1(m.cov)+'% coverage · parking '+m.prov+' / '+m.req:'open it once to fill in the numbers';}
+function lyDirty(){var e=LY.active&&lyFind(LY.active);return !!e&&e.json!==lyJson();}
+function renderLayouts(){
+  var h='';
+  if(!LY.items.length)h='<div class="note">Nothing saved yet. Name the current plan above and press Save. Change the plan, save again under a new name, and compare the versions below.</div>';
+  LY.items.forEach(function(e){
+    var on=e.id===LY.active,dirty=on&&lyDirty();
+    h+='<div class="card" style="padding:8px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px'+(on?';border-color:var(--accent,#ffd43b)':'')+'">'+
+      '<div><b>'+esc(e.name)+'</b>'+(on?' <span class="note" style="display:inline">'+(dirty?'· open, changed since saved':'· open')+'</span>':'')+'</div>'+
+      '<div class="note">'+esc(lyLine(e.sum))+' · saved '+new Date(e.saved).toLocaleString()+'</div>'+
+      '<div class="row" style="margin-top:4px">'+
+      '<button class="btn small" data-ly="open" data-id="'+e.id+'">Open</button>'+
+      '<button class="btn small" data-ly="update" data-id="'+e.id+'" title="Replace this layout with the plan on screen">Save over</button>'+
+      '<button class="btn small" data-ly="rename" data-id="'+e.id+'">Rename</button>'+
+      '<button class="btn small" data-ly="dup" data-id="'+e.id+'">Duplicate</button>'+
+      '<button class="btn small" data-ly="dl" data-id="'+e.id+'" title="A project file you can reopen with Open project">Download</button>'+
+      '<button class="btn small danger" data-ly="del" data-id="'+e.id+'">Delete</button></div></div>';
+  });
+  $('#lyList').innerHTML=h;
+  $$('#lyList [data-ly]').forEach(function(b){b.addEventListener('click',function(){
+    var id=b.dataset.id,a=b.dataset.ly;
+    if(a==='open')lyOpen(id);else if(a==='update')lyUpdate(id);else if(a==='rename')lyRename(id);else if(a==='dup')lyDup(id);else if(a==='del')lyDelete(id);
+    else if(a==='dl'){var e=lyFind(id);if(e)download(slug(e.name)+'.json',e.json,'application/json');}
+  });});
+  // comparison
+  var cur=lySummary(),rows=LY.items.map(function(e){return {n:e.name,m:e.sum};});
+  if(cur)rows.push({n:'Current plan (on screen)',m:cur,cur:true});
+  function cell(v){return '<td>'+v+'</td>';}
+  var t='<table><thead><tr><th>Layout</th><th>Units</th><th>Per acre</th><th>Coverage</th><th>Impervious</th><th>Floor area</th><th>Parking</th><th>Flags</th></tr></thead><tbody>';
+  rows.forEach(function(r){var m=r.m;
+    t+='<tr'+(r.cur?' style="font-style:italic"':'')+'><td>'+esc(r.n)+'</td>'+(m?cell(n0(m.units))+cell(m.acres?n1(m.units/m.acres):'—')+cell(n1(m.cov)+'%')+cell(n1(m.imp)+'%')+cell(n0(m.gfa)+' sf')+cell(m.prov+' / '+m.req)+cell(m.flags):'<td colspan="7">open to fill in</td>')+'</tr>';});
+  $('#lyCompare').innerHTML=rows.length?t+'</tbody></table>':'<div class="note">Nothing to compare yet.</div>';
+}
+$('#lySave').addEventListener('click',lySaveNew);
+$('#lyName').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lySaveNew();}});
+$('#lyAll').addEventListener('click',function(){
+  if(!LY.items.length){return;}
+  download('site-plan-layouts.json',JSON.stringify({kind:'site-plan-layouts',v:1,layouts:LY.items.map(function(e){return {name:e.name,saved:e.saved,sum:e.sum,proj:JSON.parse(e.json)};})}),'application/json');
+});
+$('#lyCsv').addEventListener('click',function(){
+  var cur=lySummary(),rows=LY.items.map(function(e){return [e.name,e.sum];});if(cur)rows.push(['Current plan',cur]);
+  var q=function(v){return '"'+String(v).replace(/"/g,'""')+'"';};
+  var out=[['Layout','Units','Units per acre','Building coverage %','Impervious %','Floor area sf','Commercial sf','Parking provided','Parking required','Flags','Site acres'].map(q).join(',')];
+  rows.forEach(function(r){var m=r[1];out.push(m?[r[0],m.units,m.acres?(m.units/m.acres).toFixed(1):'',m.cov.toFixed(1),m.imp.toFixed(1),Math.round(m.gfa),Math.round(m.comm),m.prov,m.req,m.flags,m.acres.toFixed(2)].map(q).join(','):q(r[0]));});
+  download('layout-comparison.csv',out.join('\r\n'),'text/csv');
+});
+$('#lyImport').addEventListener('change',function(ev){
+  var f=ev.target.files[0];if(!f)return;
+  f.text().then(function(t){
+    var o=JSON.parse(t),n=0;
+    if(o.kind==='site-plan-layouts'&&Array.isArray(o.layouts)){o.layouts.forEach(function(l){if(l.proj){LY.items.push({id:lyId(),name:l.name||lyNameDefault(),saved:l.saved||Date.now(),json:JSON.stringify(l.proj),sum:l.sum||null});n++;}});}
+    else if(o.buildings&&o.parcels){LY.items.push({id:lyId(),name:f.name.replace(/\.json$/i,''),saved:Date.now(),json:JSON.stringify(o),sum:null});n=1;}
+    else throw new Error('not a layout or project file');
+    lyStore();renderLayouts();
+  }).catch(function(e){$('#lyList').insertAdjacentHTML('afterbegin','<div class="flag">That file could not be imported: '+esc(e.message)+'</div>');});
+  ev.target.value='';
+});
+// ---------- start ----------
+window.addEventListener('resize',function(){map.invalidateSize();});
+(function init(){
+  lyLoad();renderLayouts();
+  Object.keys(SET_MAP).forEach(function(id){});fillSettings();syncTpl();
+  $('#hint').textContent=HINTS.select;
+  dt.value=S.tpl.type;updateDrawbar();
+  setBase('imagery');
+  var saved=null;try{saved=JSON.parse(localStorage.getItem('sitePlanSketcher.v1')||'null');}catch(e){}
+  if(saved&&saved.parcels&&saved.parcels.features&&saved.parcels.features.length&&(saved.buildings.length||saved.roads.length||saved.areas.length||saved.selected.length)){
+    loadProject(saved);
+    if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}
+  }else demoProject();
+  setTimeout(function(){map.invalidateSize();},50);
+})();
+})();
+</script>
+</body>
+</html>
