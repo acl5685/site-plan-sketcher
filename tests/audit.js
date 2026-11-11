@@ -11,7 +11,7 @@ G('01 startup and sample project',async()=>{
   ok(!t.$('#banner').hidden,'sample banner visible');
   ok(/All 4 building/.test(t.$('#checks').textContent),'sample passes all checks');
   ok(t.$$('#types .typebtn').length===6,'six building type buttons');
-  ok(t.$$('.tool').length===9,'nine toolbar tools');
+  ok(t.$$('.tool').length===10,'ten toolbar tools');
 });
 
 G('02 loading parcels from an ArcGIS REST service',async()=>{

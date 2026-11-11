@@ -123,7 +123,7 @@ td:first-child{font-family:var(--font)}
 #lenBox{width:96px;font-family:var(--mono)}
 #map:not(.tool-select) .obj-path{pointer-events:none!important}
 #map:not(.tool-parcels):not(.tool-carve) .parcel-path{pointer-events:none!important}
-#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
+#map.tool-split,#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
 .blabel{background:none;border:0;color:#fff;font:500 11px/1.25 var(--font);text-align:center;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;pointer-events:none}
 .dim{background:none;border:0;font:500 11px var(--mono);white-space:nowrap;pointer-events:none;text-align:center}
 .dim span{padding:1px 4px;border-radius:3px;background:rgba(15,20,22,.82);color:#fff;border:1px solid currentColor}
@@ -145,6 +145,7 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="parcels" title="Click parcels to add them to the project site">Pick parcels</button>
       <button class="tool" data-tool="carve" title="Click parcels to carve them out of the site">Carve parcel</button>
       <button class="tool" data-tool="carvepoly" title="Draw a shape to carve out of the site">Carve shape</button>
+      <button class="tool" data-tool="split" title="Draw a line across the site to split it into separate lots">Split lots</button>
       <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
       <button class="tool" data-tool="lot" title="Draw a parking aisle centerline; striped stalls fill in along both sides">Parking lot</button>
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
@@ -196,6 +197,16 @@ td:first-child{font-family:var(--font)}
         <div id="parcelSummary" class="note"></div>
         <div class="row" style="margin-top:6px"><button class="btn small" id="clearPicks">Clear picks and carve-outs</button></div>
         <p class="note">Use Pick parcels to click the parcels you are developing. They merge into one boundary. Use Carve parcel or Carve shape to cut out land you are not including.</p>
+      </div>
+      <div>
+        <h3>Lots</h3>
+        <div class="row">
+          <button class="btn small" id="splitBtn">Draw a lot line</button>
+          <button class="btn small danger" id="splitClear" hidden>Remove all lot lines</button>
+          <div class="field" style="flex:1 1 120px"><label for="sLotMin">Minimum lot area sf (0 = no check)</label><input type="number" id="sLotMin" min="0" step="500"></div>
+        </div>
+        <div id="plotList" class="scroll-x" style="margin-top:6px"></div>
+        <p class="note">Split lots draws a line across the site. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks.</p>
       </div>
     </div>
 
@@ -654,10 +665,11 @@ var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
   roads:[],buildings:[],areas:[],sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
-  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200},
+  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
-  angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free'},snapSkip:null
+  angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free',split:'free'},snapSkip:null,
+  splits:[],plots:[] // lot lines drawn across the site, and the lots they cut it into
 };
 var undoStack=[],shiftHeld=false,drag=null,D=null,ghostLL=null,raf=0;
 
@@ -679,11 +691,11 @@ function setBase(k){
 }
 
 // ---------- undo / persistence ----------
-function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,nextId:S.nextId,counters:S.counters});}
+function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,nextId:S.nextId,counters:S.counters});}
 function pushUndo(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();}
 function restore(str){
   var o=JSON.parse(str);
-  S.selected=new Set(o.selected);S.carved=new Set(o.carved);S.carveShapes=o.carveShapes;S.roads=o.roads;
+  S.selected=new Set(o.selected);S.carved=new Set(o.carved);S.carveShapes=o.carveShapes;S.splits=o.splits||[];S.roads=o.roads;
   S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
   siteChanged();
 }
@@ -692,7 +704,7 @@ function projectJSON(){
   var keep=[];
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.push(f);});
   return {v:1,org:[ORG.lng,ORG.lat],labelField:S.labelField,parcels:{type:'FeatureCollection',features:keep},
-    selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,roads:S.roads,buildings:S.buildings,
+    selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,buildings:S.buildings,
     areas:S.areas,lots:S.lots,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
     overlays:S.overlays.filter(function(o){return o.url;}).map(function(o){return {name:o.name,url:o.url,tiled:o.tiled,opacity:o.opacity};})};
 }
@@ -701,7 +713,7 @@ function loadProject(o){
   if(o.org)setOrg(o.org[0],o.org[1]);
   S.parcels=o.parcels||null;S.labelField=o.labelField||null;
   S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
-  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];
+  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];
   if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
   S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
   fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
@@ -741,7 +753,10 @@ function roadPoly(r){
 function polysOf(f){if(!f)return [];var g=f.geometry;return g.type==='Polygon'?[g.coordinates]:g.coordinates;}
 function buildCtx(){
   var sitePolys=[],siteRings=[],roadPolys=[];
-  polysOf(S.site).forEach(function(p){var lp=p.map(function(r){return r.map(toLocal);});sitePolys.push(lp);lp.forEach(function(r){siteRings.push(r);});});
+  // once the site is split, each lot stands in for the site: its lines are the property lines buildings answer to
+  var siteOuter=[],split=S.plots&&S.plots.length>=2;
+  polysOf(S.site).forEach(function(p){p.forEach(function(r){siteOuter.push(r.map(toLocal));});});
+  (split?S.plots.map(function(p){return p.coords;}):polysOf(S.site)).forEach(function(p){var lp=p.map(function(r){return r.map(toLocal);});sitePolys.push(lp);lp.forEach(function(r){siteRings.push(r);});});
   S.roads.forEach(function(r){polysOf(roadPoly(r)).forEach(function(p){roadPolys.push(p.map(function(ring){return ring.map(toLocal);}));});});
   var roadRings=[];roadPolys.forEach(function(p){p.forEach(function(r){roadRings.push(r);});});
   var lines=siteRings.map(function(r){return {ring:r,kind:'property'};}).concat(roadRings.map(function(r){return {ring:r,kind:'road'};}));
@@ -749,7 +764,7 @@ function buildCtx(){
   var shapeLines=[];
   S.buildings.forEach(function(b){shapeLines.push({ring:rings[b.id],id:b.id,k:'b'});});
   S.areas.forEach(function(a){shapeLines.push({ring:a.ring.map(toLocal),id:a.id,k:'a'});});
-  S.ctx={sitePolys:sitePolys,siteRings:siteRings,roadPolys:roadPolys,roadRings:roadRings,lines:lines,rings:rings,shapeLines:shapeLines};
+  S.ctx={sitePolys:sitePolys,siteRings:siteRings,siteOuter:siteOuter,split:split,roadPolys:roadPolys,roadRings:roadRings,lines:lines,rings:rings,shapeLines:shapeLines};
   // snap candidates in lng/lat
   var v=[],sg=[];
   polysOf(S.site).forEach(function(p){p.forEach(function(r){r.forEach(function(q){v.push(q);});for(var i=0;i<r.length-1;i++)sg.push([r[i],r[i+1]]);});});
@@ -873,7 +888,7 @@ function computeChecks(){
     var ring=c.rings[b.id],msgs=[],info={b:b,minProp:null,offsets:null};
     var inside=!!S.site&&ring.every(function(p){return pointInAny(p,c.sitePolys);})&&!c.siteRings.some(function(r){return ringsCross(ring,r);});
     if(S.site){
-      if(!inside)msgs.push('Crosses or sits outside the site boundary.');
+      if(!inside)msgs.push(c.split?'Crosses a lot line or sits outside the site.':'Crosses or sits outside the site boundary.');
       else{
         var best=Infinity;c.siteRings.forEach(function(r){var m=minRingDist(ring,r);if(m.d<best)best=m.d;});
         info.minProp=best;
@@ -907,6 +922,7 @@ function computeChecks(){
     info.msgs=msgs;res.push(info);
   });
   if(tg)S.terr=terrainChecks(tg,res);
+  S.plotInfo=plotInfo();
   return res;
 }
 function computeStats(checks){
@@ -925,7 +941,7 @@ function computeStats(checks){
   st.provStalls=Math.floor(st.parkSf/S.set.stall)+st.lotStalls;
   st.imperv=st.fp+st.roadSf+st.parkSf+st.hardSf+st.lotSf;
   st.acres=st.siteSf/ACRE;
-  st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0)+(S.terr?S.terr.msgs.length:0);
+  st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0)+(S.terr?S.terr.msgs.length:0)+(S.plotInfo?S.plotInfo.msgs.length:0);
   return st;
 }
 
@@ -957,6 +973,16 @@ function renderMap(){
   buildCtx();
   gSite.clearLayers();gRoads.clearLayers();gAreas.clearLayers();gBldg.clearLayers();gDims.clearLayers();
   // site outline
+  // lots (under the site outline), each labelled with its name and area; lot lines that do not split anything yet still show
+  if(S.plots.length>=2){
+    L.polygon(ringsToLatLngs(S.plots.map(function(p){return p.coords;})),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',fill:false,interactive:false}).addTo(gSite);
+    S.plots.forEach(function(p){L.marker(ll2(toLL(p.c)),{pane:'pSite',interactive:false,icon:L.divIcon({className:'blabel plabel',iconSize:[110,30],iconAnchor:[55,15],html:esc(p.name)+'<br>'+n0(p.sf)+' sf'})}).addTo(gSite);});
+  }
+  S.splits.forEach(function(s,i){
+    if(S.plots.length<2)L.polyline(s.pts.map(ll2),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',interactive:false}).addTo(gSite);
+    var m=Math.floor((s.pts.length-1)/2),a=s.pts[m],b=s.pts[m+1]||a;
+    L.marker([(a[1]+b[1])/2,(a[0]+b[0])/2],{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim road',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%);color:#ffd43b">Line '+(i+1)+'</span>'})}).addTo(gSite);
+  });
   if(S.site){
     L.polygon(ringsToLatLngs(polysOf(S.site)),{pane:'pSite',color:'#ff4d6d',weight:3,dashArray:'10 5',fill:false,interactive:false}).addTo(gSite);
   }
@@ -1042,7 +1068,8 @@ function renderPanels(){
   else if(!st.flags)html='<div class="flag ok">All '+ch.length+(ch.length>1?' buildings meet':' building meets')+' the current rules.</div>';
   ch.forEach(function(c){c.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(c.b.name)+'</b> '+esc(m)+'</div>';});});
   if(S.terr)S.terr.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(m.name)+'</b> '+esc(m.msg)+'</div>';});
-  renderTerrInfo();
+  if(S.plotInfo)S.plotInfo.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(m.name)+'</b> '+esc(m.msg)+'</div>';});
+  renderTerrInfo();renderPlots();
   var pn=[];
   if(st.provStalls>=100)pn.push('100+ spaces: §1183.15(b) wants 10% of the parking area as planting areas (min 10 ft wide, a tree in each) and no more than 20 cars in a line without an island.');
   else if(st.provStalls>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
@@ -1073,7 +1100,45 @@ function renderOffsetTable(){
   if(c.minProp!==null)html+='<div class="note" style="margin-top:4px">Closest point to a property line: '+ftf(c.minProp)+'</div>';
   $('#iOffs').innerHTML=html;
 }
-function siteChanged(){S.site=computeSite();restyleParcels();renderAll();}
+function siteChanged(){S.site=computeSite();computePlots();restyleParcels();renderAll();}
+// Lots: the site cut along each lot line. A hair-thin strip is taken out along the line (each end run 3 ft further,
+// so a line that stops on the boundary still cuts through); every piece left is a lot. Fewer than two pieces = no lots.
+function computePlots(){
+  S.plots=[];
+  if(!S.site||!S.splits.length)return;
+  var f=S.site;
+  S.splits.forEach(function(s){
+    if(!f||!s.pts||s.pts.length<2)return;
+    try{
+      var P=s.pts.map(toLocal),n=P.length;
+      var ext=function(a,b){var l=Math.hypot(a[0]-b[0],a[1]-b[1])||1;return [a[0]+(a[0]-b[0])/l*3,a[1]+(a[1]-b[1])/l*3];};
+      var line=[ext(P[0],P[1])].concat(P.slice(1,n-1),[ext(P[n-1],P[n-2])]).map(toLL);
+      f=turf.difference(f,turf.buffer(turf.lineString(line),0.003,{units:'meters',steps:1}))||f;
+    }catch(e){console.warn('split',e);}
+  });
+  var out=polysOf(f).map(function(co){
+    var lp=co.map(function(r){return r.map(toLocal);}),a=Math.abs(polyAreaSigned(lp[0]));
+    for(var h=1;h<lp.length;h++)a-=Math.abs(polyAreaSigned(lp[h]));
+    return {coords:co,sf:a,c:polyCentroid(lp[0])};
+  }).filter(function(p){return p.sf>20;});
+  if(out.length<2)return;
+  // number them in reading order: north to south in 60 ft bands, west to east within a band
+  out.sort(function(p,q){var rp=Math.round(p.c[1]/60),rq=Math.round(q.c[1]/60);return rp!==rq?rq-rp:p.c[0]-q.c[0];});
+  out.forEach(function(p,i){p.name='Lot '+(i+1);});
+  S.plots=out;
+}
+// Per-lot numbers for the Lots panel and the minimum lot area check. A building belongs to the lot its centre is in.
+function plotInfo(){
+  var info={rows:[],msgs:[]};
+  if(!S.plots.length||!S.ctx)return info;
+  S.plots.forEach(function(p){
+    var lp=p.coords.map(function(r){return r.map(toLocal);}),row={name:p.name,sf:p.sf,n:0,fp:0,units:0,names:[]};
+    S.buildings.forEach(function(b){var ring=S.ctx.rings[b.id];if(ring&&pointInPoly(polyCentroid(ring),lp)){row.n++;row.fp+=fpOf(b);row.units+=unitsOf(b);row.names.push(b.name);}});
+    info.rows.push(row);
+    if(S.set.lotMin>0&&p.sf<S.set.lotMin-0.5)info.msgs.push({name:p.name,msg:'is '+n0(p.sf)+' sf, minimum lot area is '+n0(S.set.lotMin)+' sf.'});
+  });
+  return info;
+}
 function renderAll(){
   buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);
   renderMap();renderHandles();renderPanels();fillInspector();saveLocal();
@@ -1164,12 +1229,14 @@ var HINTS={
   carve:'Click parcels to carve them out of the project site. Click again to restore.',
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
   road:'Click along the road centerline. Double-click or press Enter to finish.',
+  split:'Click a line across the site, from outside one edge to outside the other, to split it into lots. Double-click or press Enter to finish. Lot lines are listed on the Site tab.',
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
   building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
   area:'Click corners of the area. Double-click or press Enter to finish.',
   bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
 };
-function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly';}
+function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly'||t==='split';}
+function isLineKind(k){return k==='road'||k==='lot'||k==='split';}
 function updateDrawbar(){
   var on=isDrawTool(S.tool);$('#drawbar').hidden=!on;
   $('#drawType').hidden=S.tool!=='bpoly';
@@ -1275,17 +1342,19 @@ function drawPreview(){
     if(pts.length>=2){var f=null;try{f=turf.buffer(turf.lineString(pts),S.roadW/2*0.3048,{units:'meters',steps:8});}catch(e){}
       if(f)L.polygon(ringsToLatLngs(polysOf(f)),{pane:'pDraw',color:col,weight:1,fillColor:col,fillOpacity:.25,interactive:false}).addTo(gDraw);}
     if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',interactive:false}).addTo(gDraw);
+  }else if(D.kind==='split'){
+    col='#ffd43b';if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:3,dashArray:'8 5',interactive:false}).addTo(gDraw);
   }else if(pts.length>=2){
     L.polygon(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',fillColor:col,fillOpacity:.22,interactive:false}).addTo(gDraw);
   }
-  D.pts.forEach(function(p,i){L.circleMarker(ll2(p),{pane:'pDraw',radius:i===0&&D.pts.length>=3&&D.kind!=='road'&&D.kind!=='lot'?6:4,color:'#fff',weight:2,fillColor:col,fillOpacity:1,interactive:false}).addTo(gDraw);});
+  D.pts.forEach(function(p,i){L.circleMarker(ll2(p),{pane:'pDraw',radius:i===0&&D.pts.length>=3&&!isLineKind(D.kind)?6:4,color:'#fff',weight:2,fillColor:col,fillOpacity:1,interactive:false}).addTo(gDraw);});
   var info='';
   if(cur&&D.pts.length){
     var last=D.pts[D.pts.length-1],a=toLocal(last),b=toLocal(cur),segLen=Math.hypot(a[0]-b[0],a[1]-b[1]);
     var mid=[(last[0]+cur[0])/2,(last[1]+cur[1])/2];
     L.marker(ll2(mid),{pane:'pDraw',interactive:false,icon:L.divIcon({className:'dim building',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%)">'+ftf(segLen)+'</span>'})}).addTo(gDraw);
     info='Side '+ftf(segLen);if(D.kind==='lot'&&D.lotCount!==undefined)info+=' · '+D.lotCount+' stalls';
-    if(D.kind!=='road'&&D.kind!=='lot'&&pts.length>=3)info+=' · '+n0(Math.abs(polyAreaSigned(pts.map(toLocal))))+' sf';
+    if(!isLineKind(D.kind)&&pts.length>=3)info+=' · '+n0(Math.abs(polyAreaSigned(pts.map(toLocal))))+' sf';
   }
   $('#drawInfo').textContent=info;
 }
@@ -1302,6 +1371,12 @@ function finishDraw(){
   if(kind==='road'&&pts.length>=2){
     pushUndo();var id=S.nextId++;S.counters.road=(S.counters.road||0)+1;
     S.roads.push({id:id,name:'Road '+S.counters.road,width:S.roadW,pts:pts});S.sel=null;S.multi=[];cancelDraw();renderAll();
+  }else if(kind==='split'&&pts.length>=2){
+    pushUndo();S.splits.push({id:S.nextId++,pts:pts});
+    var before=S.plots.length;cancelDraw();siteChanged();
+    if(!S.site)flash('Pick the site parcels first; the line will split them once there is a site.');
+    else if(S.plots.length<=Math.max(1,before))flash('That line does not cross the site from edge to edge, so it does not split it yet.');
+    else flash('The site is now '+S.plots.length+' lots.');
   }else if(kind==='lot'&&pts.length>=2){
     pushUndo();var lid=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;
     S.lots.push(Object.assign({id:lid,name:'Parking lot '+S.counters.lot,pts:pts},S.lotCfg));S.sel={k:'p',id:lid};S.multi=[];cancelDraw();renderAll();
@@ -1501,7 +1576,7 @@ $('#finishBtn').addEventListener('click',finishDraw);
 $('#cancelBtn').addEventListener('click',cancelDraw);
 $('#newBtn').addEventListener('click',function(){
   if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.selected.size&&!S.demo){return;}
-  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};
+  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};
   if(!S.parcels)gParcels.clearLayers();siteChanged();
 });
 $('#clearPicks').addEventListener('click',function(){pushUndo();S.selected.clear();S.carved.clear();S.carveShapes=[];siteChanged();});
@@ -1583,7 +1658,7 @@ $('#oEdge').addEventListener('change',function(){S.opt.edge=$('#oEdge').checked;
 $('#oDimsAll').addEventListener('change',function(){S.opt.dimsAll=$('#oDimsAll').checked;renderDims();});
 
 // rules
-var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH','#sSlopeB':'slopeBldg','#sSlopeP':'slopePark','#sSlopeR':'slopeRoad','#tPad':'demPad'};
+var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH','#sSlopeB':'slopeBldg','#sSlopeP':'slopePark','#sSlopeR':'slopeRoad','#tPad':'demPad','#sLotMin':'lotMin'};
 function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});}
 Object.keys(SET_MAP).forEach(function(id){$(id).addEventListener('input',function(){
   var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;renderAll();
@@ -1608,7 +1683,7 @@ $('#labelField').addEventListener('change',function(){S.labelField=$('#labelFiel
 function ingestParcels(gj){
   var feats=(gj.features||[]).filter(function(f){return f.geometry&&/Polygon/.test(f.geometry.type);});
   var idF=detectIdField((feats[0]&&feats[0].properties)||{}),keep=new Map();
-  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
+  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.set(id,f);});
   feats.forEach(function(f,i){
     var p=f.properties||(f.properties={});
@@ -1746,6 +1821,8 @@ function download(name,text,mime){
 function exportFeatures(){
   var feats=[];
   if(S.site)feats.push(turf.feature(S.site.geometry,{kind:'site_boundary',areaSf:Math.round(areaOf(S.site)),areaAc:+(areaOf(S.site)/ACRE).toFixed(3)}));
+  S.plots.forEach(function(p){feats.push(turf.polygon(p.coords,{kind:'lot',name:p.name,areaSf:Math.round(p.sf),areaAc:+(p.sf/ACRE).toFixed(3)}));});
+  S.splits.forEach(function(s,i){feats.push(turf.lineString(s.pts,{kind:'lot_line',name:'Line '+(i+1)}));});
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)){var p=Object.assign({},f.properties);delete p.__pid;p.kind='parcel';p.carved=S.carved.has(id);feats.push(turf.feature(f.geometry,p));}});
   S.roads.forEach(function(r){var f=roadPoly(r);if(f)feats.push(turf.feature(f.geometry,{kind:'road',name:r.name,widthFt:r.width}));feats.push(turf.lineString(r.pts,{kind:'road_centerline',name:r.name,widthFt:r.width}));});
   S.lots.forEach(function(l){
@@ -1765,7 +1842,7 @@ $('#xGeo').addEventListener('click',function(){download('site-plan.geojson',JSON
 $('#xCsv').addEventListener('click',function(){
   var rows=[['Name','Type','Width ft','Depth ft','Stories','Rotation deg','Footprint sf','Gross floor area sf','Units','Commercial sf']];
   S.buildings.forEach(function(b){var fp=fpOf(b);rows.push([b.name,TYPES[b.type].name,b.pts?'':b.w,b.pts?'':b.d,b.st,b.pts?'':b.rot.toFixed(1),Math.round(fp),Math.round(fp*b.st),unitsOf(b),Math.round(commSf(b))]);});
-  var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);
+  var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);S.plots.forEach(function(p){rows.push([p.name+' area sf',Math.round(p.sf)]);});
   rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
   rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
   if(S.terr){rows.push(['Building pad cut cy',Math.round(S.terr.cut)]);rows.push(['Building pad fill cy',Math.round(S.terr.fill)]);}
@@ -1780,14 +1857,14 @@ function dxfText(){
     var o=S.site?toLocal(turf.bbox(S.site).slice(0,2)):[0,0];
     project=function(ll){var p=toLocal(ll);return [p[0]-o[0],p[1]-o[1]];};
   }
-  var layers={SITE:1,PARCELS:8,ROADS:5,BUILDINGS:2,PARKING:9,STRIPING:7,LANDSCAPE:3,OPENSPACE:3,STORMWATER:4,HARDSCAPE:7,LABELS:7},ents=[];
+  var layers={SITE:1,PARCELS:8,ROADS:5,BUILDINGS:2,PARKING:9,STRIPING:7,LANDSCAPE:3,OPENSPACE:3,STORMWATER:4,HARDSCAPE:7,LABELS:7,LOTS:6},ents=[];
   function poly(layer,ring,closed){
     var s='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n'+(closed?1:0)+'\n';
     ring.forEach(function(p){var q=project(p);s+='0\nVERTEX\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n';});
     return s+'0\nSEQEND\n8\n'+layer+'\n';
   }
   function text(layer,ll,h,t){var q=project(ll);return '0\nTEXT\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n40\n'+h+'\n1\n'+t.replace(/[^\x20-\x7e]/g,'')+'\n72\n1\n11\n'+q[0].toFixed(3)+'\n21\n'+q[1].toFixed(3)+'\n31\n0\n';}
-  polysOf(S.site).forEach(function(p){p.forEach(function(r){ents.push(poly('SITE',r.slice(0,-1),true));});});
+  polysOf(S.site).forEach(function(p){p.forEach(function(r){ents.push(poly('SITE',r.slice(0,-1),true));});});S.splits.forEach(function(s){ents.push(poly('LOTS',s.pts,false));});
   if(S.parcels)S.parcels.features.forEach(function(f){if(S.selected.has(f.properties.__pid)){var g=f.geometry,ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;ps.forEach(function(p){ents.push(poly('PARCELS',p[0].slice(0,-1),true));});}});
   S.roads.forEach(function(r){polysOf(roadPoly(r)).forEach(function(p){p.forEach(function(ring){ents.push(poly('ROADS',ring.slice(0,-1),true));});});});
   S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(ring){ents.push(poly('PARKING',ring.slice(0,-1),true));});});g.stalls.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});});
@@ -1806,7 +1883,7 @@ $('#xProj').addEventListener('click',function(){download('site-plan-project.json
 // ---------- open a project or site plan file (button or drag and drop) ----------
 var toastTimer=null;
 function toast(t,err){var e=$('#toast');e.textContent=t;e.className='on'+(err?' err':'');clearTimeout(toastTimer);toastTimer=setTimeout(function(){e.className='';},err?9000:6000);}
-var PLAN_KINDS=['site_boundary','parcel','road','road_centerline','building','area','parking_aisle','parking_aisle_centerline','parking_stall'];
+var PLAN_KINDS=['site_boundary','parcel','road','road_centerline','building','area','parking_aisle','parking_aisle_centerline','parking_stall','lot','lot_line'];
 function isPlanGeoJSON(o){return o&&o.type==='FeatureCollection'&&(o.features||[]).some(function(f){return f&&f.properties&&PLAN_KINDS.indexOf(f.properties.kind)>=0;});}
 // Rebuild a project from this tool's own GeoJSON export. Settings, setbacks and per-building unit overrides that
 // the export does not carry fall back to defaults; geometry, names, types, stories, widths and stall layouts come back.
@@ -1836,6 +1913,7 @@ function projectFromGeoJSON(gj){
   }catch(e){console.warn('carve recovery',e);}}
   by('road_centerline').forEach(function(f){o.roads.push({id:o.nextId++,name:f.properties.name||'Road',width:f.properties.widthFt||S.roadW,pts:f.geometry.coordinates});});
   o.counters.road=o.roads.length;
+  o.splits=by('lot_line').map(function(f){return {id:o.nextId++,pts:f.geometry.coordinates};});
   by('building').forEach(function(f){
     var p=f.properties,type=Object.keys(TYPES).filter(function(k){return TYPES[k].name===p.type;})[0]||'com',ring=ringOf(f),b;
     if(p.freeform||p.widthFt==null||p.depthFt==null){b={id:o.nextId++,type:type,name:p.name,w:0,d:0,st:p.stories||1,rot:0,units:null,custom:true,pts:ring,c:[0,0]};recenter(b);}
@@ -2050,6 +2128,22 @@ function rotateSelBy(deg){ // positive turns left (counter-clockwise)
   else rotateShape(o,deg);
   renderAll();
 }
+function renderPlots(){
+  var pi=S.plotInfo||{rows:[]},h='';
+  $('#splitClear').hidden=!S.splits.length;
+  if(pi.rows.length){
+    h='<table id="plotTable"><thead><tr><th>Lot</th><th>Area sf</th><th>Acres</th><th>Buildings</th><th>Coverage</th><th>Units</th></tr></thead><tbody>'+pi.rows.map(function(r){
+      return '<tr><td>'+esc(r.name)+'</td><td>'+n0(r.sf)+'</td><td>'+(r.sf/ACRE).toFixed(2)+'</td><td style="font-family:var(--font)">'+(esc(r.names.join(', '))||'—')+'</td><td>'+(r.n?n1(r.fp/r.sf*100)+'%':'—')+'</td><td>'+r.units+'</td></tr>';}).join('')+'</tbody></table>';
+  }else if(S.splits.length)h='<div class="flag">'+(S.site?'No lot line crosses the site from edge to edge yet, so it is still one lot.':'Pick the site parcels to see the lots.')+'</div>';
+  if(S.splits.length)h+='<div id="splitList" class="row" style="margin-top:6px">'+S.splits.map(function(s,i){return '<button class="btn small" data-split="'+s.id+'" title="Remove this lot line">Line '+(i+1)+' ✕</button>';}).join('')+'</div>';
+  $('#plotList').innerHTML=h;
+}
+$('#splitBtn').addEventListener('click',function(){setTool('split');});
+$('#splitClear').addEventListener('click',function(){if(!S.splits.length)return;pushUndo();S.splits=[];siteChanged();});
+$('#plotList').addEventListener('click',function(e){
+  var b=e.target.closest('button[data-split]');if(!b)return;
+  var id=+b.getAttribute('data-split');pushUndo();S.splits=S.splits.filter(function(s){return s.id!==id;});siteChanged();
+});
 function renderSelBar(){
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
@@ -2309,7 +2403,7 @@ function terrainUnder(g,ring,pad){
 }
 // Roads: steepest 20 ft stretch of existing ground along the centreline. Parking: stalls on ground over the limit.
 function terrainChecks(g,res){
-  var t={msgs:[],cut:0,fill:0,roads:[],lots:[],site:null},sr=S.ctx.siteRings&&S.ctx.siteRings[0];
+  var t={msgs:[],cut:0,fill:0,roads:[],lots:[],site:null},sr=S.ctx.siteOuter&&S.ctx.siteOuter[0];
   res.forEach(function(c){if(c.terr){t.cut+=c.terr.cut;t.fill+=c.terr.fill;}});
   if(sr)t.site=terrainUnder(g,sr,null);
   S.roads.forEach(function(r){
@@ -2931,6 +3025,7 @@ function drapeCanvas(g,box,mode){
   S.lots.forEach(function(l){var gl=S.lotG[l.id];if(!gl)return;
     if(gl.aisle){path(llRings(gl.aisle));c.fillStyle='#3b4249';c.fill('evenodd');}
     gl.stalls.forEach(function(q){path([q]);c.fillStyle='#4a525a';c.fill();c.lineWidth=Math.max(1,sc*0.35);c.strokeStyle='#f8f9fa';c.stroke();});});
+  if(S.plots.length>=2){path(S.plots.map(function(p){return p.coords[0].map(toLocal);}));c.setLineDash([6*sc,5*sc]);c.lineWidth=Math.max(1.5,sc*0.6);c.strokeStyle='#ffd43b';c.stroke();c.setLineDash([]);}
   if(S.site){path(llRings(S.site));c.setLineDash([10*sc,5*sc]);c.lineWidth=Math.max(2,sc*0.8);c.strokeStyle='#ff4d6d';c.stroke();c.setLineDash([]);}
   return cv;
 }
@@ -2942,7 +3037,7 @@ function info3D(g){
       if(g.img)h+='<div><b>Imagery:</b> © Esri, Maxar, Earthstar Geographics (existing buildings and trees in the photo lie flat on the ground)</div>';
       else if(g.imgErr)h+='<div class="flag">Aerial imagery could not load ('+esc(g.imgErr.message)+'). Showing contours.</div>';
     }
-    var site=S.ctx&&S.ctx.siteRings&&S.ctx.siteRings[0];
+    var site=S.ctx&&S.ctx.siteOuter&&S.ctx.siteOuter[0];
     if(site){var gs=groundUnder(g,site);h+='<div id="v3dSiteFall">Across the site: '+n0(gs.min)+'–'+n0(gs.max)+' ft elevation, <b>'+n1(gs.max-gs.min)+' ft</b> of fall</div>';}
     else h+='<div>Ground in view: '+n0(g.min)+'–'+n0(g.max)+' ft elevation</div>';
     if(g.holes)h+='<div class="flag">'+g.holes+' grid cells had no elevation data and were filled with the lowest ground.</div>';
