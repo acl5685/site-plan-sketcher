@@ -25,7 +25,7 @@ const row=n=>t.$$('#v3dBldg tr').map(r=>Array.from(r.cells).map(c=>c.textContent
 ok(near(parseFloat(row('TH-1')[1]),4.4,0.1),'88 ft wide building across the slope: 4.4 ft ground change ('+row('TH-1')[1]+')');
 ok(near(parseFloat(row('APT-1')[1]),2.1,0.1),'turned 90°: 42 ft across the slope = 2.1 ft ('+row('APT-1')[1]+')');
 const pad=parseFloat(row('TH-1')[2].replace(/,/g,''));
-ok(near(pad,270*M2FT+0.05*(-156),0.1),'floor at the highest (east) edge: '+pad+' ft');
+ok(near(pad,270*M2FT+0.05*(-200),0.15),'auto pad is the average ground under the building: '+pad+' ft');
 ok(/did not load/.test(info()),'missing WebGL library is reported, not thrown');
 ok(/3:00 pm/.test(t.$('#v3dTime').textContent),'sun time label');
 // edits redraw without downloading the terrain again
@@ -48,11 +48,47 @@ t.key('z',{ctrlKey:true});
 ok(t.proj().buildings.find(b=>b.name===selName).fa!=='glass','undo reverts the facade');
 t.click(t.$('#v3dClose'));
 ok(t.$('#v3d').hidden&&!t.$('#view3dBtn').classList.contains('on'),'Back to 2D closes the view');
+// ---- terrain checks in the 2D plan: slope flags, pad elevation, cut and fill
+t.tab('check');t.click(t.$('#tOn'));await sleep(120);
+ok(t.demReq===1,'turning terrain checks on reuses the grid the 3D view loaded ('+t.demReq+' requests)');
+ok(/20\.0 ft of fall/.test(t.$('#tSite').textContent)&&/5\.0% average slope/.test(t.$('#tSite').textContent),'site fall and slope ('+t.$('#tSite').textContent+')');
+const earth=t.$('#tEarth').textContent.replace(/,/g,'').match(/cut (\d+) cy · fill (\d+) cy/)||[];
+ok(near(+earth[1],111,5)&&near(+earth[2],111,5),'auto pads balance: about 111 cy cut and 111 cy fill ('+t.$('#tEarth').textContent+')');
+ok(!/slope, limit/.test(t.$('#checks').textContent),'5% ground passes the 15% building limit');
+t.set('#sSlopeB','4');
+ok(/TH-1 Existing ground under it averages 5\.0% slope, limit is 4\.0%/.test(t.$('#checks').textContent),'building slope flag appears when the limit drops to 4%');
+t.set('#sSlopeB','15');
+{const l=t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon);l.fire('mousedown',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);}
+const pn=t.$('#iName').value,across=pn==='TH-1'?88:42,along=pn==='TH-1'?42:88,bx=pn==='TH-1'?-200:0,low=270*M2FT+0.05*(bx-across/2);
+ok(/\(auto\)/.test(t.$('#iPad').placeholder)&&/cut \d+ cy · fill \d+ cy/.test(t.$('#iTerr').textContent),'inspector shows the auto pad and earthwork ('+t.$('#iTerr').textContent+')');
+t.set('#iPad',low.toFixed(2));
+const it=t.$('#iTerr').textContent.replace(/,/g,'').match(/cut (\d+) cy · fill (\d+) cy/),wedge=across*(across*0.05)/2*along/27;
+ok(near(+it[1],wedge,wedge*0.04+2)&&+it[2]<=1,pn+' pad at its low edge: all cut, about '+Math.round(wedge)+' cy ('+it[0]+')');
+ok(near(t.proj().buildings.find(b=>b.name===pn).pad,low,0.01),'pad elevation is saved with the building');
+t.set('#iPad','');
+ok(t.proj().buildings.find(b=>b.name===pn).pad===null,'clearing the field returns to the auto pad');
+t.tab('build');t.tool('road');await t.draw('road',[[-290,-100],[-110,-100]]);
+t.tool('lot');await t.draw('lot',[[-250,-200],[-50,-200]]);t.tool('select');
+ok(/steepest 20 ft: 5\.0%/.test(t.$('#tRows').textContent)&&/steepest stall: 5\.0%/.test(t.$('#tRows').textContent),'road grade and stall slope are listed ('+t.$('#tRows').textContent+')');
+ok(!/Steepest 20 ft|stalls sit on/.test(t.$('#checks').textContent),'5% passes the default road (10%) and parking (5%) limits');
+t.set('#sSlopeR','4');t.set('#sSlopeP','4');
+ok(/Road 1 Steepest 20 ft stretch of existing ground is 5\.0%, limit is 4\.0%/.test(t.$('#checks').textContent),'road grade flag');
+ok(/20 of 20 stalls sit on existing ground steeper than 4\.0% \(steepest 5\.0%\)/.test(t.$('#checks').textContent),'parking slope flag ('+t.$('#checks').textContent.slice(0,200)+')');
+t.click(t.$('#xCsv'));ok(/Building pad cut cy/.test(t.dl['building-schedule.csv']),'CSV schedule carries the earthwork totals');
+// terrain area: only the site and its surroundings are downloaded, and a smaller area reloads a smaller grid
+ok(/800 × 550 ft loaded/.test(t.$('#tInfo').textContent),'default loads the site plus 200 ft ('+t.$('#tInfo').textContent.slice(0,90)+')');
+t.set('#tPad','40');await sleep(150);
+ok(t.demReq===2&&/480 × 230 ft loaded/.test(t.$('#tInfo').textContent),'"Site only" reloads a 480 × 230 ft grid ('+t.demReq+' requests)');
+ok(t.proj().set.demPad===40,'terrain area is saved with the project');
+t.click(t.$('#tOn'));
+ok(!/Steepest 20 ft|stalls sit on/.test(t.$('#checks').textContent)&&!t.$('#tSite'),'turning terrain off removes its flags');
 ok(t.errors.length===0,'no page errors ('+t.errors.join('; ')+')');
 // service down: flat ground with a message
 const f=await boot();f.mode.demFail=true;f.w.THREE={OrbitControls:function(){}};
 await f.freshSite(f.row(0,[0,1]));f.click(f.$('#view3dBtn'));await sleep(150);
 ok(/Terrain unavailable/.test(f.$('#v3dInfo').textContent)&&/503/.test(f.$('#v3dInfo').textContent),'service failure is explained ('+f.$('#v3dInfo').textContent.slice(0,80)+')');
+f.click(f.$('#v3dClose'));f.click(f.$('#tOn'));await sleep(120);
+ok(!f.$('#tOn').checked&&/Terrain could not load/.test(f.$('#toast').textContent),'terrain checks switch themselves off when the service fails');
 // nothing drawn: no view, a message instead
 const e=await boot();e.click(e.$('#newBtn'));e.click(e.$('#view3dBtn'));await sleep(50);
 ok(e.$('#v3d').hidden&&/Pick parcels or draw/.test(e.$('#toast').textContent),'empty plan asks for a site first');

@@ -88,6 +88,8 @@ td:first-child{font-family:var(--font)}
 #dropVeil.on{display:flex}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:5001;max-width:80vw;padding:9px 14px;border-radius:6px;background:#212529;color:#fff;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none}
 #toast.on{display:block}#toast.err{background:#c92a2a}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .facades{display:flex;flex-wrap:wrap;gap:4px}
 .facades button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--ink);font-size:11px;cursor:pointer}
 .facades button.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:600}
@@ -223,6 +225,10 @@ td:first-child{font-family:var(--font)}
         </div>
         <div class="field" style="margin-top:6px"><label id="iFacadeLbl">Facade (shown in 3D view)</label>
           <div id="iFacade" class="facades" role="radiogroup" aria-labelledby="iFacadeLbl"></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="iPad" title="Finished floor elevation in feet (NAVD 88). Leave empty to balance cut and fill.">Pad elevation ft</label><input type="number" id="iPad" step="0.5" placeholder="auto"></div>
+          <div class="note" id="iTerr" style="flex:2 1 140px;align-self:end"></div>
         </div>
         <div class="row rect-only" style="margin-top:6px">
           <div class="field"><label for="iRot">Rotation °</label><input type="number" id="iRot" step="0.1"></div>
@@ -366,6 +372,23 @@ td:first-child{font-family:var(--font)}
         <div class="note">Defaults are Brecksville Codified Ordinances §1183.05 (house/townhome 2 enclosed; apartment 2.25 incl. 1 enclosed; business/office 1 per 200 sf; food &amp; drink 1 per 50 sf). Confirm with Planning &amp; Zoning. Offsets turn magenta when they fall short.</div>
         <label class="chk" style="margin-top:6px"><input type="checkbox" id="oDimsAll"> Show offset dimensions for every building</label>
       </div>
+      <div>
+        <h3>Terrain</h3>
+        <label class="chk"><input type="checkbox" id="tOn"> Use lidar terrain (USGS 3DEP) for slope and earthwork checks</label>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="tPad" title="How far past the site the terrain and 3D view reach. Smaller loads faster.">Terrain area</label>
+            <select id="tPad"><option value="40">Site only</option><option value="200">Site + adjacent lots</option><option value="500">Wider area</option></select></div>
+          <div class="field"><label for="tShow">Show on map</label>
+            <select id="tShow"><option value="">Nothing</option><option value="slope">Slope shading</option><option value="cont">Contours (2 ft)</option><option value="both">Slope + contours</option></select></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="sSlopeB">Max slope under buildings %</label><input type="number" id="sSlopeB" min="0" step="1"></div>
+          <div class="field"><label for="sSlopeP">Max slope for parking %</label><input type="number" id="sSlopeP" min="0" step="0.5"></div>
+          <div class="field"><label for="sSlopeR">Max grade for roads %</label><input type="number" id="sSlopeR" min="0" step="0.5"></div>
+        </div>
+        <div class="legend" id="tLegend" hidden><span><i style="background:#ffdd57"></i>5–10%</span><span><i style="background:#ff922b"></i>10–15%</span><span><i style="background:#f03e3e"></i>15–25%</span><span><i style="background:#845ef7"></i>over 25%</span></div>
+        <div id="tInfo" class="note" style="margin-top:6px">Slopes are measured on the existing ground, before any grading.</div>
+      </div>
       <div><h3>Checks</h3><div id="checks"></div></div>
       <div><h3>Schedule</h3><div class="scroll-x" id="sched"></div></div>
     </div>
@@ -464,6 +487,7 @@ td:first-child{font-family:var(--font)}
         <label>Sun <select id="v3dSeason"><option value="80">Mar 21</option><option value="172">Jun 21</option><option value="266">Sep 21</option><option value="355">Dec 21</option></select></label>
         <input type="range" id="v3dHour" min="5" max="20" step="0.25" value="15" aria-label="Solar time of day"><span id="v3dTime"></span>
         <label><input type="checkbox" id="v3dShadows" checked> Shadows</label>
+        <label title="Paint over the existing buildings, parking and trees inside the site so the proposal reads clearly"><input type="checkbox" id="v3dClear"> Clear existing site</label>
         <button class="btn" id="v3dReset">Reset view</button>
       </div>
       <div id="v3dInfo"></div>
@@ -617,7 +641,7 @@ var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
   roads:[],buildings:[],areas:[],sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
-  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11},
+  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
   angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free'},snapSkip:null
@@ -626,7 +650,7 @@ var undoStack=[],shiftHeld=false,drag=null,D=null,ghostLL=null,raf=0;
 
 // ---------- map ----------
 var map=L.map('map',{doubleClickZoom:false,maxZoom:21,zoomSnap:0.5}).setView([41.3198,-81.6268],17);
-var panes=[['pParcels',405],['pAreas',410],['pRoads',415],['pLots',417],['pSite',420],['pBldg',430],['pDims',440],['pDraw',450]];
+var panes=[['pTerr',402],['pParcels',405],['pAreas',410],['pRoads',415],['pLots',417],['pSite',420],['pBldg',430],['pDims',440],['pDraw',450]];
 panes.forEach(function(p){var e=map.createPane(p[0]);e.style.zIndex=p[1];});
 var baseLayers={
   imagery:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,maxZoom:21,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}),
@@ -831,7 +855,7 @@ function areaFeat(a){return turf.polygon([closeRing(a.ring)]);}
 
 // ---------- checks and stats ----------
 function computeChecks(){
-  var res=[],c=S.ctx;
+  var res=[],c=S.ctx,tg=terrGrid();S.terr=null;
   S.buildings.forEach(function(b){
     var ring=c.rings[b.id],msgs=[],info={b:b,minProp:null,offsets:null};
     var inside=!!S.site&&ring.every(function(p){return pointInAny(p,c.sitePolys);})&&!c.siteRings.some(function(r){return ringsCross(ring,r);});
@@ -863,8 +887,13 @@ function computeChecks(){
     }
     var others=S.buildings.filter(function(o){return o.id!==b.id;}).map(function(o){return {ring:c.rings[o.id]};});
     info.offsets=computeOffsets(b,ring,c,others);
+    if(tg){
+      info.terr=terrainUnder(tg,ring,b.pad);
+      if(info.terr.slope>S.set.slopeBldg+0.05)msgs.push('Existing ground under it averages '+n1(info.terr.slope)+'% slope, limit is '+n1(S.set.slopeBldg)+'%.');
+    }
     info.msgs=msgs;res.push(info);
   });
+  if(tg)S.terr=terrainChecks(tg,res);
   return res;
 }
 function computeStats(checks){
@@ -883,7 +912,7 @@ function computeStats(checks){
   st.provStalls=Math.floor(st.parkSf/S.set.stall)+st.lotStalls;
   st.imperv=st.fp+st.roadSf+st.parkSf+st.hardSf+st.lotSf;
   st.acres=st.siteSf/ACRE;
-  st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0);
+  st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0)+(S.terr?S.terr.msgs.length:0);
   return st;
 }
 
@@ -999,6 +1028,8 @@ function renderPanels(){
   if(!ch.length)html='<div class="note">Place a building to see setback and spacing checks.</div>';
   else if(!st.flags)html='<div class="flag ok">All '+ch.length+(ch.length>1?' buildings meet':' building meets')+' the current rules.</div>';
   ch.forEach(function(c){c.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(c.b.name)+'</b> '+esc(m)+'</div>';});});
+  if(S.terr)S.terr.msgs.forEach(function(m){html+='<div class="flag"><b>'+esc(m.name)+'</b> '+esc(m.msg)+'</div>';});
+  renderTerrInfo();
   var pn=[];
   if(st.provStalls>=100)pn.push('100+ spaces: §1183.15(b) wants 10% of the parking area as planting areas (min 10 ft wide, a tree in each) and no more than 20 cars in a line without an island.');
   else if(st.provStalls>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
@@ -1033,6 +1064,7 @@ function siteChanged(){S.site=computeSite();restyleParcels();renderAll();}
 function renderAll(){
   buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);
   renderMap();renderHandles();renderPanels();fillInspector();saveLocal();
+  if(TERR&&TERR.on)terrSync();
   if(V3&&V3.on)schedule3D();
 }
 function renderLight(){ // during drags: no stats recompute beyond checks
@@ -1093,6 +1125,9 @@ function fillInspector(){
     var cust=!!o.pts;
     $$('.rect-only').forEach(function(e){e.hidden=cust;});$('#iFree').hidden=!cust;
     setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);markFacade(o);
+    var tc=(S.checks||[]).filter(function(q){return q.b.id===o.id;})[0],tu=tc&&tc.terr;
+    setv('#iPad',o.pad==null?'':o.pad);$('#iPad').placeholder=tu&&o.pad==null?n1(tu.pad)+' (auto)':'auto';
+    $('#iTerr').textContent=tu?'Ground '+n1(tu.min)+'–'+n1(tu.max)+' ft, '+n1(tu.slope)+'% slope · cut '+n0(tu.cut)+' cy · fill '+n0(tu.fill)+' cy':'Turn on terrain on the Check tab to see slope and cut/fill.';
     setv('#iUnits',(o.units===null||o.units===undefined)?'':o.units);setv('#iFood',o.fs||'');$('#iFood').closest('.field').hidden=!(o.type==='mu'||o.type==='com');
     if(cust)renderSegTable(o);
     else{setv('#iW',o.w);setv('#iD',o.d);setv('#iRot',Math.round(o.rot*10)/10);setv('#iRotRange',Math.round(normAngle(o.rot)));}
@@ -1492,6 +1527,7 @@ $('#iType').addEventListener('change',function(){inspUpdate(function(o){o.type=$
 $('#iW').addEventListener('input',function(){inspUpdate(function(o){o.w=Math.max(4,num($('#iW'),o.w));});});
 $('#iD').addEventListener('input',function(){inspUpdate(function(o){o.d=Math.max(4,num($('#iD'),o.d));});});
 $('#iSt').addEventListener('input',function(){inspUpdate(function(o){o.st=Math.max(1,Math.round(num($('#iSt'),o.st)));});});
+$('#iPad').addEventListener('input',function(){inspUpdate(function(o){var v=parseFloat($('#iPad').value);o.pad=isFinite(v)?v:null;});});
 $('#iFood').addEventListener('input',function(){inspUpdate(function(o){var v=parseFloat($('#iFood').value);o.fs=isFinite(v)?Math.min(100,Math.max(0,v)):0;});});
 $('#iUnits').addEventListener('input',function(){inspUpdate(function(o){var v=$('#iUnits').value;o.units=v===''?null:Math.max(0,Math.round(parseFloat(v)||0));});});
 $('#iRot').addEventListener('input',function(){inspUpdate(function(o){o.rot=Math.round(normAngle(num($('#iRot'),o.rot))*1000)/1000;});});
@@ -1533,7 +1569,7 @@ $('#oEdge').addEventListener('change',function(){S.opt.edge=$('#oEdge').checked;
 $('#oDimsAll').addEventListener('change',function(){S.opt.dimsAll=$('#oDimsAll').checked;renderDims();});
 
 // rules
-var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH'};
+var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH','#sSlopeB':'slopeBldg','#sSlopeP':'slopePark','#sSlopeR':'slopeRoad','#tPad':'demPad'};
 function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});}
 Object.keys(SET_MAP).forEach(function(id){$(id).addEventListener('input',function(){
   var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;renderAll();
@@ -1706,7 +1742,7 @@ function exportFeatures(){
   });
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
-    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,facade:facadeOf(b),stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,facade:facadeOf(b),padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
   S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
   return feats;
@@ -1718,6 +1754,7 @@ $('#xCsv').addEventListener('click',function(){
   var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);
   rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
   rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
+  if(S.terr){rows.push(['Building pad cut cy',Math.round(S.terr.cut)]);rows.push(['Building pad fill cy',Math.round(S.terr.fill)]);}
   download('building-schedule.csv',rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n'),'text/csv');
 });
 function dxfText(){
@@ -1791,6 +1828,7 @@ function projectFromGeoJSON(gj){
     else{var cx=0,cy=0;ring.forEach(function(q){cx+=q[0];cy+=q[1];});b={id:o.nextId++,type:type,name:p.name,w:p.widthFt,d:p.depthFt,st:p.stories||1,rot:p.rotationDeg||0,units:null,c:[cx/ring.length,cy/ring.length]};}
     if(p.units!=null&&unitsOf(b)!==p.units)b.units=p.units;
     if(FACADES[p.facade]&&p.facade!==facadeOf(b))b.fa=p.facade;
+    if(typeof p.padFt==='number')b.pad=p.padFt;
     var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
     o.buildings.push(b);
   });
@@ -2126,37 +2164,172 @@ function planBoxLocal(pad){ // everything drawn plus a margin, in local feet
 }
 function demBounds(g){var a=toLocal(g.ll0),c=toLocal(g.ll1);return {x0:a[0],y0:a[1],x1:c[0],y1:c[1]};}
 function demCovers(g,b){var d=demBounds(g);return b.x0>=d.x0-1&&b.y0>=d.y0-1&&b.x1<=d.x1+1&&b.y1<=d.y1+1;}
+// A small IndexedDB cache, so reopening a plan does not download the same terrain again.
+function demStore(key,val){
+  return new Promise(function(res){
+    try{
+      var rq=indexedDB.open('sitePlanSketcher',1);
+      rq.onupgradeneeded=function(){rq.result.createObjectStore('dem');};
+      rq.onerror=function(){res(null);};
+      rq.onsuccess=function(){
+        try{
+          var st=rq.result.transaction('dem',val?'readwrite':'readonly').objectStore('dem');
+          if(!val){var q=st.get(key);q.onsuccess=function(){res(q.result||null);};q.onerror=function(){res(null);};return;}
+          var kq=st.getAllKeys();
+          kq.onsuccess=function(){if(kq.result.length>12&&kq.result.indexOf(key)<0)st.clear();st.put(val,key);res(true);};
+          kq.onerror=function(){res(null);};
+        }catch(e){res(null);}
+      };
+    }catch(e){res(null);}
+  });
+}
+function demSave(g){demStore(g.key,{ll0:g.ll0,ll1:g.ll1,nx:g.nx,ny:g.ny,z:g.z,min:g.min,max:g.max,holes:g.holes,survey:g.survey,res:g.res});}
 function fetchDEM(b){
   var w=b.x1-b.x0,h=b.y1-b.y0,cell=Math.max(M2FT,Math.max(w,h)/1000),nx=Math.max(2,Math.round(w/cell)),ny=Math.max(2,Math.round(h/cell));
-  var ll0=toLL([b.x0,b.y0]),ll1=toLL([b.x1,b.y1]);
-  var u=DEM_URL+'/exportImage?bbox='+[ll0[0],ll0[1],ll1[0],ll1[1]].map(function(v){return v.toFixed(7);}).join(',')+
-    '&bboxSR=4326&imageSR=4326&size='+nx+','+ny+'&format=bsq&pixelType=F32&noData=-9999&interpolation=RSP_BilinearInterpolation&f=image';
-  return fetch(u).then(function(r){if(!r.ok)throw new Error('the elevation service answered '+r.status);return r.arrayBuffer();}).then(function(buf){
-    if(buf.byteLength<nx*ny*4)throw new Error('the elevation service sent no grid for this area');
-    var raw=new Float32Array(buf.slice(0,nx*ny*4)),z=new Float32Array(nx*ny),mn=Infinity,mx=-Infinity,holes=0,i;
-    for(i=0;i<raw.length;i++){var v=raw[i];if(!(v>-1000&&v<10000)){z[i]=NaN;holes++;continue;}v*=M2FT;z[i]=v;if(v<mn)mn=v;if(v>mx)mx=v;}
-    if(holes===raw.length)throw new Error('there is no elevation data here');
-    if(holes)for(i=0;i<z.length;i++)if(isNaN(z[i]))z[i]=mn; // keep the mesh whole; reported in the info panel
-    return {ll0:ll0,ll1:ll1,nx:nx,ny:ny,z:z,min:mn,max:mx,holes:holes,survey:null,res:null};
+  var ll0=toLL([b.x0,b.y0]),ll1=toLL([b.x1,b.y1]),bbox=[ll0[0],ll0[1],ll1[0],ll1[1]].map(function(v){return v.toFixed(7);}).join(','),key='v1|'+bbox+'|'+nx+'x'+ny;
+  var u=DEM_URL+'/exportImage?bbox='+bbox+'&bboxSR=4326&imageSR=4326&size='+nx+','+ny+'&format=bsq&pixelType=F32&noData=-9999&interpolation=RSP_BilinearInterpolation&f=image';
+  return demStore(key).then(function(hit){
+    if(hit&&hit.z&&hit.nx===nx&&hit.ny===ny){hit.key=key;hit.cached=true;return hit;}
+    return fetch(u).then(function(r){if(!r.ok)throw new Error('the elevation service answered '+r.status);return r.arrayBuffer();}).then(function(buf){
+      if(buf.byteLength<nx*ny*4)throw new Error('the elevation service sent no grid for this area');
+      var raw=new Float32Array(buf.slice(0,nx*ny*4)),z=new Float32Array(nx*ny),mn=Infinity,mx=-Infinity,holes=0,i;
+      for(i=0;i<raw.length;i++){var v=raw[i];if(!(v>-1000&&v<10000)){z[i]=NaN;holes++;continue;}v*=M2FT;z[i]=v;if(v<mn)mn=v;if(v>mx)mx=v;}
+      if(holes===raw.length)throw new Error('there is no elevation data here');
+      if(holes)for(i=0;i<z.length;i++)if(isNaN(z[i]))z[i]=mn; // keep the mesh whole; reported in the info panel
+      var g={ll0:ll0,ll1:ll1,nx:nx,ny:ny,z:z,min:mn,max:mx,holes:holes,survey:null,res:null,key:key};
+      demSave(g);return g;
+    });
   });
 }
 function demSurvey(g){ // name of the lidar project the service used at the middle of the grid
+  if(g.survey)return;
   var c=[(g.ll0[0]+g.ll1[0])/2,(g.ll0[1]+g.ll1[1])/2],geo=encodeURIComponent(JSON.stringify({x:c[0],y:c[1],spatialReference:{wkid:4326}}));
   fetch(DEM_URL+'/getSamples?geometry='+geo+'&geometryType=esriGeometryPoint&returnFirstValueOnly=true&f=json').then(function(r){return r.json();}).then(function(j){
     var s=j.samples&&j.samples[0];if(!s||s.rasterId==null)return;g.res=s.resolution;
     return fetch(DEM_URL+'/query?where=OBJECTID%3D'+encodeURIComponent(s.rasterId)+'&outFields=Name&returnGeometry=false&f=json').then(function(r){return r.json();}).then(function(q){
-      var f=q.features&&q.features[0];if(f&&f.attributes)g.survey=f.attributes.Name;if(V3.on&&DEM.grid===g)info3D(g);
+      var f=q.features&&q.features[0];if(f&&f.attributes)g.survey=f.attributes.Name;
+      demSave(g);if(V3.on&&DEM.grid===g)info3D(g);if(TERR.on&&DEM.grid===g)renderTerrInfo();
     });
   }).catch(function(e){console.warn('survey name',e);});
 }
+// Terrain is loaded for the plan (site and everything drawn) plus the chosen margin only, never a whole lidar sheet.
+function demPad(){return +S.set.demPad||200;}
+function demOk(){ // the loaded grid still fits the plan and the chosen terrain area
+  var g=DEM.grid,b=g&&planBoxLocal(Math.min(30,demPad()));
+  return !!(b&&g.pad===demPad()&&demCovers(g,b));
+}
 function getDEM(){
-  var b=planBoxLocal(150);if(!b)return Promise.reject(new Error('pick parcels or draw something first'));
-  if(DEM.grid&&demCovers(DEM.grid,b))return Promise.resolve(DEM.grid);
+  var pad=demPad(),b=planBoxLocal(pad);if(!b)return Promise.reject(new Error('pick parcels or draw something first'));
+  if(demOk())return Promise.resolve(DEM.grid);
   if(DEM.pending)return DEM.pending;
-  // fetch extra margin so small edits do not need another download
-  DEM.pending=fetchDEM({x0:b.x0-150,y0:b.y0-150,x1:b.x1+150,y1:b.y1+150}).then(function(g){DEM.grid=g;DEM.pending=null;demSurvey(g);return g;},function(e){DEM.pending=null;throw e;});
+  DEM.pending=fetchDEM(b).then(function(g){g.pad=pad;DEM.grid=g;DEM.pending=null;demSurvey(g);return g;},function(e){DEM.pending=null;throw e;});
   return DEM.pending;
 }
+function slopeAt(g,x,y){ // existing ground slope in percent, over a 10 ft span
+  var h=5,dx=(elevAt(g,x+h,y)-elevAt(g,x-h,y))/(2*h),dy=(elevAt(g,x,y+h)-elevAt(g,x,y-h))/(2*h);
+  return Math.hypot(dx,dy)*100;
+}
+// Ground under a shape: elevation range, average slope, and the cut and fill (cubic yards) to level it at `pad`.
+// With no pad given, the average ground is used, which balances cut against fill.
+function terrainUnder(g,ring,pad){
+  var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,mn=Infinity,mx=-Infinity,E=[],sum=0,ss=0,sm=0;
+  ring.forEach(function(p){var e=elevAt(g,p[0],p[1]);if(e<mn)mn=e;if(e>mx)mx=e;x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  var st=Math.max(M2FT,Math.max(x1-x0,y1-y0)/60);
+  for(var x=x0+st/2;x<x1;x+=st)for(var y=y0+st/2;y<y1;y+=st){
+    if(!pointInRing([x,y],ring))continue;
+    var e=elevAt(g,x,y),s=slopeAt(g,x,y);E.push(e);sum+=e;ss+=s;if(s>sm)sm=s;if(e<mn)mn=e;if(e>mx)mx=e;
+  }
+  var n=E.length,mean=n?sum/n:(mn+mx)/2,cut=0,fill=0;
+  if(pad==null)pad=mean;
+  E.forEach(function(e){var d=e-pad;if(d>0)cut+=d;else fill-=d;});
+  return {min:mn,max:mx,mean:mean,slope:n?ss/n:0,slopeMax:sm,pad:pad,cut:cut*st*st/27,fill:fill*st*st/27};
+}
+// Roads: steepest 20 ft stretch of existing ground along the centreline. Parking: stalls on ground over the limit.
+function terrainChecks(g,res){
+  var t={msgs:[],cut:0,fill:0,roads:[],lots:[],site:null},sr=S.ctx.siteRings&&S.ctx.siteRings[0];
+  res.forEach(function(c){if(c.terr){t.cut+=c.terr.cut;t.fill+=c.terr.fill;}});
+  if(sr)t.site=terrainUnder(g,sr,null);
+  S.roads.forEach(function(r){
+    var P=r.pts.map(toLocal),zs=[],mx=0,i;
+    for(i=0;i<P.length-1;i++){
+      var a=P[i],b=P[i+1],len=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.round(len/10));
+      for(var k=(i?1:0);k<=n;k++)zs.push([len/n,elevAt(g,a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n)]);
+    }
+    for(i=2;i<zs.length;i++){var run=zs[i][0]+zs[i-1][0],gr=run>0?Math.abs(zs[i][1]-zs[i-2][1])/run*100:0;if(gr>mx)mx=gr;}
+    t.roads.push({name:r.name||'Road',max:mx});
+    if(mx>S.set.slopeRoad+0.05)t.msgs.push({name:r.name||'Road',msg:'Steepest 20 ft stretch of existing ground is '+n1(mx)+'%, limit is '+n1(S.set.slopeRoad)+'%.'});
+  });
+  S.lots.forEach(function(l){
+    var lg=S.lotG[l.id];if(!lg||!lg.stalls.length)return;
+    var over=0,mx=0;
+    lg.stalls.forEach(function(q){var s=slopeAt(g,(q[0][0]+q[2][0])/2,(q[0][1]+q[2][1])/2);if(s>mx)mx=s;if(s>S.set.slopePark+0.05)over++;});
+    t.lots.push({name:l.name||'Parking lot',max:mx,over:over,n:lg.stalls.length});
+    if(over/lg.stalls.length>0.1)t.msgs.push({name:l.name||'Parking lot',msg:over+' of '+lg.stalls.length+' stalls sit on existing ground steeper than '+n1(S.set.slopePark)+'% (steepest '+n1(mx)+'%).'});
+  });
+  return t;
+}
+// Terrain in the 2D plan: turned on from the Check tab; the grid is fetched once and reused while it fits the plan.
+var TERR={on:false,show:'',layer:null,key:null,wait:false};
+function terrGrid(){return TERR&&TERR.on&&DEM&&DEM.grid&&demOk()?DEM.grid:null;}
+function terrSync(){
+  if(demOk()){terrLayer();return;}
+  if(TERR.wait||!planBoxLocal(0))return;
+  TERR.wait=true;renderTerrInfo();
+  getDEM().then(function(){TERR.wait=false;if(TERR.on)renderAll();},function(e){
+    TERR.wait=false;TERR.on=false;$('#tOn').checked=false;terrLayer();toast('Terrain could not load: '+e.message+'.',true);renderAll();
+  });
+}
+var SLOPE_CLASSES=[[5,null],[10,[255,221,87]],[15,[255,146,43]],[25,[240,62,62]],[Infinity,[132,94,247]]];
+function slopeCanvas(g,mode){ // slope classes and 2 ft contours (10 ft bolder) as a picture laid on the map
+  var k=2,w=g.nx*k,h=g.ny*k,cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  var c=null;try{c=cv.getContext('2d');}catch(e){}
+  if(!c)return null;
+  var d=demBounds(g),px=(d.x1-d.x0)/w,py=(d.y1-d.y0)/h,E=new Float32Array(w*h),i,j,sp=3;
+  for(j=0;j<h;j++)for(i=0;i<w;i++)E[j*w+i]=elevAt(g,d.x0+(i+0.5)*px,d.y1-(j+0.5)*py);
+  var img=c.createImageData(w,h),dd=img.data,shade=mode!=='cont',lines=mode!=='slope',fl=Math.floor;
+  for(j=0;j<h;j++)for(i=0;i<w;i++){
+    var q=j*w+i,e=E[q],col=null,a=0;
+    if(shade){
+      var i0=Math.max(0,i-sp),i1=Math.min(w-1,i+sp),j0=Math.max(0,j-sp),j1=Math.min(h-1,j+sp);
+      var s=Math.hypot((E[j*w+i1]-E[j*w+i0])/((i1-i0)*px),(E[j1*w+i]-E[j0*w+i])/((j1-j0)*py))*100;
+      for(var ci=0;ci<SLOPE_CLASSES.length;ci++)if(s<SLOPE_CLASSES[ci][0]){col=SLOPE_CLASSES[ci][1];break;}
+      if(col)a=150;
+    }
+    if(lines){
+      var eR=E[q+(i+1<w?1:0)],eD=E[q+(j+1<h?w:0)];
+      if(fl(e/10)!==fl(eR/10)||fl(e/10)!==fl(eD/10)){col=[255,246,190];a=235;}
+      else if(fl(e/2)!==fl(eR/2)||fl(e/2)!==fl(eD/2)){col=[255,246,190];a=120;}
+    }
+    if(col){dd[q*4]=col[0];dd[q*4+1]=col[1];dd[q*4+2]=col[2];dd[q*4+3]=a;}
+  }
+  c.putImageData(img,0,0);return cv;
+}
+function terrLayer(){
+  var g=DEM.grid,key=TERR.show+'|'+(g&&g.key);
+  if(!TERR.on||!TERR.show||!g){if(TERR.layer){map.removeLayer(TERR.layer);TERR.layer=null;}TERR.key=null;return;}
+  if(TERR.key===key)return;
+  var cv=slopeCanvas(g,TERR.show);if(!cv)return;
+  if(TERR.layer)map.removeLayer(TERR.layer);
+  TERR.layer=L.imageOverlay(cv.toDataURL(),[[g.ll0[1],g.ll0[0]],[g.ll1[1],g.ll1[0]]],{pane:'pTerr',opacity:0.75,interactive:false}).addTo(map);TERR.key=key;
+}
+function renderTerrInfo(){
+  var el=$('#tInfo'),t=S.terr,g=DEM&&DEM.grid,on=TERR&&TERR.on,base='Slopes are measured on the existing ground, before any grading.';
+  $('#tLegend').hidden=!(on&&(TERR.show==='slope'||TERR.show==='both'));
+  if(!on){el.textContent=base;return;}
+  if(!t||!g){el.textContent=TERR.wait?'Loading lidar terrain…':'Pick parcels or draw something to load terrain.';return;}
+  var d=demBounds(g),h='<div><b>Lidar:</b> USGS 3DEP '+(g.res?g.res+' m ':'')+(g.survey?'· '+esc(g.survey)+' ':'')+'· '+n0(d.x1-d.x0)+' × '+n0(d.y1-d.y0)+' ft loaded'+(g.cached?' from this browser’s saved copy':'')+'</div>';
+  if(t.site)h+='<div id="tSite">Site: '+n0(t.site.min)+'–'+n0(t.site.max)+' ft elevation, '+n1(t.site.max-t.site.min)+' ft of fall, '+n1(t.site.slope)+'% average slope</div>';
+  if(S.buildings.length)h+='<div id="tEarth">Building pads: cut '+n0(t.cut)+' cy · fill '+n0(t.fill)+' cy · '+(Math.abs(t.cut-t.fill)<1?'balanced':'net '+n0(Math.abs(t.cut-t.fill))+' cy '+(t.cut>t.fill?'to haul off':'to bring in'))+'</div>';
+  if(t.roads.length||t.lots.length){
+    h+='<table id="tRows">';
+    t.roads.forEach(function(r){h+='<tr><td>'+esc(r.name)+'</td><td>steepest 20 ft: '+n1(r.max)+'%</td></tr>';});
+    t.lots.forEach(function(l){h+='<tr><td>'+esc(l.name)+'</td><td>steepest stall: '+n1(l.max)+'%</td></tr>';});
+    h+='</table>';
+  }
+  el.innerHTML=h+'<div>'+base+' Cut and fill cover the building pads only.</div>';
+}
+$('#tOn').addEventListener('change',function(){TERR.on=this.checked;if(!TERR.on)terrLayer();renderAll();});
+$('#tShow').addEventListener('change',function(){TERR.show=this.value;if(TERR.show&&!TERR.on){TERR.on=true;$('#tOn').checked=true;}if(!TERR.show)terrLayer();renderAll();});
 function elevAt(g,x,y){ // bilinear ground elevation in feet at a local-feet point (clamped to the grid edge)
   var d=demBounds(g),fx=(x-d.x0)/(d.x1-d.x0)*g.nx-0.5,fy=(d.y1-y)/(d.y1-d.y0)*g.ny-0.5;
   fx=Math.max(0,Math.min(g.nx-1,fx));fy=Math.max(0,Math.min(g.ny-1,fy));
@@ -2322,8 +2495,7 @@ function schedule3D(){
   clearTimeout(V3.timer);
   V3.timer=setTimeout(function(){
     if(!V3.on)return;
-    var b=planBoxLocal(150);
-    if(b&&!(DEM.grid&&demCovers(DEM.grid,b))){V3.demErr=null;getDEM().catch(function(e){V3.demErr=e;}).then(function(){if(V3.on)build3D();});}
+    if(planBoxLocal(0)&&!demOk()){V3.demErr=null;getDEM().catch(function(e){V3.demErr=e;}).then(function(){if(V3.on)build3D();});}
     else build3D();
   },250);
 }
@@ -2372,7 +2544,19 @@ function rebuildScene(g){
   var grp=new T.Group();V3.group=grp;V3.scene.add(grp);
   var box=g?demBounds(g):planBoxLocal(300),cx=(box.x0+box.x1)/2,cy=(box.y0+box.y1)/2,exag=+$('#v3dExag').value||1,base=g?g.min:0;
   function Y(e){return (e-base)*exag;}
-  function ground(x,y){return g?elevAt(g,x,y):0;}
+  // the ground is levelled to each building's pad, 4 ft past its walls, so cut and fill show as banks around it
+  var pads=g?S.buildings.map(function(b){
+    var r=S.ctx.rings[b.id];if(!r||r.length<3)return null;
+    if(polyAreaSigned(r)<0)r=r.slice().reverse();
+    var a=offsetRing(r,4),q={ring:a,pad:terrainUnder(g,r,b.pad).pad,x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity};
+    a.forEach(function(p){q.x0=Math.min(q.x0,p[0]);q.y0=Math.min(q.y0,p[1]);q.x1=Math.max(q.x1,p[0]);q.y1=Math.max(q.y1,p[1]);});
+    return q;
+  }).filter(Boolean):[];
+  function ground(x,y){
+    if(!g)return 0;
+    for(var q=0;q<pads.length;q++){var p=pads[q];if(x>=p.x0&&x<=p.x1&&y>=p.y0&&y<=p.y1&&pointInRing([x,y],p.ring))return p.pad;}
+    return elevAt(g,x,y);
+  }
   // terrain mesh, at most 400 vertices a side; the plan and contours are painted on as a texture
   var step=g?Math.max(1,Math.ceil(Math.max(g.nx,g.ny)/400)):1,nx=g?Math.floor((g.nx-1)/step)+1:2,ny=g?Math.floor((g.ny-1)/step)+1:2;
   var pos=new Float32Array(nx*ny*3),uv=new Float32Array(nx*ny*2),idx=[],i,j;
@@ -2389,8 +2573,8 @@ function rebuildScene(g){
   // buildings: modelled by type (see buildingParts) and set on the lowest ground under each one
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id];if(!ring||ring.length<3)return;
-    var gu=g?groundUnder(g,ring):{min:0,max:0},y0=Y(gu.max);
-    buildingMeshes(T,b,ring,y0,cx,cy,(gu.max-gu.min)*exag+1).forEach(function(m){grp.add(m);});
+    var tu=g?terrainUnder(g,ring,b.pad):{pad:0,min:0},y0=Y(tu.pad);
+    buildingMeshes(T,b,ring,y0,cx,cy,Math.max(0,tu.pad-tu.min)*exag+1).forEach(function(m){grp.add(m);});
     if(S.sel&&S.sel.k==='b'&&S.sel.id===b.id){ // selected: yellow outline at the ground and the top of the walls
       var top=modelDims(b).top,pts=[],nr=ring.length;
       [0.3,top].forEach(function(z){ring.forEach(function(p,i){var q=ring[(i+1)%nr];pts.push(p[0]-cx,y0+z,-(p[1]-cy),q[0]-cx,y0+z,-(q[1]-cy));});});
@@ -2625,6 +2809,7 @@ function drapeCanvas(g,box,mode){
   function px(p){return [(p[0]-box.x0)*sc,(box.y1-p[1])*sc];}
   var photo=g&&g.img&&mode!=='dem',lines=g&&(mode!=='img'||!photo);
   if(photo)c.drawImage(g.img,0,0,cw,ch);
+  if(photo&&$('#v3dClear').checked&&S.site){path(llRings(S.site));c.fillStyle='rgba(172,181,150,0.95)';c.fill('evenodd');} // hide what stands on the site today
   if(lines){
     var img=photo?c.getImageData(0,0,cw,ch):c.createImageData(cw,ch),dd=img.data,E=new Float32Array(cw*ch),span=Math.max(1,g.max-g.min),x,y,i,j;
     for(j=0;j<ch;j++){y=box.y1-(j+0.5)/sc;for(i=0;i<cw;i++){x=box.x0+(i+0.5)/sc;E[j*cw+i]=elevAt(g,x,y);}}
@@ -2665,13 +2850,13 @@ function info3D(g){
     else h+='<div>Ground in view: '+n0(g.min)+'–'+n0(g.max)+' ft elevation</div>';
     if(g.holes)h+='<div class="flag">'+g.holes+' grid cells had no elevation data and were filled with the lowest ground.</div>';
     if(S.buildings.length){
-      h+='<table id="v3dBldg"><tr><td><b>Building</b></td><td class="n"><b>Ground change</b></td><td class="n"><b>Floor elev.</b></td></tr>';
-      S.buildings.forEach(function(b){var ring=S.ctx.rings[b.id];if(!ring)return;var gu=groundUnder(g,ring);
-        h+='<tr><td>'+esc(b.name)+'</td><td class="n">'+n1(gu.max-gu.min)+' ft</td><td class="n">'+n1(gu.max)+' ft</td></tr>';});
+      h+='<table id="v3dBldg"><tr><td><b>Building</b></td><td class="n"><b>Ground change</b></td><td class="n"><b>Pad elev.</b></td><td class="n"><b>Cut / fill cy</b></td></tr>';
+      S.buildings.forEach(function(b){var ring=S.ctx.rings[b.id];if(!ring)return;var gu=terrainUnder(g,ring,b.pad);
+        h+='<tr><td>'+esc(b.name)+'</td><td class="n">'+n1(gu.max-gu.min)+' ft</td><td class="n">'+n1(gu.pad)+' ft</td><td class="n">'+n0(gu.cut)+' / '+n0(gu.fill)+'</td></tr>';});
       h+='</table>';
     }
   }else h+='<div class="flag">Terrain unavailable'+(V3.demErr?': '+esc(V3.demErr.message):'')+'. Showing flat ground.</div>';
-  h+='<div class="note">Click a building to select it and pick its facade on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab; storefront ground floors are 4 ft taller) and sit at the highest ground under them, with a foundation wall down the slope. Entrances face the nearest road. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
+  h+='<div class="note">Click a building to select it and pick its facade on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab; storefront ground floors are 4 ft taller) and sit on a level pad cut into the ground (set the pad elevation on the Build tab; left empty, it balances cut and fill). Entrances face the nearest road. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
   var fall=h.match(/<b>([\d.,]+ ft)<\/b> of fall/);
   $('#v3dInfo').innerHTML='<details id="v3dDet"'+(V3.infoShut?'':' open')+'><summary>Terrain and buildings'+(fall?' · '+fall[1]+' of fall across the site':'')+'</summary>'+h+'</details>';
   $('#v3dDet').addEventListener('toggle',function(){V3.infoShut=!this.open;});
@@ -2680,6 +2865,7 @@ $('#view3dBtn').addEventListener('click',function(){if(V3.on)close3D();else open
 $('#v3dClose').addEventListener('click',close3D);
 $('#v3dExag').addEventListener('change',function(){if(V3.on)build3D();});
 $('#v3dGround').addEventListener('change',function(){if(V3.on)build3D();});
+$('#v3dClear').addEventListener('change',function(){if(V3.on)build3D();});
 $('#v3dSeason').addEventListener('change',setSun);$('#v3dHour').addEventListener('input',setSun);$('#v3dShadows').addEventListener('change',setSun);
 $('#v3dReset').addEventListener('click',function(){if(V3.r){fit3D();render3D();}});
 
