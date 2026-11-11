@@ -88,6 +88,19 @@ td:first-child{font-family:var(--font)}
 #dropVeil.on{display:flex}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:5001;max-width:80vw;padding:9px 14px;border-radius:6px;background:#212529;color:#fff;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none}
 #toast.on{display:block}#toast.err{background:#c92a2a}
+.facades{display:flex;flex-wrap:wrap;gap:4px}
+.facades button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--ink);font-size:11px;cursor:pointer}
+.facades button.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:600}
+.facades canvas,.facades .sw{width:46px;height:30px;border-radius:2px;background:#ccc;display:block}
+#v3d{position:absolute;inset:0;z-index:1000;background:#b9c4c6}
+#v3dCanvas{position:absolute;inset:0}
+#v3dCanvas canvas{display:block;width:100%;height:100%;cursor:grab}
+#v3dBar{position:absolute;left:12px;top:12px;right:12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;width:max-content;max-width:calc(100% - 24px)}
+#v3dBar select{width:auto}
+#v3dBar input[type=range]{width:120px}
+#v3dTime{font-family:var(--mono);min-width:5.5em}
+#v3dInfo{position:absolute;left:12px;bottom:12px;max-width:min(440px,calc(100% - 24px));max-height:45%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:12px}
+#v3dInfo table{width:100%;border-collapse:collapse}#v3dInfo td{padding:1px 4px}#v3dInfo td.n{text-align:right;font-family:var(--mono)}
 .ov{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .ov .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov input[type=range]{grid-column:2/4}
@@ -133,6 +146,7 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="area" title="Draw landscaping, parking or open space">Area</button>
     </div>
     <div class="top-actions">
+      <button class="btn" id="view3dBtn" title="See the plan in 3D on lidar terrain (USGS 3DEP)">3D view</button>
       <button class="btn" id="undoBtn" title="Ctrl+Z">Undo</button>
       <button class="btn danger" id="newBtn">New project</button>
     </div>
@@ -206,6 +220,9 @@ td:first-child{font-family:var(--font)}
           <div class="field"><label for="iSt">Stories</label><input type="number" id="iSt" min="1" max="20"></div>
           <div class="field"><label for="iUnits">Units</label><input type="number" id="iUnits" min="0" placeholder="auto"></div>
           <div class="field"><label for="iFood" title="Share of the commercial floor area that is restaurant / bar customer area (1 stall per 50 sf instead of 1 per 200 sf)">Food &amp; drink %</label><input type="number" id="iFood" min="0" max="100" step="5" placeholder="0"></div>
+        </div>
+        <div class="field" style="margin-top:6px"><label id="iFacadeLbl">Facade (shown in 3D view)</label>
+          <div id="iFacade" class="facades" role="radiogroup" aria-labelledby="iFacadeLbl"></div>
         </div>
         <div class="row rect-only" style="margin-top:6px">
           <div class="field"><label for="iRot">Rotation °</label><input type="number" id="iRot" step="0.1"></div>
@@ -344,6 +361,7 @@ td:first-child{font-family:var(--font)}
         <div class="row" style="margin-top:6px">
           <div class="field"><label for="sStall">Gross sf per stall (with aisle)</label><input type="number" id="sStall" min="150" step="5"></div>
           <div class="field"><label for="sUnitSf">Average unit sf</label><input type="number" id="sUnitSf" min="300" step="50"></div>
+          <div class="field"><label for="sStoryH">Story height ft (3D)</label><input type="number" id="sStoryH" min="7" max="30" step="0.5"></div>
         </div>
         <div class="note">Defaults are Brecksville Codified Ordinances §1183.05 (house/townhome 2 enclosed; apartment 2.25 incl. 1 enclosed; business/office 1 per 200 sf; food &amp; drink 1 per 50 sf). Confirm with Planning &amp; Zoning. Offsets turn magenta when they fall short.</div>
         <label class="chk" style="margin-top:6px"><input type="checkbox" id="oDimsAll"> Show offset dimensions for every building</label>
@@ -437,6 +455,19 @@ td:first-child{font-family:var(--font)}
       <button class="btn primary" id="finishBtn">Finish</button><button class="btn" id="cancelBtn">Cancel</button>
     </div>
     <div id="hint"></div>
+    <div id="v3d" hidden>
+      <div id="v3dCanvas"></div>
+      <div id="v3dBar">
+        <button class="btn primary" id="v3dClose">Back to 2D</button>
+        <label>Ground <select id="v3dGround"><option value="img">Aerial imagery</option><option value="imgc">Imagery + contours</option><option value="dem">Contours</option></select></label>
+        <label>Terrain height <select id="v3dExag"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></label>
+        <label>Sun <select id="v3dSeason"><option value="80">Mar 21</option><option value="172">Jun 21</option><option value="266">Sep 21</option><option value="355">Dec 21</option></select></label>
+        <input type="range" id="v3dHour" min="5" max="20" step="0.25" value="15" aria-label="Solar time of day"><span id="v3dTime"></span>
+        <label><input type="checkbox" id="v3dShadows" checked> Shadows</label>
+        <button class="btn" id="v3dReset">Reset view</button>
+      </div>
+      <div id="v3dInfo"></div>
+    </div>
   </main>
 </div>
 
@@ -586,7 +617,7 @@ var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
   roads:[],buildings:[],areas:[],sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
-  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15},
+  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
   angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free'},snapSkip:null
@@ -1002,6 +1033,7 @@ function siteChanged(){S.site=computeSite();restyleParcels();renderAll();}
 function renderAll(){
   buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);
   renderMap();renderHandles();renderPanels();fillInspector();saveLocal();
+  if(V3&&V3.on)schedule3D();
 }
 function renderLight(){ // during drags: no stats recompute beyond checks
   buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);renderMap();if(!S.snapSkip)renderHandles();renderPanels();
@@ -1060,7 +1092,7 @@ function fillInspector(){
   if(S.sel.k==='b'){
     var cust=!!o.pts;
     $$('.rect-only').forEach(function(e){e.hidden=cust;});$('#iFree').hidden=!cust;
-    setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);
+    setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);markFacade(o);
     setv('#iUnits',(o.units===null||o.units===undefined)?'':o.units);setv('#iFood',o.fs||'');$('#iFood').closest('.field').hidden=!(o.type==='mu'||o.type==='com');
     if(cust)renderSegTable(o);
     else{setv('#iW',o.w);setv('#iD',o.d);setv('#iRot',Math.round(o.rot*10)/10);setv('#iRotRange',Math.round(normAngle(o.rot)));}
@@ -1501,7 +1533,7 @@ $('#oEdge').addEventListener('change',function(){S.opt.edge=$('#oEdge').checked;
 $('#oDimsAll').addEventListener('change',function(){S.opt.dimsAll=$('#oDimsAll').checked;renderDims();});
 
 // rules
-var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf'};
+var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH'};
 function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});}
 Object.keys(SET_MAP).forEach(function(id){$(id).addEventListener('input',function(){
   var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;renderAll();
@@ -1674,7 +1706,7 @@ function exportFeatures(){
   });
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
-    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,facade:facadeOf(b),stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
   S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
   return feats;
@@ -1758,6 +1790,7 @@ function projectFromGeoJSON(gj){
     if(p.freeform||p.widthFt==null||p.depthFt==null){b={id:o.nextId++,type:type,name:p.name,w:0,d:0,st:p.stories||1,rot:0,units:null,custom:true,pts:ring,c:[0,0]};recenter(b);}
     else{var cx=0,cy=0;ring.forEach(function(q){cx+=q[0];cy+=q[1];});b={id:o.nextId++,type:type,name:p.name,w:p.widthFt,d:p.depthFt,st:p.stories||1,rot:p.rotationDeg||0,units:null,c:[cx/ring.length,cy/ring.length]};}
     if(p.units!=null&&unitsOf(b)!==p.units)b.units=p.units;
+    if(FACADES[p.facade]&&p.facade!==facadeOf(b))b.fa=p.facade;
     var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
     o.buildings.push(b);
   });
@@ -2073,6 +2106,364 @@ $('#lyImport').addEventListener('change',function(ev){
   f.text().then(function(t){lyAddFrom(JSON.parse(t),f.name);}).catch(function(e){$('#lyList').insertAdjacentHTML('afterbegin','<div class="flag">That file could not be imported: '+esc(e.message)+'</div>');});
   ev.target.value='';
 });
+// ---------- terrain (USGS 3DEP lidar elevation) ----------
+// The 3DEP service mosaics the best lidar DEM for each spot (1 m across Ohio) and allows browser requests (CORS *).
+// format=bsq returns the grid as raw float32 metres, row by row from the north edge, followed by a 1-bit mask.
+var DEM_URL='https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer';
+var M2FT=3.28084;
+var DEM={grid:null,pending:null};
+function planBoxLocal(pad){ // everything drawn plus a margin, in local feet
+  var b={x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity},ctx=S.ctx||{};
+  function add(p){if(p[0]<b.x0)b.x0=p[0];if(p[1]<b.y0)b.y0=p[1];if(p[0]>b.x1)b.x1=p[0];if(p[1]>b.y1)b.y1=p[1];}
+  function addLL(q){add(toLocal(q));}
+  (ctx.siteRings||[]).forEach(function(r){r.forEach(add);});
+  S.buildings.forEach(function(x){((ctx.rings&&ctx.rings[x.id])||bldgRingLocal(x)).forEach(add);});
+  S.roads.forEach(function(r){r.pts.forEach(addLL);});
+  S.lots.forEach(function(l){l.pts.forEach(addLL);});
+  S.areas.forEach(function(a){a.ring.forEach(addLL);});
+  if(!isFinite(b.x0))return null;
+  pad=pad||0;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad};
+}
+function demBounds(g){var a=toLocal(g.ll0),c=toLocal(g.ll1);return {x0:a[0],y0:a[1],x1:c[0],y1:c[1]};}
+function demCovers(g,b){var d=demBounds(g);return b.x0>=d.x0-1&&b.y0>=d.y0-1&&b.x1<=d.x1+1&&b.y1<=d.y1+1;}
+function fetchDEM(b){
+  var w=b.x1-b.x0,h=b.y1-b.y0,cell=Math.max(M2FT,Math.max(w,h)/1000),nx=Math.max(2,Math.round(w/cell)),ny=Math.max(2,Math.round(h/cell));
+  var ll0=toLL([b.x0,b.y0]),ll1=toLL([b.x1,b.y1]);
+  var u=DEM_URL+'/exportImage?bbox='+[ll0[0],ll0[1],ll1[0],ll1[1]].map(function(v){return v.toFixed(7);}).join(',')+
+    '&bboxSR=4326&imageSR=4326&size='+nx+','+ny+'&format=bsq&pixelType=F32&noData=-9999&interpolation=RSP_BilinearInterpolation&f=image';
+  return fetch(u).then(function(r){if(!r.ok)throw new Error('the elevation service answered '+r.status);return r.arrayBuffer();}).then(function(buf){
+    if(buf.byteLength<nx*ny*4)throw new Error('the elevation service sent no grid for this area');
+    var raw=new Float32Array(buf.slice(0,nx*ny*4)),z=new Float32Array(nx*ny),mn=Infinity,mx=-Infinity,holes=0,i;
+    for(i=0;i<raw.length;i++){var v=raw[i];if(!(v>-1000&&v<10000)){z[i]=NaN;holes++;continue;}v*=M2FT;z[i]=v;if(v<mn)mn=v;if(v>mx)mx=v;}
+    if(holes===raw.length)throw new Error('there is no elevation data here');
+    if(holes)for(i=0;i<z.length;i++)if(isNaN(z[i]))z[i]=mn; // keep the mesh whole; reported in the info panel
+    return {ll0:ll0,ll1:ll1,nx:nx,ny:ny,z:z,min:mn,max:mx,holes:holes,survey:null,res:null};
+  });
+}
+function demSurvey(g){ // name of the lidar project the service used at the middle of the grid
+  var c=[(g.ll0[0]+g.ll1[0])/2,(g.ll0[1]+g.ll1[1])/2],geo=encodeURIComponent(JSON.stringify({x:c[0],y:c[1],spatialReference:{wkid:4326}}));
+  fetch(DEM_URL+'/getSamples?geometry='+geo+'&geometryType=esriGeometryPoint&returnFirstValueOnly=true&f=json').then(function(r){return r.json();}).then(function(j){
+    var s=j.samples&&j.samples[0];if(!s||s.rasterId==null)return;g.res=s.resolution;
+    return fetch(DEM_URL+'/query?where=OBJECTID%3D'+encodeURIComponent(s.rasterId)+'&outFields=Name&returnGeometry=false&f=json').then(function(r){return r.json();}).then(function(q){
+      var f=q.features&&q.features[0];if(f&&f.attributes)g.survey=f.attributes.Name;if(V3.on&&DEM.grid===g)info3D(g);
+    });
+  }).catch(function(e){console.warn('survey name',e);});
+}
+function getDEM(){
+  var b=planBoxLocal(150);if(!b)return Promise.reject(new Error('pick parcels or draw something first'));
+  if(DEM.grid&&demCovers(DEM.grid,b))return Promise.resolve(DEM.grid);
+  if(DEM.pending)return DEM.pending;
+  // fetch extra margin so small edits do not need another download
+  DEM.pending=fetchDEM({x0:b.x0-150,y0:b.y0-150,x1:b.x1+150,y1:b.y1+150}).then(function(g){DEM.grid=g;DEM.pending=null;demSurvey(g);return g;},function(e){DEM.pending=null;throw e;});
+  return DEM.pending;
+}
+function elevAt(g,x,y){ // bilinear ground elevation in feet at a local-feet point (clamped to the grid edge)
+  var d=demBounds(g),fx=(x-d.x0)/(d.x1-d.x0)*g.nx-0.5,fy=(d.y1-y)/(d.y1-d.y0)*g.ny-0.5;
+  fx=Math.max(0,Math.min(g.nx-1,fx));fy=Math.max(0,Math.min(g.ny-1,fy));
+  var i=Math.floor(fx),j=Math.floor(fy),i1=Math.min(i+1,g.nx-1),j1=Math.min(j+1,g.ny-1),tx=fx-i,ty=fy-j,z=g.z,n=g.nx;
+  return (z[j*n+i]*(1-tx)+z[j*n+i1]*tx)*(1-ty)+(z[j1*n+i]*(1-tx)+z[j1*n+i1]*tx)*ty;
+}
+function groundUnder(g,ring){ // lowest and highest ground under a shape: its corners plus a sample grid inside
+  var mn=Infinity,mx=-Infinity,x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  function take(x,y){var e=elevAt(g,x,y);if(e<mn)mn=e;if(e>mx)mx=e;}
+  ring.forEach(function(p){take(p[0],p[1]);x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  var st=Math.max(M2FT,Math.max(x1-x0,y1-y0)/80);
+  for(var x=x0+st/2;x<x1;x+=st)for(var y=y0+st/2;y<y1;y+=st)if(pointInRing([x,y],ring))take(x,y);
+  return {min:mn,max:mx};
+}
+function sunPos(latDeg,day,hour){ // solar time; altitude and azimuth (clockwise from north), radians
+  var phi=latDeg*Math.PI/180,dec=23.44*Math.PI/180*Math.sin(2*Math.PI*(284+day)/365),H=(hour-12)*15*Math.PI/180;
+  var alt=Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H));
+  var az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(dec)*Math.cos(phi))+Math.PI;
+  return {alt:alt,az:az};
+}
+function fmtHour(h){var hh=Math.floor(h),mm=Math.round((h-hh)*60);if(mm===60){hh++;mm=0;}return ((hh+11)%12+1)+':'+(mm<10?'0':'')+mm+(hh<12?' am':' pm');}
+
+// ---------- facades: painted brick, siding, stone, stucco and glass, one bay wide and one story tall ----------
+var FACADES={
+  brick:{name:'Brick',bay:12,desc:'Red brick, punched windows'},
+  siding:{name:'Siding',bay:10,desc:'Lap siding, trimmed windows'},
+  stone:{name:'Stone',bay:12,desc:'Limestone block, tall windows'},
+  stucco:{name:'Stucco',bay:12,desc:'Stucco / EIFS, trimmed windows'},
+  glass:{name:'Glass',bay:10,desc:'Glass curtain wall'}
+};
+var FACADE_DEF={sf:'siding',th:'brick',mu:'brick',apt:'stucco',com:'glass',acc:'siding'};
+function facadeOf(b){return FACADES[b.fa]?b.fa:(FACADE_DEF[b.type]||'brick');}
+function rng(seed){return function(){seed=(seed+0x6D2B79F5)|0;var t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296;};}
+function paintFacade(kind,storyH,size){
+  var f=FACADES[kind]||FACADES.brick,N=size||512,cv=document.createElement('canvas');cv.width=N;cv.height=N;
+  var c=null;try{c=cv.getContext('2d');}catch(e){}
+  if(!c)return null;
+  var sx=N/f.bay,sy=N/storyH,R=rng(kind.length*7919+Math.round(storyH*10));
+  function X(ft){return ft*sx;}function Y(ft){return N-ft*sy;} // feet from the left edge / from the floor
+  function jit(rgb,a){var d=(R()-0.5)*a;return 'rgb('+Math.round(rgb[0]+d)+','+Math.round(rgb[1]+d*0.8)+','+Math.round(rgb[2]+d*0.7)+')';}
+  function speckle(n,a){for(var i=0;i<n;i++){c.fillStyle='rgba('+(R()<0.5?'0,0,0':'255,255,255')+','+(R()*a)+')';c.fillRect(R()*N,R()*N,1+R()*2,1+R()*2);}}
+  function glassRect(x0,y0,w,h){var gr=c.createLinearGradient(X(x0),Y(y0+h),X(x0+w),Y(y0));gr.addColorStop(0,'#5f7889');gr.addColorStop(0.45,'#33454f');gr.addColorStop(1,'#22303a');c.fillStyle=gr;c.fillRect(X(x0),Y(y0+h),X(w),h*sy);
+    c.fillStyle='rgba(255,255,255,0.12)';c.beginPath();c.moveTo(X(x0),Y(y0+h*0.35));c.lineTo(X(x0+w*0.45),Y(y0+h));c.lineTo(X(x0+w*0.7),Y(y0+h));c.lineTo(X(x0),Y(y0+h*0.05));c.fill();}
+  function windowAt(w,h,sill,frame,trim){
+    h=Math.max(2,Math.min(h,storyH-sill-1.2));var x0=(f.bay-w)/2;
+    if(trim){c.fillStyle=trim;c.fillRect(X(x0-0.35),Y(sill+h+0.35),X(w+0.7),(h+0.7)*sy);}
+    glassRect(x0,sill,w,h);
+    c.fillStyle=frame;var fw=Math.max(2,X(0.18));
+    c.fillRect(X(x0),Y(sill+h),X(w),fw);c.fillRect(X(x0),Y(sill)-fw,X(w),fw);c.fillRect(X(x0),Y(sill+h),fw,h*sy);c.fillRect(X(x0+w)-fw,Y(sill+h),fw,h*sy);
+    c.fillRect(X(x0+w/2)-fw/2,Y(sill+h),fw,h*sy);c.fillRect(X(x0),Y(sill+h*0.62),X(w),fw*0.8);
+  }
+  if(kind==='brick'){
+    c.fillStyle='#b8afa2';c.fillRect(0,0,N,N);var ch=2.667/12,bw=8/12,m=0.035;
+    for(var r=0,y=0;y<storyH;r++,y+=ch)for(var x=(r%2?-bw/2:0);x<f.bay;x+=bw){c.fillStyle=jit([152,64,48],46);c.fillRect(X(x+m),Y(y+ch-m),X(bw-2*m),(ch-2*m)*sy);}
+    speckle(1500,0.12);
+    var bw2=4,bh=5,bs=2.8;c.fillStyle='#d8d0c2';c.fillRect(X((f.bay-bw2)/2-0.4),Y(Math.min(storyH-1.2,bs+bh)+0.55),X(bw2+0.8),0.55*sy);c.fillRect(X((f.bay-bw2)/2-0.25),Y(bs)-1,X(bw2+0.5),0.3*sy);
+    windowAt(bw2,bh,bs,'#ece9e2',null);
+  }else if(kind==='siding'){
+    var ex=7/12;
+    for(var y2=0;y2<storyH;y2+=ex){var col=jit([229,226,218],10);c.fillStyle=col;c.fillRect(0,Y(y2+ex),N,ex*sy);c.fillStyle='rgba(0,0,0,0.18)';c.fillRect(0,Y(y2)-Math.max(2,sy*0.05),N,Math.max(2,sy*0.05));c.fillStyle='rgba(255,255,255,0.35)';c.fillRect(0,Y(y2+ex),N,1);}
+    speckle(500,0.05);
+    c.fillStyle='#f7f7f4';c.fillRect(X(0),Y(storyH),Math.max(3,X(0.3)),N);
+    windowAt(3,5,2.8,'#f4f4f1','#fbfbf8');
+  }else if(kind==='stone'){
+    c.fillStyle='#b9ad93';c.fillRect(0,0,N,N);var bh2=2,bl=4;
+    for(var r2=0,y3=0;y3<storyH;r2++,y3+=bh2)for(var x2=(r2%2?-bl/2:0);x2<f.bay;x2+=bl){c.fillStyle=jit([214,201,174],22);c.fillRect(X(x2+0.04),Y(Math.min(storyH,y3+bh2)-0.04),X(bl-0.08),(Math.min(bh2,storyH-y3)-0.08)*sy);}
+    speckle(4000,0.1);
+    windowAt(4,6.5,2.2,'#5b6166',null);
+  }else if(kind==='stucco'){
+    c.fillStyle='#e3d6bf';c.fillRect(0,0,N,N);speckle(9000,0.09);
+    c.fillStyle='rgba(0,0,0,0.12)';c.fillRect(0,Y(storyH)+1,N,Math.max(2,sy*0.06));
+    windowAt(4,5,2.8,'#f5f1e8','#efe6d3');
+  }else{ // glass curtain wall: spandrel at the slab, vision glass above, mullions every 5 ft
+    var sp=Math.min(3,storyH*0.25);
+    c.fillStyle='#2e3a43';c.fillRect(0,Y(sp),N,sp*sy);
+    var gr2=c.createLinearGradient(0,Y(storyH),N,Y(sp));gr2.addColorStop(0,'#9db3c4');gr2.addColorStop(0.5,'#58717f');gr2.addColorStop(1,'#3b505d');c.fillStyle=gr2;c.fillRect(0,Y(storyH),N,(storyH-sp)*sy);
+    c.fillStyle='rgba(255,255,255,0.10)';c.beginPath();c.moveTo(0,Y(storyH*0.55));c.lineTo(X(f.bay*0.4),Y(storyH));c.lineTo(X(f.bay*0.62),Y(storyH));c.lineTo(0,Y(sp+0.5));c.fill();
+    c.fillStyle='#c9cfd4';var mw=Math.max(3,X(0.22));
+    for(var mx=0;mx<=f.bay;mx+=5){c.fillRect(X(mx)-mw/2,0,mw,N);}
+    c.fillRect(0,Y(sp)-mw/2,N,mw);c.fillRect(0,Y(storyH)-mw/2,N,mw);
+  }
+  return cv;
+}
+function buildFacadePicker(){
+  var el=$('#iFacade');
+  el.innerHTML=Object.keys(FACADES).map(function(k){return '<button type="button" role="radio" data-fa="'+k+'" title="'+esc(FACADES[k].desc)+'"><span class="sw" data-sw="'+k+'"></span>'+esc(FACADES[k].name)+'</button>';}).join('');
+  Object.keys(FACADES).forEach(function(k){var cv=paintFacade(k,11,128);if(!cv)return;var sw=el.querySelector('[data-sw="'+k+'"]');cv.className='sw';sw.replaceWith(cv);});
+}
+function markFacade(o){var k=facadeOf(o);$$('#iFacade button').forEach(function(b){var on=b.getAttribute('data-fa')===k;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');});}
+buildFacadePicker();
+$('#iFacade').addEventListener('click',function(e){var b=e.target.closest('button[data-fa]');if(!b)return;var k=b.getAttribute('data-fa');inspUpdate(function(o){o.fa=k;});});
+
+// ---------- 3D view (Three.js, loaded on first use) ----------
+var THREE_URL='https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js';
+var ORBIT_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js';
+var V3={on:false,infoShut:true,lib:null,libErr:null,demErr:null,r:null,scene:null,cam:null,ctl:null,sun:null,group:null,timer:null,size:500,midY:0,fit:true};
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error('could not load '+src));};document.head.appendChild(s);});}
+function load3D(){
+  if(window.THREE&&window.THREE.OrbitControls)return Promise.resolve();
+  if(!V3.lib){
+    V3.lib=(window.THREE?Promise.resolve():loadScript(THREE_URL)).then(function(){return window.THREE.OrbitControls?null:loadScript(ORBIT_URL);});
+    V3.lib.catch(function(){V3.lib=null;});
+  }
+  return V3.lib;
+}
+function open3D(){
+  if(!planBoxLocal(0)){toast('Pick parcels or draw something first, then open the 3D view.',true);return;}
+  if(D)cancelDraw();
+  V3.on=true;V3.fit=true;$('#v3d').hidden=false;$('#view3dBtn').classList.add('on');
+  $('#v3dInfo').textContent='Loading lidar terrain from USGS 3DEP…';setSun();
+  V3.libErr=null;V3.demErr=null;
+  Promise.all([load3D().catch(function(e){V3.libErr=e;}),getDEM().catch(function(e){V3.demErr=e;})]).then(function(){if(V3.on)build3D();});
+}
+function close3D(){V3.on=false;clearTimeout(V3.timer);$('#v3d').hidden=true;$('#view3dBtn').classList.remove('on');}
+function schedule3D(){
+  clearTimeout(V3.timer);
+  V3.timer=setTimeout(function(){
+    if(!V3.on)return;
+    var b=planBoxLocal(150);
+    if(b&&!(DEM.grid&&demCovers(DEM.grid,b))){V3.demErr=null;getDEM().catch(function(e){V3.demErr=e;}).then(function(){if(V3.on)build3D();});}
+    else build3D();
+  },250);
+}
+function build3D(){
+  var g=V3.demErr?null:DEM.grid;
+  V3.msg=null;info3D(g);
+  if(V3.libErr||!window.THREE||!window.THREE.WebGLRenderer){note3D('The 3D drawing library did not load'+(V3.libErr?' ('+esc(V3.libErr.message)+')':'')+'. Check the internet connection and try again.');return;}
+  if(!V3.r){try{init3D();}catch(e){V3.r=null;note3D('This browser could not start 3D graphics (WebGL): '+esc(e.message));return;}}
+  rebuildScene(g);
+  if(V3.fit){fit3D();V3.fit=false;}
+  setSun();
+}
+function note3D(t){V3.msg=t;$('#v3dInfo').insertAdjacentHTML('afterbegin','<div class="flag">'+t+'</div>');}
+function init3D(){
+  var T=window.THREE,el=$('#v3dCanvas');
+  var r=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+  r.setPixelRatio(Math.min(2,window.devicePixelRatio||1));r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;r.outputEncoding=T.sRGBEncoding;
+  el.appendChild(r.domElement);
+  var scene=new T.Scene();scene.background=new T.Color(0xb9c4c6);
+  var cam=new T.PerspectiveCamera(45,1,1,50000);
+  var ctl=new T.OrbitControls(cam,r.domElement);ctl.maxPolarAngle=Math.PI*0.49;ctl.addEventListener('change',render3D);
+  // a click (not a drag) on a building selects it, so its facade can be picked on the Build tab
+  var down=null;
+  r.domElement.addEventListener('pointerdown',function(e){down=[e.clientX,e.clientY];});
+  r.domElement.addEventListener('pointerup',function(e){if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])<5)pick3D(e);down=null;});
+  scene.add(new T.HemisphereLight(0xffffff,0x7d8a6a,0.2));
+  var sun=new T.DirectionalLight(0xffffff,0.9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.5;
+  scene.add(sun);scene.add(sun.target);
+  V3.r=r;V3.scene=scene;V3.cam=cam;V3.ctl=ctl;V3.sun=sun;
+  if(window.ResizeObserver)new ResizeObserver(resize3D).observe(el);else window.addEventListener('resize',resize3D);
+  resize3D();
+}
+function pick3D(e){
+  var T=window.THREE,rect=V3.r.domElement.getBoundingClientRect(),rc=new T.Raycaster();
+  rc.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),V3.cam);
+  var hits=rc.intersectObjects(V3.group.children.filter(function(o){return o.userData.bid!=null;}),false);
+  if(hits.length)select({k:'b',id:hits[0].object.userData.bid});
+}
+function resize3D(){if(!V3.r)return;var el=$('#v3dCanvas'),w=el.clientWidth||800,h=el.clientHeight||600;V3.r.setSize(w,h,false);V3.cam.aspect=w/h;V3.cam.updateProjectionMatrix();render3D();}
+function render3D(){if(V3.r&&V3.on)V3.r.render(V3.scene,V3.cam);}
+function rebuildScene(g){
+  var T=window.THREE;
+  if(V3.group){V3.scene.remove(V3.group);V3.group.traverse(function(o){if(o.geometry)o.geometry.dispose();[].concat(o.material||[]).forEach(function(m){if(m.map&&!m.map.userData.keep)m.map.dispose();m.dispose();});});}
+  var mode=$('#v3dGround').value;
+  if(g&&mode!=='dem'&&!g.img&&!g.imgErr)demImagery(g).then(function(){if(V3.on)build3D();},function(){if(V3.on)build3D();});
+  var grp=new T.Group();V3.group=grp;V3.scene.add(grp);
+  var box=g?demBounds(g):planBoxLocal(300),cx=(box.x0+box.x1)/2,cy=(box.y0+box.y1)/2,exag=+$('#v3dExag').value||1,base=g?g.min:0;
+  function Y(e){return (e-base)*exag;}
+  function ground(x,y){return g?elevAt(g,x,y):0;}
+  // terrain mesh, at most 400 vertices a side; the plan and contours are painted on as a texture
+  var step=g?Math.max(1,Math.ceil(Math.max(g.nx,g.ny)/400)):1,nx=g?Math.floor((g.nx-1)/step)+1:2,ny=g?Math.floor((g.ny-1)/step)+1:2;
+  var pos=new Float32Array(nx*ny*3),uv=new Float32Array(nx*ny*2),idx=[],i,j;
+  for(j=0;j<ny;j++)for(i=0;i<nx;i++){
+    var fx=i/(nx-1),fy=j/(ny-1),x=box.x0+fx*(box.x1-box.x0),y=box.y1-fy*(box.y1-box.y0),k=j*nx+i;
+    pos[k*3]=x-cx;pos[k*3+1]=Y(ground(x,y));pos[k*3+2]=-(y-cy);uv[k*2]=fx;uv[k*2+1]=1-fy;
+  }
+  for(j=0;j<ny-1;j++)for(i=0;i<nx-1;i++){var a=j*nx+i,b2=a+1,c=a+nx,d=c+1;idx.push(a,c,b2,b2,c,d);}
+  var geo=new T.BufferGeometry();geo.setAttribute('position',new T.BufferAttribute(pos,3));geo.setAttribute('uv',new T.BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();
+  var cv=drapeCanvas(g,box,mode),mat;
+  if(cv){var tex=new T.CanvasTexture(cv);tex.anisotropy=Math.min(8,V3.r.capabilities.getMaxAnisotropy());tex.encoding=T.sRGBEncoding;mat=new T.MeshLambertMaterial({map:tex});}
+  else mat=new T.MeshLambertMaterial({color:0xc9d3c3});
+  var terr=new T.Mesh(geo,mat);terr.receiveShadow=true;grp.add(terr);
+  // buildings: extruded footprints, set on the lowest ground under each one, walls skinned with the chosen facade
+  var edgeMat=new T.LineBasicMaterial({color:0x1a2225,transparent:true,opacity:0.55});
+  S.buildings.forEach(function(b){
+    var ring=S.ctx.rings[b.id];if(!ring||ring.length<3)return;
+    var pad=g?groundUnder(g,ring).min:0,h=Math.max(1,b.st||1)*(S.set.storyH||11);
+    var sh=new T.Shape(ring.map(function(p){return new T.Vector2(p[0]-cx,p[1]-cy);}));
+    var eg=new T.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false});eg.rotateX(-Math.PI/2);eg.translate(0,Y(pad),0);
+    var wall=facadeTex(facadeOf(b)),pitched=b.type==='sf'||b.type==='th'||b.type==='acc';
+    var mats=[new T.MeshLambertMaterial({color:pitched?0x55595f:0x8b9095}),wall?new T.MeshLambertMaterial({map:wall}):new T.MeshLambertMaterial({color:bType(b).color})];
+    var m=new T.Mesh(eg,mats);m.castShadow=true;m.receiveShadow=true;m.userData.bid=b.id;grp.add(m);
+    var em=edgeMat.clone();if(S.sel&&S.sel.k==='b'&&S.sel.id===b.id){em.color.set(0xffd43b);em.opacity=1;}
+    grp.add(new T.LineSegments(new T.EdgesGeometry(eg,20),em));
+  });
+  edgeMat.dispose();
+  V3.size=Math.max(box.x1-box.x0,box.y1-box.y0)/2;V3.midY=g?Y((g.min+g.max)/2):0;
+}
+// One shared texture per facade and story height. ExtrudeGeometry gives wall UVs in feet (u along the wall,
+// v = 1 - height), so repeat by the bay width and flip v to stack one painted story per floor from the ground up.
+function facadeTex(kind){
+  var T=window.THREE,sH=S.set.storyH||11,key=kind+'|'+sH;V3.tex=V3.tex||{};
+  if(V3.tex[key])return V3.tex[key];
+  var cv=paintFacade(kind,sH,512);if(!cv)return null;
+  var t=new T.CanvasTexture(cv);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(1/FACADES[kind].bay,-1/sH);t.offset.set(0,1/sH);
+  t.encoding=T.sRGBEncoding;t.anisotropy=Math.min(8,V3.r.capabilities.getMaxAnisotropy());t.userData.keep=true;
+  V3.tex[key]=t;return t;
+}
+// Aerial photo for the grid's box (Esri World Imagery, same as the 2D basemap), fetched once per grid.
+var IMG_URL='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export';
+function demImagery(g){
+  if(g.imgP)return g.imgP;
+  var dLng=g.ll1[0]-g.ll0[0],dLat=g.ll1[1]-g.ll0[1];
+  // the service advertises 4096 px but refuses requests near 2000 px, so ask for 1600 and fall back to 1024
+  function get(px){
+    var k=px/Math.max(dLng,dLat),w=Math.max(2,Math.round(dLng*k)),h=Math.max(2,Math.round(dLat*k));
+    var u=IMG_URL+'?bbox='+[g.ll0[0],g.ll0[1],g.ll1[0],g.ll1[1]].map(function(v){return v.toFixed(7);}).join(',')+'&bboxSR=4326&imageSR=4326&size='+w+','+h+'&format=jpg&f=image';
+    return fetch(u).then(function(r){if(!r.ok)throw new Error('the imagery service answered '+r.status);return r.blob();});
+  }
+  g.imgP=get(1600).catch(function(){return get(1024);}).then(function(bl){
+    return new Promise(function(res,rej){var im=new Image(),url=URL.createObjectURL(bl);im.onload=function(){res(im);};im.onerror=function(){URL.revokeObjectURL(url);rej(new Error('the imagery could not be read'));};im.src=url;});
+  }).then(function(im){g.img=im;return im;},function(e){g.imgErr=e;throw e;});
+  return g.imgP;
+}
+function fit3D(){
+  var s=V3.size,c=V3.cam;
+  c.position.set(-s*0.85,V3.midY+s*0.95,s*1.25);c.near=Math.max(0.5,s/3000);c.far=s*30;c.updateProjectionMatrix();
+  V3.ctl.target.set(0,V3.midY,0);V3.ctl.update();
+}
+function setSun(){
+  var hour=+$('#v3dHour').value,p=sunPos(ORG.lat,+$('#v3dSeason').value,hour);
+  $('#v3dTime').textContent=fmtHour(hour)+(p.alt>0?'':' (dark)');
+  if(!V3.sun)return;
+  var up=p.alt>0.005,s=V3.size,dir=[Math.sin(p.az)*Math.cos(p.alt),Math.sin(p.alt),-Math.cos(p.az)*Math.cos(p.alt)];
+  V3.sun.intensity=up?0.9:0;V3.sun.castShadow=up&&$('#v3dShadows').checked;
+  V3.sun.position.set(dir[0]*s*3,V3.midY+dir[1]*s*3,dir[2]*s*3);V3.sun.target.position.set(0,V3.midY,0);
+  var sc=V3.sun.shadow.camera;sc.left=-s*1.2;sc.right=s*1.2;sc.top=s*1.2;sc.bottom=-s*1.2;sc.near=1;sc.far=s*7;sc.updateProjectionMatrix();
+  render3D();
+}
+// The plan painted flat onto the ground: elevation tint, 2 ft contours (10 ft darker), areas, roads, parking and the site line.
+function drapeCanvas(g,box,mode){
+  var W=box.x1-box.x0,H=box.y1-box.y0,sc=Math.min(2048/W,2048/H,4);
+  var cw=Math.max(2,Math.round(W*sc)),ch=Math.max(2,Math.round(H*sc));
+  var cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
+  var c=null;try{c=cv.getContext('2d');}catch(e){}
+  if(!c)return null;
+  function px(p){return [(p[0]-box.x0)*sc,(box.y1-p[1])*sc];}
+  var photo=g&&g.img&&mode!=='dem',lines=g&&(mode!=='img'||!photo);
+  if(photo)c.drawImage(g.img,0,0,cw,ch);
+  if(lines){
+    var img=photo?c.getImageData(0,0,cw,ch):c.createImageData(cw,ch),dd=img.data,E=new Float32Array(cw*ch),span=Math.max(1,g.max-g.min),x,y,i,j;
+    for(j=0;j<ch;j++){y=box.y1-(j+0.5)/sc;for(i=0;i<cw;i++){x=box.x0+(i+0.5)/sc;E[j*cw+i]=elevAt(g,x,y);}}
+    for(j=0;j<ch;j++)for(i=0;i<cw;i++){
+      var k=j*cw+i,e=E[k],eR=i+1<cw?E[k+1]:e,eD=j+1<ch?E[k+cw]:e;
+      var major=Math.floor(e/10)!==Math.floor(eR/10)||Math.floor(e/10)!==Math.floor(eD/10),minor=!major&&(Math.floor(e/2)!==Math.floor(eR/2)||Math.floor(e/2)!==Math.floor(eD/2));
+      if(photo){ // light contour lines over the photo: 10 ft solid, 2 ft faint
+        var a=major?0.75:(minor?0.35:0);if(a){dd[k*4]+=(255-dd[k*4])*a;dd[k*4+1]+=(236-dd[k*4+1])*a;dd[k*4+2]+=(140-dd[k*4+2])*a;}
+        continue;
+      }
+      var t=(e-g.min)/span,r=176+t*50,gr=196+t*16,bl=160+t*20,f=major?0.45:(minor?0.72:1);
+      dd[k*4]=r*f;dd[k*4+1]=gr*f;dd[k*4+2]=bl*f;dd[k*4+3]=255;
+    }
+    c.putImageData(img,0,0);
+  }else if(!photo){c.fillStyle='#c9d3c3';c.fillRect(0,0,cw,ch);}
+  function path(rings){c.beginPath();rings.forEach(function(r){r.forEach(function(p,n){var q=px(p);if(n)c.lineTo(q[0],q[1]);else c.moveTo(q[0],q[1]);});c.closePath();});}
+  function llRings(f){var out=[];polysOf(f).forEach(function(pl){pl.forEach(function(r){out.push(r.map(toLocal));});});return out;}
+  S.areas.forEach(function(a){var k=AREAS[a.kind]||AREAS.land;path([a.ring.map(toLocal)]);c.globalAlpha=photo?0.55:0.7;c.fillStyle=k.color;c.fill();c.globalAlpha=1;c.lineWidth=Math.max(1,sc*0.3);c.strokeStyle=k.color;c.stroke();});
+  S.roads.forEach(function(r){var f=roadPoly(r);if(!f)return;path(llRings(f));c.fillStyle='#3d4348';c.fill('evenodd');
+    c.beginPath();r.pts.map(toLocal).forEach(function(p,n){var q=px(p);if(n)c.lineTo(q[0],q[1]);else c.moveTo(q[0],q[1]);});
+    c.setLineDash([8*sc,6*sc]);c.lineWidth=Math.max(1,sc*0.5);c.strokeStyle='#f1f3f5';c.stroke();c.setLineDash([]);});
+  S.lots.forEach(function(l){var gl=S.lotG[l.id];if(!gl)return;
+    if(gl.aisle){path(llRings(gl.aisle));c.fillStyle='#3b4249';c.fill('evenodd');}
+    gl.stalls.forEach(function(q){path([q]);c.fillStyle='#4a525a';c.fill();c.lineWidth=Math.max(1,sc*0.35);c.strokeStyle='#f8f9fa';c.stroke();});});
+  if(S.site){path(llRings(S.site));c.setLineDash([10*sc,5*sc]);c.lineWidth=Math.max(2,sc*0.8);c.strokeStyle='#ff4d6d';c.stroke();c.setLineDash([]);}
+  return cv;
+}
+function info3D(g){
+  var h=V3.msg?'<div class="flag">'+V3.msg+'</div>':'';
+  if(g){
+    h+='<div><b>Terrain:</b> USGS 3DEP '+(g.res?g.res+' m ':'')+'lidar ground model'+(g.survey?' · '+esc(g.survey):'')+'</div>';
+    if($('#v3dGround').value!=='dem'){
+      if(g.img)h+='<div><b>Imagery:</b> © Esri, Maxar, Earthstar Geographics (existing buildings and trees in the photo lie flat on the ground)</div>';
+      else if(g.imgErr)h+='<div class="flag">Aerial imagery could not load ('+esc(g.imgErr.message)+'). Showing contours.</div>';
+    }
+    var site=S.ctx&&S.ctx.siteRings&&S.ctx.siteRings[0];
+    if(site){var gs=groundUnder(g,site);h+='<div id="v3dSiteFall">Across the site: '+n0(gs.min)+'–'+n0(gs.max)+' ft elevation, <b>'+n1(gs.max-gs.min)+' ft</b> of fall</div>';}
+    else h+='<div>Ground in view: '+n0(g.min)+'–'+n0(g.max)+' ft elevation</div>';
+    if(g.holes)h+='<div class="flag">'+g.holes+' grid cells had no elevation data and were filled with the lowest ground.</div>';
+    if(S.buildings.length){
+      h+='<table id="v3dBldg"><tr><td><b>Building</b></td><td class="n"><b>Ground change</b></td><td class="n"><b>Pad elev.</b></td></tr>';
+      S.buildings.forEach(function(b){var ring=S.ctx.rings[b.id];if(!ring)return;var gu=groundUnder(g,ring);
+        h+='<tr><td>'+esc(b.name)+'</td><td class="n">'+n1(gu.max-gu.min)+' ft</td><td class="n">'+n1(gu.min)+' ft</td></tr>';});
+      h+='</table>';
+    }
+  }else h+='<div class="flag">Terrain unavailable'+(V3.demErr?': '+esc(V3.demErr.message):'')+'. Showing flat ground.</div>';
+  h+='<div class="note">Click a building to select it and pick its facade on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab) and sit on the lowest ground under them. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
+  var fall=h.match(/<b>([\d.,]+ ft)<\/b> of fall/);
+  $('#v3dInfo').innerHTML='<details id="v3dDet"'+(V3.infoShut?'':' open')+'><summary>Terrain and buildings'+(fall?' · '+fall[1]+' of fall across the site':'')+'</summary>'+h+'</details>';
+  $('#v3dDet').addEventListener('toggle',function(){V3.infoShut=!this.open;});
+}
+$('#view3dBtn').addEventListener('click',function(){if(V3.on)close3D();else open3D();});
+$('#v3dClose').addEventListener('click',close3D);
+$('#v3dExag').addEventListener('change',function(){if(V3.on)build3D();});
+$('#v3dGround').addEventListener('change',function(){if(V3.on)build3D();});
+$('#v3dSeason').addEventListener('change',setSun);$('#v3dHour').addEventListener('input',setSun);$('#v3dShadows').addEventListener('change',setSun);
+$('#v3dReset').addEventListener('click',function(){if(V3.r){fit3D();render3D();}});
+
 // ---------- start ----------
 window.addEventListener('resize',function(){map.invalidateSize();});
 (function init(){

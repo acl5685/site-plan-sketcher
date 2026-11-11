@@ -1,3 +1,4 @@
 node_modules/
 package-lock.json
 SITE-PLAN-SKETCHER.md
+.claude/

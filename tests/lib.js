@@ -1,4 +1,4 @@
-const fs=require('fs');const {JSDOM}=require('jsdom');
+const fs=require('fs');const {JSDOM,VirtualConsole}=require('jsdom');
 const HTML=()=>fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8').replace(/<script src="[^"]*"><\/script>/g,'').replace(/<link[^>]*>/g,'');
 const LIBS=['node_modules/leaflet/dist/leaflet-src.js','node_modules/@turf/turf/turf.min.js','node_modules/proj4/dist/proj4.js'].map(f=>fs.readFileSync(f,'utf8'));
 const R={pass:0,fails:[]};
@@ -11,7 +11,11 @@ const KY=(lat)=>(111132.92-559.82*Math.cos(2*lat*Math.PI/180)+1.175*Math.cos(4*l
 async function boot(o){
   o=o||{};
   const html=HTML();
-  const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://example.test/'});
+  // jsdom has no canvas; silence its "getContext not implemented" notices (page errors are still collected below)
+  const vc=new VirtualConsole();
+  if(vc.forwardTo)vc.forwardTo(console,{jsdomErrors:'none'});else vc.sendTo(console,{omitJSDOMErrors:true});
+  vc.on('jsdomError',e=>{if(!/Not implemented/.test(e.message))console.error(e.message);});
+  const dom=new JSDOM(html,{runScripts:'outside-only',pretendToBeVisual:true,url:'https://example.test/',virtualConsole:vc});
   const w=dom.window,t={w,errors:[],fetchLog:[],mode:{},dl:{},mockCount:0};
   w.addEventListener('error',e=>t.errors.push(e.message));
   Object.defineProperty(w.HTMLElement.prototype,'clientWidth',{get(){return 800}});
@@ -80,6 +84,16 @@ function mockFetch(t,url){
   if(m.fail)throw new Error(m.fail);
   const ok_=obj=>({ok:true,status:200,json:async()=>obj});
   if(/nominatim/.test(url))return ok_(m.geo||[{lat:'41.4',lon:'-81.7',display_name:'Test Place, OH'}]);
+  // USGS 3DEP elevation: raw float32 metres, north row first, then a 1-bit mask; m.dem(lng,lat) gives the ground
+  if(/ImageServer\/exportImage/.test(url)){
+    if(m.demFail)return {ok:false,status:503,arrayBuffer:async()=>new ArrayBuffer(0)};
+    const sz=url.match(/size=(\d+),(\d+)/),bb=decodeURIComponent(url.match(/bbox=([^&]+)/)[1]).split(',').map(Number);
+    const nx=+sz[1],ny=+sz[2],a=new Float32Array(nx*ny+Math.ceil(nx*ny/32));
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const lng=bb[0]+(i+0.5)/nx*(bb[2]-bb[0]),lat=bb[3]-(j+0.5)/ny*(bb[3]-bb[1]);a[j*nx+i]=m.dem?m.dem(lng,lat):270;}
+    t.demReq=(t.demReq||0)+1;return {ok:true,status:200,arrayBuffer:async()=>a.buffer};
+  }
+  if(/ImageServer\/getSamples/.test(url))return ok_({samples:[{value:'270',rasterId:7,resolution:1}]});
+  if(/ImageServer\/query/.test(url))return ok_({features:[{attributes:{Name:'TEST_LIDAR_2019'}}]});
   if(/\?f=json$/.test(url))return ok_({layers:[{id:0,name:'Parcels'},{id:1,name:'Annotation'}]});
   if(/\/query\?/.test(url)){
     if(m.http)return {ok:false,status:m.http,json:async()=>({})};
