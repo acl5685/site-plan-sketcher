@@ -117,7 +117,8 @@ td:first-child{font-family:var(--font)}
 .vh{width:12px;height:12px;margin:-6px 0 0 -6px;background:#fff;border:2px solid #0a6e83;border-radius:2px;cursor:move}
 .rh{width:26px;height:26px;margin:-13px 0 0 -13px;background:#fff;border:2px solid #0a6e83;border-radius:50%;color:#0a6e83;font:700 16px/22px var(--font);text-align:center;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .rh:active{cursor:grabbing}
-#selBar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:1100;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:12px;max-width:calc(100% - 24px);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#pbTip{flex-basis:100%;text-align:center}
+#selBar,#plotBar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:1100;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:12px;max-width:calc(100% - 24px);box-shadow:0 2px 8px rgba(0,0,0,.25)}
 #selTip{flex-basis:100%;text-align:center}
 #drawInfo{font-family:var(--mono);white-space:nowrap}
 #lenBox{width:96px;font-family:var(--mono)}
@@ -202,11 +203,12 @@ td:first-child{font-family:var(--font)}
         <h3>Lots</h3>
         <div class="row">
           <button class="btn small" id="splitBtn">Draw a lot line</button>
+          <button class="btn small" id="splitShapeBtn">Cut out a shape</button>
           <button class="btn small danger" id="splitClear" hidden>Remove all lot lines</button>
           <div class="field" style="flex:1 1 120px"><label for="sLotMin">Minimum lot area sf (0 = no check)</label><input type="number" id="sLotMin" min="0" step="500"></div>
         </div>
         <div id="plotList" class="scroll-x" style="margin-top:6px"></div>
-        <p class="note">Split lots draws a line across the site. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks.</p>
+        <p class="note">Split lots draws a line across the site, or a shape to cut out of it. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks. With the Select tool, click inside a lot to see the largest building that fits.</p>
       </div>
     </div>
 
@@ -487,6 +489,7 @@ td:first-child{font-family:var(--font)}
     <div id="banner" hidden></div>
     <div id="drawbar" hidden>
       <select id="drawType" title="Building type" aria-label="Building type"></select>
+      <select id="splitMode" title="How to split the site" aria-label="How to split the site"><option value="line">Line across the site</option><option value="shape">Shape to cut out as a lot</option></select>
       <select id="angMode" title="Angle snapping" aria-label="Angle snapping"><option value="ortho">Right angles</option><option value="step15">15° steps</option><option value="free">Free angle</option></select>
       <input type="text" id="lenBox" inputmode="decimal" placeholder="Length ft" autocomplete="off" aria-label="Exact length of the next side in feet">
       <span id="drawInfo"></span>
@@ -501,6 +504,13 @@ td:first-child{font-family:var(--font)}
       <button class="btn small danger" id="sbDel" title="Delete (Del)">Delete</button>
       <button class="btn small" id="sbDone" title="Deselect (Esc)">Done</button>
       <span class="note" id="selTip"></span>
+    </div>
+    <div id="plotBar" role="status" aria-label="Selected lot" hidden>
+      <b id="pbName"></b>
+      <span id="pbInfo"></span>
+      <button class="btn small primary" id="pbAdd">Add this building</button>
+      <button class="btn small" id="pbDone" title="Close (Esc)">Done</button>
+      <span class="note" id="pbTip"></span>
     </div>
     <div id="v3d" hidden>
       <div id="v3dCanvas"></div>
@@ -669,7 +679,8 @@ var S={
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
   angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free',split:'free'},snapSkip:null,
-  splits:[],plots:[] // lot lines drawn across the site, and the lots they cut it into
+  splits:[],plots:[], // lot lines (or cut-out shapes) drawn on the site, and the lots they cut it into
+  splitMode:'line',plotSel:null // what the Split lots tool draws; the lot clicked to see what fits on it
 };
 var undoStack=[],shiftHeld=false,drag=null,D=null,ghostLL=null,raf=0;
 
@@ -978,10 +989,21 @@ function renderMap(){
     L.polygon(ringsToLatLngs(S.plots.map(function(p){return p.coords;})),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',fill:false,interactive:false}).addTo(gSite);
     S.plots.forEach(function(p){L.marker(ll2(toLL(p.c)),{pane:'pSite',interactive:false,icon:L.divIcon({className:'blabel plabel',iconSize:[110,30],iconAnchor:[55,15],html:esc(p.name)+'<br>'+n0(p.sf)+' sf'})}).addTo(gSite);});
   }
+  // the lot that was clicked: its outline, the area left inside the setbacks, and the largest building that fits there
+  var sp=S.tool==='select'&&!S.sel?selPlot():null;
+  if(sp){
+    var pb=plotBuild(sp);
+    L.polygon(ringsToLatLngs([sp.coords]),{pane:'pSite',color:'#ffd43b',weight:4,fillColor:'#ffd43b',fillOpacity:.1,interactive:false}).addTo(gSite);
+    if(pb.env)L.polygon(ringsToLatLngs(pb.env),{pane:'pSite',color:'#69db7c',weight:2,dashArray:'4 4',fillColor:'#69db7c',fillOpacity:.18,interactive:false}).addTo(gSite);
+    if(pb.rect){
+      L.polygon(bldgRingLocal({w:pb.rect.w,d:pb.rect.d,rot:pb.rect.rot,c:toLL(pb.rect.c)}).map(toLL).map(ll2),{pane:'pSite',color:'#ffffff',weight:2,dashArray:'8 4',fillColor:'#ffffff',fillOpacity:.25,interactive:false}).addTo(gSite);
+      L.marker(ll2(toLL(pb.rect.c)),{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim building',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%)">'+pb.rect.w+' × '+pb.rect.d+' ft</span>'})}).addTo(gSite);
+    }
+  }
   S.splits.forEach(function(s,i){
-    if(S.plots.length<2)L.polyline(s.pts.map(ll2),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',interactive:false}).addTo(gSite);
+    if(S.plots.length<2)L.polyline((s.shape?s.pts.concat([s.pts[0]]):s.pts).map(ll2),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',interactive:false}).addTo(gSite);
     var m=Math.floor((s.pts.length-1)/2),a=s.pts[m],b=s.pts[m+1]||a;
-    L.marker([(a[1]+b[1])/2,(a[0]+b[0])/2],{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim road',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%);color:#ffd43b">Line '+(i+1)+'</span>'})}).addTo(gSite);
+    L.marker([(a[1]+b[1])/2,(a[0]+b[0])/2],{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim road',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%);color:#ffd43b">'+(s.shape?'Shape ':'Line ')+(i+1)+'</span>'})}).addTo(gSite);
   });
   if(S.site){
     L.polygon(ringsToLatLngs(polysOf(S.site)),{pane:'pSite',color:'#ff4d6d',weight:3,dashArray:'10 5',fill:false,interactive:false}).addTo(gSite);
@@ -1112,14 +1134,17 @@ function computePlots(){
     try{
       var P=s.pts.map(toLocal),n=P.length;
       var ext=function(a,b){var l=Math.hypot(a[0]-b[0],a[1]-b[1])||1;return [a[0]+(a[0]-b[0])/l*3,a[1]+(a[1]-b[1])/l*3];};
-      var line=[ext(P[0],P[1])].concat(P.slice(1,n-1),[ext(P[n-1],P[n-2])]).map(toLL);
+      // a cut-out shape is cut along its closed outline, so what is inside it becomes a lot of its own
+      var line=(s.shape?P.concat([P[0]]):[ext(P[0],P[1])].concat(P.slice(1,n-1),[ext(P[n-1],P[n-2])])).map(toLL);
       f=turf.difference(f,turf.buffer(turf.lineString(line),0.003,{units:'meters',steps:1}))||f;
     }catch(e){console.warn('split',e);}
   });
   var out=polysOf(f).map(function(co){
     var lp=co.map(function(r){return r.map(toLocal);}),a=Math.abs(polyAreaSigned(lp[0]));
     for(var h=1;h<lp.length;h++)a-=Math.abs(polyAreaSigned(lp[h]));
-    return {coords:co,sf:a,c:polyCentroid(lp[0])};
+    var c=polyCentroid(lp[0]);
+    if(!pointInPoly(c,lp)){try{c=toLocal(turf.pointOnFeature(turf.polygon(co)).geometry.coordinates);}catch(e){}} // e.g. a lot with another cut out of its middle
+    return {coords:co,sf:a,c:c};
   }).filter(function(p){return p.sf>20;});
   if(out.length<2)return;
   // number them in reading order: north to south in 60 ft bands, west to east within a band
@@ -1151,7 +1176,7 @@ function renderLight(){ // during drags: no stats recompute beyond checks
 }
 
 // ---------- selection and inspector ----------
-function select(sel){S.sel=sel;renderAll();if(sel){showTab('build');}}
+function select(sel){S.sel=sel;if(sel)S.plotSel=null;renderAll();if(sel){showTab('build');}}
 // ---------- multi-select ----------
 function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:S.areas));}
 function multiObjs(){return S.multi.map(function(m){return {k:m.k,id:m.id,o:arrOf(m.k).filter(function(x){return x.id===m.id;})[0]};}).filter(function(m){return m.o;});}
@@ -1229,17 +1254,18 @@ var HINTS={
   carve:'Click parcels to carve them out of the project site. Click again to restore.',
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
   road:'Click along the road centerline. Double-click or press Enter to finish.',
-  split:'Click a line across the site, from outside one edge to outside the other, to split it into lots. Double-click or press Enter to finish. Lot lines are listed on the Site tab.',
+  split:'Line: click from outside one edge of the site to outside the other. Shape: click the corners of the lot to cut out. Double-click or press Enter to finish. Then choose Select and click a lot to see what fits on it.',
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
   building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
   area:'Click corners of the area. Double-click or press Enter to finish.',
   bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
 };
 function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly'||t==='split';}
-function isLineKind(k){return k==='road'||k==='lot'||k==='split';}
+function isLineKind(k){return k==='road'||k==='lot'||(k==='split'&&S.splitMode!=='shape');}
 function updateDrawbar(){
   var on=isDrawTool(S.tool);$('#drawbar').hidden=!on;
   $('#drawType').hidden=S.tool!=='bpoly';
+  $('#splitMode').hidden=S.tool!=='split';$('#splitMode').value=S.splitMode;
   if(on)$('#angMode').value=S.angMode[S.tool]||'free';
 }
 function setTool(t){
@@ -1342,6 +1368,8 @@ function drawPreview(){
     if(pts.length>=2){var f=null;try{f=turf.buffer(turf.lineString(pts),S.roadW/2*0.3048,{units:'meters',steps:8});}catch(e){}
       if(f)L.polygon(ringsToLatLngs(polysOf(f)),{pane:'pDraw',color:col,weight:1,fillColor:col,fillOpacity:.25,interactive:false}).addTo(gDraw);}
     if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',interactive:false}).addTo(gDraw);
+  }else if(D.kind==='split'&&S.splitMode==='shape'){
+    col='#ffd43b';if(pts.length>=2)L.polygon(pts.map(ll2),{pane:'pDraw',color:col,weight:3,dashArray:'8 5',fillColor:col,fillOpacity:.18,interactive:false}).addTo(gDraw);
   }else if(D.kind==='split'){
     col='#ffd43b';if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:3,dashArray:'8 5',interactive:false}).addTo(gDraw);
   }else if(pts.length>=2){
@@ -1372,11 +1400,14 @@ function finishDraw(){
     pushUndo();var id=S.nextId++;S.counters.road=(S.counters.road||0)+1;
     S.roads.push({id:id,name:'Road '+S.counters.road,width:S.roadW,pts:pts});S.sel=null;S.multi=[];cancelDraw();renderAll();
   }else if(kind==='split'&&pts.length>=2){
-    pushUndo();S.splits.push({id:S.nextId++,pts:pts});
+    var shape=S.splitMode==='shape';
+    if(shape){var s0=pts[0],s1=pts[pts.length-1];if(pts.length>3&&s0[0]===s1[0]&&s0[1]===s1[1])pts.pop();}
+    if(shape&&(pts.length<3||Math.abs(polyAreaSigned(pts.map(toLocal)))<20)){cancelDraw();flash('A cut-out shape needs at least three corners.');return;}
+    pushUndo();S.splits.push(shape?{id:S.nextId++,pts:pts,shape:true}:{id:S.nextId++,pts:pts});
     var before=S.plots.length;cancelDraw();siteChanged();
-    if(!S.site)flash('Pick the site parcels first; the line will split them once there is a site.');
-    else if(S.plots.length<=Math.max(1,before))flash('That line does not cross the site from edge to edge, so it does not split it yet.');
-    else flash('The site is now '+S.plots.length+' lots.');
+    if(!S.site)flash('Pick the site parcels first; this will split them once there is a site.');
+    else if(S.plots.length<=Math.max(1,before))flash(shape?'That shape does not sit on the site, so it does not make a lot yet.':'That line does not cross the site from edge to edge, so it does not split it yet.');
+    else flash('The site is now '+S.plots.length+' lots. Choose Select and click a lot to see what fits on it.');
   }else if(kind==='lot'&&pts.length>=2){
     pushUndo();var lid=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;
     S.lots.push(Object.assign({id:lid,name:'Parking lot '+S.counters.lot,pts:pts},S.lotCfg));S.sel={k:'p',id:lid};S.multi=[];cancelDraw();renderAll();
@@ -1446,14 +1477,21 @@ map.on('click',function(e){
   if(isDrawTool(t)){
     if(D&&D.pts.length&&D.typed>0){commitTyped();return;}
     var pt=drawPoint(e.latlng);
-    if(D&&D.kind!=='road'&&D.kind!=='lot'&&D.pts.length>=3&&pt[0]===D.pts[0][0]&&pt[1]===D.pts[0][1]){finishDraw();return;}
+    if(D&&!isLineKind(D.kind)&&D.pts.length>=3&&pt[0]===D.pts[0][0]&&pt[1]===D.pts[0][1]){finishDraw();return;}
     addDrawPoint(pt);
   }
   else if(t==='building'){
     var sp=ghostLL||snapPlacement([e.latlng.lng,e.latlng.lat],S.tpl.w,S.tpl.d,S.tpl.rot);
     pushUndo();var b=newBuilding(S.tpl.type,S.tpl.w,S.tpl.d,S.tpl.st,sp.rot,sp.c);
     S.buildings.push(b);S.sel={k:'b',id:b.id};renderAll();
-  }else if(t==='select'){if(Date.now()-bldgDownAt<500||Date.now()-marqueeAt<300)return;if(S.sel||S.multi.length){S.sel=null;S.multi=[];renderAll();}}
+  }else if(t==='select'){
+    if(Date.now()-bldgDownAt<500||Date.now()-marqueeAt<300)return;
+    // open ground: deselect; inside a lot: pick the lot, which shows what fits on it
+    var lp=toLocal([e.latlng.lng,e.latlng.lat]),hit=S.plots.filter(function(p){return pointInPoly(lp,p.coords.map(function(r){return r.map(toLocal);}));})[0];
+    var had=S.sel||S.multi.length||S.plotSel;
+    S.sel=null;S.multi=[];S.plotSel=hit?hit.name:null;
+    if(had||hit)renderAll();
+  }
 });
 var bldgDownAt=0;
 map.on('dblclick',function(e){if(D)finishDraw();});
@@ -1532,7 +1570,7 @@ document.addEventListener('keydown',function(e){
   if(D&&D.pts.length&&/^[0-9.]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     var lb=$('#lenBox');lb.focus();lb.value=e.key;var tv=parseFloat(e.key);D.typed=tv>0?tv:null;e.preventDefault();drawPreview();return;
   }
-  if(e.key==='Escape'){if(D)cancelDraw();else if(S.tool!=='select')setTool('select');else if(S.sel||S.multi.length){S.sel=null;S.multi=[];renderAll();}return;}
+  if(e.key==='Escape'){if(D)cancelDraw();else if(S.tool!=='select')setTool('select');else if(S.sel||S.multi.length||S.plotSel){S.sel=null;S.multi=[];S.plotSel=null;renderAll();}return;}
   if(e.key==='Enter'&&D){finishDraw();return;}
   if(e.key==='Backspace'&&D){D.pts.pop();drawPreview();e.preventDefault();return;}
   if((e.key==='Delete'||e.key==='Backspace')&&(S.sel||S.multi.length)){deleteSel();e.preventDefault();return;}
@@ -1822,7 +1860,7 @@ function exportFeatures(){
   var feats=[];
   if(S.site)feats.push(turf.feature(S.site.geometry,{kind:'site_boundary',areaSf:Math.round(areaOf(S.site)),areaAc:+(areaOf(S.site)/ACRE).toFixed(3)}));
   S.plots.forEach(function(p){feats.push(turf.polygon(p.coords,{kind:'lot',name:p.name,areaSf:Math.round(p.sf),areaAc:+(p.sf/ACRE).toFixed(3)}));});
-  S.splits.forEach(function(s,i){feats.push(turf.lineString(s.pts,{kind:'lot_line',name:'Line '+(i+1)}));});
+  S.splits.forEach(function(s,i){feats.push(turf.lineString(s.shape?s.pts.concat([s.pts[0]]):s.pts,{kind:'lot_line',name:(s.shape?'Shape ':'Line ')+(i+1),shape:!!s.shape}));});
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)){var p=Object.assign({},f.properties);delete p.__pid;p.kind='parcel';p.carved=S.carved.has(id);feats.push(turf.feature(f.geometry,p));}});
   S.roads.forEach(function(r){var f=roadPoly(r);if(f)feats.push(turf.feature(f.geometry,{kind:'road',name:r.name,widthFt:r.width}));feats.push(turf.lineString(r.pts,{kind:'road_centerline',name:r.name,widthFt:r.width}));});
   S.lots.forEach(function(l){
@@ -1864,7 +1902,7 @@ function dxfText(){
     return s+'0\nSEQEND\n8\n'+layer+'\n';
   }
   function text(layer,ll,h,t){var q=project(ll);return '0\nTEXT\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n40\n'+h+'\n1\n'+t.replace(/[^\x20-\x7e]/g,'')+'\n72\n1\n11\n'+q[0].toFixed(3)+'\n21\n'+q[1].toFixed(3)+'\n31\n0\n';}
-  polysOf(S.site).forEach(function(p){p.forEach(function(r){ents.push(poly('SITE',r.slice(0,-1),true));});});S.splits.forEach(function(s){ents.push(poly('LOTS',s.pts,false));});
+  polysOf(S.site).forEach(function(p){p.forEach(function(r){ents.push(poly('SITE',r.slice(0,-1),true));});});S.splits.forEach(function(s){ents.push(poly('LOTS',s.pts,!!s.shape));});
   if(S.parcels)S.parcels.features.forEach(function(f){if(S.selected.has(f.properties.__pid)){var g=f.geometry,ps=g.type==='Polygon'?[g.coordinates]:g.coordinates;ps.forEach(function(p){ents.push(poly('PARCELS',p[0].slice(0,-1),true));});}});
   S.roads.forEach(function(r){polysOf(roadPoly(r)).forEach(function(p){p.forEach(function(ring){ents.push(poly('ROADS',ring.slice(0,-1),true));});});});
   S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(ring){ents.push(poly('PARKING',ring.slice(0,-1),true));});});g.stalls.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});});
@@ -1913,7 +1951,7 @@ function projectFromGeoJSON(gj){
   }catch(e){console.warn('carve recovery',e);}}
   by('road_centerline').forEach(function(f){o.roads.push({id:o.nextId++,name:f.properties.name||'Road',width:f.properties.widthFt||S.roadW,pts:f.geometry.coordinates});});
   o.counters.road=o.roads.length;
-  o.splits=by('lot_line').map(function(f){return {id:o.nextId++,pts:f.geometry.coordinates};});
+  o.splits=by('lot_line').map(function(f){var q=f.geometry.coordinates;return f.properties.shape?{id:o.nextId++,pts:q.slice(0,-1),shape:true}:{id:o.nextId++,pts:q};});
   by('building').forEach(function(f){
     var p=f.properties,type=Object.keys(TYPES).filter(function(k){return TYPES[k].name===p.type;})[0]||'com',ring=ringOf(f),b;
     if(p.freeform||p.widthFt==null||p.depthFt==null){b={id:o.nextId++,type:type,name:p.name,w:0,d:0,st:p.stories||1,rot:0,units:null,custom:true,pts:ring,c:[0,0]};recenter(b);}
@@ -2135,16 +2173,92 @@ function renderPlots(){
     h='<table id="plotTable"><thead><tr><th>Lot</th><th>Area sf</th><th>Acres</th><th>Buildings</th><th>Coverage</th><th>Units</th></tr></thead><tbody>'+pi.rows.map(function(r){
       return '<tr><td>'+esc(r.name)+'</td><td>'+n0(r.sf)+'</td><td>'+(r.sf/ACRE).toFixed(2)+'</td><td style="font-family:var(--font)">'+(esc(r.names.join(', '))||'—')+'</td><td>'+(r.n?n1(r.fp/r.sf*100)+'%':'—')+'</td><td>'+r.units+'</td></tr>';}).join('')+'</tbody></table>';
   }else if(S.splits.length)h='<div class="flag">'+(S.site?'No lot line crosses the site from edge to edge yet, so it is still one lot.':'Pick the site parcels to see the lots.')+'</div>';
-  if(S.splits.length)h+='<div id="splitList" class="row" style="margin-top:6px">'+S.splits.map(function(s,i){return '<button class="btn small" data-split="'+s.id+'" title="Remove this lot line">Line '+(i+1)+' ✕</button>';}).join('')+'</div>';
+  if(S.splits.length)h+='<div id="splitList" class="row" style="margin-top:6px">'+S.splits.map(function(s,i){return '<button class="btn small" data-split="'+s.id+'" title="Remove this lot '+(s.shape?'shape':'line')+'">'+(s.shape?'Shape ':'Line ')+(i+1)+' ✕</button>';}).join('')+'</div>';
   $('#plotList').innerHTML=h;
 }
-$('#splitBtn').addEventListener('click',function(){setTool('split');});
+$('#splitBtn').addEventListener('click',function(){S.splitMode='line';setTool('split');});
+$('#splitShapeBtn').addEventListener('click',function(){S.splitMode='shape';setTool('split');});
+$('#splitMode').addEventListener('change',function(){S.splitMode=this.value;if(D)cancelDraw();});
+// ---- what fits on a lot ----
+function selPlot(){return S.plotSel?S.plots.filter(function(p){return p.name===S.plotSel;})[0]||null:null;}
+// Largest rectangle inside a polygon (local feet, rings closed). Tried square to each long side of the outline:
+// the shape is laid on a grid in that direction and the biggest block of cells that lie wholly inside wins.
+function maxRect(lp){
+  var ring=lp[0],n=ring.length-1,angs=[],per=0,i,best=null;
+  for(i=0;i<n;i++)per+=Math.hypot(ring[i+1][0]-ring[i][0],ring[i+1][1]-ring[i][1]);
+  for(i=0;i<n&&angs.length<4;i++){
+    var dx=ring[i+1][0]-ring[i][0],dy=ring[i+1][1]-ring[i][1];if(Math.hypot(dx,dy)<per*0.08)continue;
+    var a=Math.round((((Math.atan2(dy,dx)*180/Math.PI)%90)+90)%90*2)/2;if(a>=90)a=0;
+    if(!angs.some(function(q){return Math.abs(q-a)<2||Math.abs(q-a)>88;}))angs.push(a);
+  }
+  if(!angs.length)angs=[0];
+  angs.forEach(function(deg){
+    var r=deg*Math.PI/180,co=Math.cos(r),si=Math.sin(r),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,j;
+    var R=lp.map(function(rg){return rg.map(function(p){return [p[0]*co+p[1]*si,-p[0]*si+p[1]*co];});});
+    R[0].forEach(function(p){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+    var cs=Math.max(0.25,Math.max(x1-x0,y1-y0)/90),nx=Math.max(1,Math.floor((x1-x0)/cs+1e-6)),ny=Math.max(1,Math.floor((y1-y0)/cs+1e-6)),e=cs*1e-3;
+    var inside=new Uint8Array((nx+1)*(ny+1)),hgt=new Int32Array(nx+1),bb=null;
+    // corners on the outline itself count as inside (nudged a hair toward the middle)
+    for(j=0;j<=ny;j++)for(i=0;i<=nx;i++)inside[j*(nx+1)+i]=pointInPoly([x0+i*cs+(i===0?e:(i===nx?-e:0)),y0+j*cs+(j===0?e:(j===ny?-e:0))],R)?1:0;
+    for(j=0;j<ny;j++){
+      for(i=0;i<nx;i++)hgt[i]=(inside[j*(nx+1)+i]&&inside[j*(nx+1)+i+1]&&inside[(j+1)*(nx+1)+i]&&inside[(j+1)*(nx+1)+i+1])?hgt[i]+1:0;
+      var st=[];
+      for(i=0;i<=nx;i++){
+        var h=i<nx?hgt[i]:0;
+        while(st.length&&hgt[st[st.length-1]]>=h){var hh=hgt[st.pop()],left=st.length?st[st.length-1]+1:0;if(hh*(i-left)>0&&(!bb||hh*(i-left)>bb.a))bb={a:hh*(i-left),i0:left,i1:i,j0:j+1-hh,j1:j+1};}
+        st.push(i);
+      }
+      hgt[nx]=0;
+    }
+    if(!bb)return;
+    var w=(bb.i1-bb.i0)*cs,d=(bb.j1-bb.j0)*cs,cx=x0+(bb.i0+bb.i1)/2*cs,cy=y0+(bb.j0+bb.j1)/2*cs;
+    if(!best||w*d>best.sf)best={w:w,d:d,rot:deg,sf:w*d,c:[cx*co-cy*si,cx*si+cy*co]};
+  });
+  if(!best)return null;
+  best.w=Math.floor(best.w+1e-6);best.d=Math.floor(best.d+1e-6);best.sf=best.w*best.d; // whole feet
+  return best.w>=4&&best.d>=4?best:null;
+}
+// The part of a lot left inside the property-line setback, and the largest rectangular building that fits in it.
+function plotBuild(p){
+  var key=S.set.setback;if(p.bk===key)return p.b;
+  var b={env:null,envSf:0,rect:null};
+  try{
+    var lot=turf.polygon(p.coords),env=key>0?turf.buffer(lot,-key*0.3048,{units:'meters',steps:4}):lot,big=null;
+    if(env){
+      polysOf(env).forEach(function(co){
+        var lp=co.map(function(r){return r.map(toLocal);}),a=Math.abs(polyAreaSigned(lp[0]));
+        for(var h=1;h<lp.length;h++)a-=Math.abs(polyAreaSigned(lp[h]));
+        b.envSf+=a;if(!big||a>big.a)big={a:a,lp:lp};
+      });
+      if(big){b.env=polysOf(env);b.rect=maxRect(big.lp);}
+    }
+  }catch(e){console.warn('buildable area',e);}
+  p.bk=key;p.b=b;return b;
+}
+function renderPlotBar(){
+  if(S.sel||S.multi.length>=2)S.plotSel=null;
+  var p=S.tool==='select'&&!D?selPlot():null;
+  $('#plotBar').hidden=!p;if(!p)return;
+  var b=plotBuild(p),st=S.tpl.st,tn=(TYPES[S.tpl.type]||TYPES.sf).name.toLowerCase(),row=((S.plotInfo&&S.plotInfo.rows)||[]).filter(function(r){return r.name===p.name;})[0],nb=row?row.n:0;
+  $('#pbName').textContent=p.name+' · '+n0(p.sf)+' sf ('+(p.sf/ACRE).toFixed(2)+' ac)';
+  $('#pbInfo').textContent=b.rect?'Buildable inside the '+n1(S.set.setback)+' ft setback: '+n0(b.envSf)+' sf · Largest building: '+b.rect.w+' × '+b.rect.d+' ft = '+n0(b.rect.sf)+' sf footprint, '+n0(b.rect.sf*st)+' sf on '+st+(st>1?' stories':' story')
+    :'No room for a building inside the '+n1(S.set.setback)+' ft setback.';
+  $('#pbAdd').hidden=!b.rect;$('#pbAdd').textContent='Add it as a '+tn;
+  $('#pbTip').textContent='The largest rectangle that fits inside the setback (Check tab)'+(nb?', ignoring the '+nb+' building'+(nb>1?'s':'')+' already on this lot':'')+'. Type and stories come from New building on the Build tab.';
+}
+$('#pbAdd').addEventListener('click',function(){
+  var p=selPlot(),r=p&&plotBuild(p).rect;if(!r)return;
+  pushUndo();var b=newBuilding(S.tpl.type,r.w,r.d,S.tpl.st,r.rot,toLL(r.c));
+  S.buildings.push(b);S.plotSel=null;S.sel={k:'b',id:b.id};renderAll();showTab('build');
+});
+$('#pbDone').addEventListener('click',function(){S.plotSel=null;renderAll();});
 $('#splitClear').addEventListener('click',function(){if(!S.splits.length)return;pushUndo();S.splits=[];siteChanged();});
 $('#plotList').addEventListener('click',function(e){
   var b=e.target.closest('button[data-split]');if(!b)return;
   var id=+b.getAttribute('data-split');pushUndo();S.splits=S.splits.filter(function(s){return s.id!==id;});siteChanged();
 });
 function renderSelBar(){
+  renderPlotBar();
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
   $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking lot'}[S.sel.k]);
