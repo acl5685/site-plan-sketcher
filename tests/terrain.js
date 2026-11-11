@@ -25,7 +25,7 @@ const row=n=>t.$$('#v3dBldg tr').map(r=>Array.from(r.cells).map(c=>c.textContent
 ok(near(parseFloat(row('TH-1')[1]),4.4,0.1),'88 ft wide building across the slope: 4.4 ft ground change ('+row('TH-1')[1]+')');
 ok(near(parseFloat(row('APT-1')[1]),2.1,0.1),'turned 90°: 42 ft across the slope = 2.1 ft ('+row('APT-1')[1]+')');
 const pad=parseFloat(row('TH-1')[2].replace(/,/g,''));
-ok(near(pad,270*M2FT+0.05*(-244),0.1),'pad at the lowest (west) edge: '+pad+' ft');
+ok(near(pad,270*M2FT+0.05*(-156),0.1),'floor at the highest (east) edge: '+pad+' ft');
 ok(/did not load/.test(info()),'missing WebGL library is reported, not thrown');
 ok(/3:00 pm/.test(t.$('#v3dTime').textContent),'sun time label');
 // edits redraw without downloading the terrain again
