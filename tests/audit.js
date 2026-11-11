@@ -396,7 +396,7 @@ G('13 freeform drawing',async()=>{
   // handles
   t.tool('select');ok(t.$$('.vh').length===4,'4 corner handles when selected');
   // drag handle 0 (Shift: no snapping)
-  const hm=Object.values(t.M._layers).filter(l=>l.dragging&&l.options&&l.options.draggable);
+  const hm=Object.values(t.M._layers).filter(l=>l.dragging&&l.options&&l.options.draggable&&l.options.icon.options.className==='vh');
   ok(hm.length===4,'handles are draggable markers');
   t.key('Shift');hm[2].fire('dragstart');hm[2].setLatLng(t.ft(-190,-115));hm[2].fire('drag');hm[2].fire('dragend');t.keyup('Shift');
   P=t.proj().buildings[0].pts.map(q=>t.toFt(q));

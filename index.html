@@ -115,6 +115,10 @@ td:first-child{font-family:var(--font)}
 .leaflet-container{font-family:var(--font)}
 [hidden]{display:none!important}
 .vh{width:12px;height:12px;margin:-6px 0 0 -6px;background:#fff;border:2px solid #0a6e83;border-radius:2px;cursor:move}
+.rh{width:26px;height:26px;margin:-13px 0 0 -13px;background:#fff;border:2px solid #0a6e83;border-radius:50%;color:#0a6e83;font:700 16px/22px var(--font);text-align:center;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.rh:active{cursor:grabbing}
+#selBar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:1100;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:12px;max-width:calc(100% - 24px);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#selTip{flex-basis:100%;text-align:center}
 #drawInfo{font-family:var(--mono);white-space:nowrap}
 #lenBox{width:96px;font-family:var(--mono)}
 #map:not(.tool-select) .obj-path{pointer-events:none!important}
@@ -478,6 +482,15 @@ td:first-child{font-family:var(--font)}
       <button class="btn primary" id="finishBtn">Finish</button><button class="btn" id="cancelBtn">Cancel</button>
     </div>
     <div id="hint"></div>
+    <div id="selBar" role="toolbar" aria-label="Selected object" hidden>
+      <b id="selName"></b>
+      <button class="btn small" id="sbRotL" title="Rotate left one step (Q)">⟲ Rotate</button>
+      <button class="btn small" id="sbRotR" title="Rotate right one step (E)">Rotate ⟳</button>
+      <button class="btn small" id="sbDup" title="Make a copy next to it">Duplicate</button>
+      <button class="btn small danger" id="sbDel" title="Delete (Del)">Delete</button>
+      <button class="btn small" id="sbDone" title="Deselect (Esc)">Done</button>
+      <span class="note" id="selTip"></span>
+    </div>
     <div id="v3d" hidden>
       <div id="v3dCanvas"></div>
       <div id="v3dBar">
@@ -1064,6 +1077,7 @@ function siteChanged(){S.site=computeSite();restyleParcels();renderAll();}
 function renderAll(){
   buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);
   renderMap();renderHandles();renderPanels();fillInspector();saveLocal();
+  renderSelBar();
   if(TERR&&TERR.on)terrSync();
   if(V3&&V3.on)schedule3D();
 }
@@ -1990,16 +2004,65 @@ function renderSegTable(o){
   });
 }
 function renderHandles(){
-  gHandles.clearLayers();
-  var b=(S.sel&&S.sel.k==='b'&&S.tool==='select')?getSel():null;
-  if(!b||!b.pts)return;
-  b.pts.forEach(function(pt,i){
+  gHandles.clearLayers();renderSelBar();
+  if(S.tool!=='select')return;
+  var b=(S.sel&&S.sel.k==='b')?getSel():null;
+  if(b&&b.pts)b.pts.forEach(function(pt,i){
     var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
     m.on('dragstart',function(){pushUndo();S.snapSkip=b.id;buildCtx();});
     m.on('drag',function(){b.pts[i]=snapLL(m.getLatLng());recenter(b);renderLight();fillInspector();});
     m.on('dragend',function(){S.snapSkip=null;renderAll();});
   });
+  rotHandle();
 }
+// A round handle just past the selected object: drag it around the object to rotate. Hold Shift to snap to the rotation step.
+function rotHandle(){
+  var o=getSel();if(!o||S.multi.length>=2||!S.ctx)return;
+  var k=S.sel.k,rect=k==='b'&&!o.pts,ring=k==='b'?S.ctx.rings[o.id]:(o.ring||o.pts).map(toLocal);
+  if(!ring||ring.length<2)return;
+  var c=rect?toLocal(o.c):[0,0],R=0;
+  if(!rect){ring.forEach(function(p){c[0]+=p[0]/ring.length;c[1]+=p[1]/ring.length;});}
+  ring.forEach(function(p){R=Math.max(R,Math.hypot(p[0]-c[0],p[1]-c[1]));});
+  var ftPx=40075016.686*Math.cos(ORG.lat*Math.PI/180)/(256*Math.pow(2,map.getZoom()))*3.28084;
+  var a0=rect?(o.rot+90)*Math.PI/180:Math.PI/2,dist=(rect?o.d/2:R)+26*ftPx,hp=[c[0]+Math.cos(a0)*dist,c[1]+Math.sin(a0)*dist];
+  var m=L.marker(ll2(toLL(hp)),{draggable:true,zIndexOffset:1100,title:'Drag to rotate (hold Shift to snap)',icon:L.divIcon({className:'rh',iconSize:[26,26],html:'⟳'})}).addTo(gHandles);
+  var orig=null;
+  m.on('dragstart',function(){pushUndo();orig=JSON.parse(JSON.stringify({rot:o.rot,pts:o.pts,ring:o.ring}));S.snapSkip=k==='b'?o.id:'rot';buildCtx();});
+  m.on('drag',function(e){
+    var ll=m.getLatLng(),p=toLocal([ll.lng,ll.lat]),d=(Math.atan2(p[1]-c[1],p[0]-c[0])-a0)*180/Math.PI,st=S.set.rotStep||15;
+    var sh=shiftHeld||(e&&e.originalEvent&&e.originalEvent.shiftKey);
+    d=sh?Math.round(d/st)*st:Math.round(d);
+    if(rect)o.rot=Math.round(normAngle(orig.rot+d)*1000)/1000;
+    else{
+      var key=o.ring?'ring':'pts',r=d*Math.PI/180,co=Math.cos(r),si=Math.sin(r);
+      o[key]=orig[key].map(function(q){var v=toLocal(q),x=v[0]-c[0],y=v[1]-c[1];return toLL([c[0]+x*co-y*si,c[1]+x*si+y*co]);});
+      if(k==='b')recenter(o);
+    }
+    renderLight();fillInspector();
+  });
+  m.on('dragend',function(){S.snapSkip=null;renderAll();});
+}
+function rotateSelBy(deg){ // positive turns left (counter-clockwise)
+  if(S.multi.length>=2){rotateGroup(deg);return;}
+  var o=getSel();if(!o||!deg)return;
+  pushUndo();
+  if(S.sel.k==='b'){if(o.pts)rotatePts(o,deg);else o.rot=Math.round(normAngle(o.rot+deg)*1000)/1000;}
+  else rotateShape(o,deg);
+  renderAll();
+}
+function renderSelBar(){
+  var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
+  $('#selBar').hidden=!show;if(!show)return;
+  $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking lot'}[S.sel.k]);
+  $('#sbDup').hidden=many||S.sel.k!=='b';
+  $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft';
+}
+$('#sbRotL').addEventListener('click',function(){rotateSelBy(S.set.rotStep||15);});
+$('#sbRotR').addEventListener('click',function(){rotateSelBy(-(S.set.rotStep||15));});
+$('#sbDup').addEventListener('click',function(){$('#iDup').click();});
+$('#sbDel').addEventListener('click',function(){if(S.multi.length>=2)deleteGroup();else deleteSel();});
+$('#sbDone').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
+map.on('zoomend',function(){if(S.ctx&&!S.snapSkip)renderHandles();});
 $('#drawBtn').addEventListener('click',function(){setTool('bpoly');});
 $('#iFreeform').addEventListener('click',function(){
   var o=getSel();if(!o||o.pts)return;pushUndo();
@@ -2494,7 +2557,7 @@ function close3D(){V3.on=false;clearTimeout(V3.timer);$('#v3d').hidden=true;$('#
 function schedule3D(){
   clearTimeout(V3.timer);
   V3.timer=setTimeout(function(){
-    if(!V3.on)return;
+    if(!V3.on||V3.drag)return;
     if(planBoxLocal(0)&&!demOk()){V3.demErr=null;getDEM().catch(function(e){V3.demErr=e;}).then(function(){if(V3.on)build3D();});}
     else build3D();
   },250);
@@ -2518,9 +2581,38 @@ function init3D(){
   var cam=new T.PerspectiveCamera(45,1,1,50000);
   var ctl=new T.OrbitControls(cam,r.domElement);ctl.maxPolarAngle=Math.PI*0.49;ctl.addEventListener('change',render3D);
   // a click (not a drag) on a building selects it, so its facade can be picked on the Build tab
-  var down=null;
-  r.domElement.addEventListener('pointerdown',function(e){down=[e.clientX,e.clientY];});
-  r.domElement.addEventListener('pointerup',function(e){if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])<5)pick3D(e);down=null;});
+  // Pressing on a building and dragging slides it over the ground (its meshes follow the cursor; the plan is
+  // updated when the button is released). Capture phase, so the orbit control stands down before it sees the press.
+  var down=null,cv=r.domElement;
+  cv.addEventListener('pointerdown',function(e){
+    down=[e.clientX,e.clientY];
+    var h=e.button===0?hit3D(e):null;if(!h)return;
+    var id=h.object.userData.bid;
+    V3.drag={id:id,p0:h.point.clone(),plane:new T.Plane(new T.Vector3(0,1,0),-h.point.y),dx:0,dz:0,moved:false,objs:V3.group.children.filter(function(o){return o.userData.bid===id;})};
+    ctl.enabled=false;cv.style.cursor='move';try{cv.setPointerCapture(e.pointerId);}catch(err){}
+  },true);
+  cv.addEventListener('pointermove',function(e){
+    var d=V3.drag;if(!d)return;
+    var p=ray3D(e).ray.intersectPlane(d.plane,new T.Vector3());if(!p)return;
+    d.dx=p.x-d.p0.x;d.dz=p.z-d.p0.z;
+    if(!d.moved&&Math.hypot(e.clientX-down[0],e.clientY-down[1])<5)return;
+    d.moved=true;d.objs.forEach(function(o){o.position.set(d.dx,0,d.dz);});render3D();
+  });
+  function drop(e){
+    var d=V3.drag;V3.drag=null;ctl.enabled=true;cv.style.cursor='';
+    if(d&&d.moved&&e.type==='pointerup'){
+      var b=S.buildings.filter(function(x){return x.id===d.id;})[0];
+      if(b){
+        pushUndo();
+        var p=toLocal(b.c),nc=toLL([p[0]+d.dx,p[1]-d.dz]),sx=nc[0]-b.c[0],sy=nc[1]-b.c[1];
+        if(b.pts)b.pts=b.pts.map(function(q){return [q[0]+sx,q[1]+sy];});
+        b.c=nc;S.sel={k:'b',id:b.id};S.multi=[];renderAll();
+      }
+    }else if(d)d.objs.forEach(function(o){o.position.set(0,0,0);});
+    if(e.type==='pointerup'&&down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])<5)pick3D(e);
+    down=null;render3D();schedule3D();
+  }
+  cv.addEventListener('pointerup',drop);cv.addEventListener('pointercancel',drop);
   scene.add(new T.HemisphereLight(0xffffff,0x7d8a6a,0.2));
   var sun=new T.DirectionalLight(0xffffff,0.9);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.5;
   scene.add(sun);scene.add(sun.target);
@@ -2528,11 +2620,16 @@ function init3D(){
   if(window.ResizeObserver)new ResizeObserver(resize3D).observe(el);else window.addEventListener('resize',resize3D);
   resize3D();
 }
-function pick3D(e){
+function ray3D(e){
   var T=window.THREE,rect=V3.r.domElement.getBoundingClientRect(),rc=new T.Raycaster();
   rc.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),V3.cam);
-  var hits=rc.intersectObjects(V3.group.children.filter(function(o){return o.userData.bid!=null;}),false);
-  if(hits.length)select({k:'b',id:hits[0].object.userData.bid});
+  return rc;
+}
+function hit3D(e){return ray3D(e).intersectObjects(V3.group.children.filter(function(o){return o.isMesh&&o.userData.bid!=null;}),false)[0]||null;}
+function pick3D(e){
+  var h=hit3D(e);
+  if(h)select({k:'b',id:h.object.userData.bid});
+  else if(S.sel||S.multi.length){S.sel=null;S.multi=[];renderAll();} // a click on the ground deselects
 }
 function resize3D(){if(!V3.r)return;var el=$('#v3dCanvas'),w=el.clientWidth||800,h=el.clientHeight||600;V3.r.setSize(w,h,false);V3.cam.aspect=w/h;V3.cam.updateProjectionMatrix();render3D();}
 function render3D(){if(V3.r&&V3.on)V3.r.render(V3.scene,V3.cam);}
@@ -2580,7 +2677,7 @@ function rebuildScene(g){
       [0.3,top].forEach(function(z){ring.forEach(function(p,i){var q=ring[(i+1)%nr];pts.push(p[0]-cx,y0+z,-(p[1]-cy),q[0]-cx,y0+z,-(q[1]-cy));});});
       ring.forEach(function(p){pts.push(p[0]-cx,y0+0.3,-(p[1]-cy),p[0]-cx,y0+top,-(p[1]-cy));});
       var lg=new T.BufferGeometry();lg.setAttribute('position',new T.Float32BufferAttribute(pts,3));
-      var ln=new T.LineSegments(lg,new T.LineBasicMaterial({color:0xffd43b,depthTest:false,transparent:true}));ln.renderOrder=5;grp.add(ln);
+      var ln=new T.LineSegments(lg,new T.LineBasicMaterial({color:0xffd43b,depthTest:false,transparent:true}));ln.renderOrder=5;ln.userData.bid=b.id;grp.add(ln);
     }
   });
   V3.size=Math.max(box.x1-box.x0,box.y1-box.y0)/2;V3.midY=g?Y((g.min+g.max)/2):0;
@@ -2856,7 +2953,7 @@ function info3D(g){
       h+='</table>';
     }
   }else h+='<div class="flag">Terrain unavailable'+(V3.demErr?': '+esc(V3.demErr.message):'')+'. Showing flat ground.</div>';
-  h+='<div class="note">Click a building to select it and pick its facade on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab; storefront ground floors are 4 ft taller) and sit on a level pad cut into the ground (set the pad elevation on the Build tab; left empty, it balances cut and fill). Entrances face the nearest road. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
+  h+='<div class="note">Click a building to select it, drag it to move it, and use Q / E or the bar below to rotate it. Its facade and pad are on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab; storefront ground floors are 4 ft taller) and sit on a level pad cut into the ground (set the pad elevation on the Build tab; left empty, it balances cut and fill). Entrances face the nearest road. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
   var fall=h.match(/<b>([\d.,]+ ft)<\/b> of fall/);
   $('#v3dInfo').innerHTML='<details id="v3dDet"'+(V3.infoShut?'':' open')+'><summary>Terrain and buildings'+(fall?' · '+fall[1]+' of fall across the site':'')+'</summary>'+h+'</details>';
   $('#v3dDet').addEventListener('toggle',function(){V3.infoShut=!this.open;});
