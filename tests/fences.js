@@ -89,8 +89,11 @@ t.click(t.$('#newBtn'));ok(F().length===0,'New project clears the fences');
 
 // ---- lots inside a cut-out area, a home on each, and a fence round a lot
 await t.freshSite(t.row(0,[0,1,2,3]));
-t.tab('site');t.click(t.$('#splitShapeBtn'));
-await t.draw('split',t.rectPts(-280,-205,-80,-105));   // a 200 × 100 ft area for homes
+await t.draw('cutlot',t.rectPts(-280,-205,-80,-105));   // a 200 × 100 ft area for homes
+// a lot cut out inside that lot, then taken back
+await t.draw('cutlot',t.rectPts(-200,-175,-160,-135));
+ok(rows().length===3&&rows().some(r=>near(num(r[1]),1600,10))&&rows().some(r=>near(num(r[1]),18400,25)),'a 40 ft square cut out inside the homes area is a lot within a lot ('+rows().map(r=>r[1]).join(', ')+')');
+t.key('z',{ctrlKey:true});
 const byArea=()=>rows().slice().sort((p,q)=>num(p[1])-num(q[1]));
 ok(rows().length===2&&near(num(byArea()[0][1]),20000,25),'a homes area cut out of the site is its own lot of 20,000 sf');
 const restOutline=()=>{t.click(t.$('#xGeo'));return JSON.stringify(JSON.parse(t.dl['site-plan.geojson']).features.filter(f=>f.properties.kind==='lot').sort((p,q)=>q.properties.areaSf-p.properties.areaSf)[0].geometry.coordinates);};

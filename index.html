@@ -149,8 +149,9 @@ td:first-child{font-family:var(--font)}
       <button class="tool on" data-tool="select" title="Select, move and rotate objects">Select</button>
       <button class="tool" data-tool="parcels" title="Click parcels to add them to the project site">Pick parcels</button>
       <button class="tool" data-tool="carve" title="Click parcels to carve them out of the site">Carve parcel</button>
-      <button class="tool" data-tool="carvepoly" title="Draw a shape to carve out of the site">Carve shape</button>
+      <button class="tool" data-tool="carvepoly" title="Draw a shape to remove from the site altogether (to make a lot inside the site, use Cut out lot)">Carve shape</button>
       <button class="tool" data-tool="split" title="Draw a line across the site to split it into separate lots">Split lots</button>
+      <button class="tool" data-tool="cutlot" title="Draw a shape on the site to cut it out as its own lot (the land stays in the site)">Cut out lot</button>
       <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
       <button class="tool" data-tool="lot" title="Draw a parking aisle centerline; striped stalls fill in along both sides">Parking lot</button>
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
@@ -213,7 +214,7 @@ td:first-child{font-family:var(--font)}
           <div class="field" style="flex:1 1 120px"><label for="sLotMin">Minimum lot area sf (0 = no check)</label><input type="number" id="sLotMin" min="0" step="500"></div>
         </div>
         <div id="plotList" class="scroll-x" style="margin-top:6px"></div>
-        <p class="note">Split lots draws a line across the site, or a shape to cut out of it. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks. With the Select tool, click inside a lot to see the largest building that fits.</p>
+        <p class="note">Split lots draws a line across the site; Cut out lot draws a shape that becomes a lot of its own (both are also on the toolbar). To take land out of the site altogether, use Carve shape instead. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks. With the Select tool, click inside a lot to see the largest building that fits.</p>
       </div>
     </div>
 
@@ -1346,7 +1347,8 @@ var HINTS={
   carve:'Click parcels to carve them out of the project site. Click again to restore.',
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
   road:'Click along the road centerline. Double-click or press Enter to finish.',
-  split:'Line: click from outside one edge of the site to outside the other. Shape: click the corners of the lot to cut out. Double-click or press Enter to finish. Then choose Select and click a lot to see what fits on it.',
+  split:'Click from outside one edge of the site (or of a lot) to outside the other to split it in two. Double-click or press Enter to finish. Then choose Select and click a lot to see what fits on it.',
+  cutlot:'Click the corners of the new lot to cut it out of the site; it can sit inside another lot. Double-click or press Enter to finish. Then choose Select and click the lot to see what fits on it.',
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
   building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
   area:'Click corners of the area. Double-click or press Enter to finish.',
@@ -1361,11 +1363,15 @@ function updateDrawbar(){
   $('#splitMode').hidden=S.tool!=='split';$('#splitMode').value=S.splitMode;
   if(on)$('#angMode').value=S.angMode[S.tool]||'free';
 }
+// Cut out lot is the Split lots tool drawing a shape, so it has no tool of its own: it lights up whenever that is what is drawn
+function markTools(){var on=S.tool==='split'&&S.splitMode==='shape'?'cutlot':S.tool;$$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===on);});}
+function hintFor(t){return t==='split'&&S.splitMode==='shape'?HINTS.cutlot:HINTS[t];}
 function setTool(t){
+  if(t==='cutlot'){S.splitMode='shape';t='split';}
   cancelDraw();S.tool=t;
-  $$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===t);});
+  markTools();
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
-  $('#hint').textContent=HINTS[t];gGhost.clearLayers();ghostLL=null;
+  $('#hint').textContent=hintFor(t);gGhost.clearLayers();ghostLL=null;
   if(t==='building'||t==='road'||t==='lot'||t==='area'||t==='bpoly'||t==='fence')showTab('build');
   updateDrawbar();renderHandles();
 }
@@ -1710,7 +1716,7 @@ function showTab(t){
   $$('.pane').forEach(function(p){p.classList.toggle('on',p.id==='pane-'+t);});
 }
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab);});});
-$$('.tool').forEach(function(b){b.addEventListener('click',function(){setTool(b.dataset.tool);});});
+$$('.tool').forEach(function(b){b.addEventListener('click',function(){if(b.dataset.tool==='split')S.splitMode='line';setTool(b.dataset.tool);});});
 $('#undoBtn').addEventListener('click',undo);
 $('#finishBtn').addEventListener('click',finishDraw);
 $('#cancelBtn').addEventListener('click',cancelDraw);
@@ -2183,7 +2189,7 @@ $('#mClear').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll
   $('#'+k+'RotBy').addEventListener('change',function(){var v=parseFloat(this.value);this.value='';if(isFinite(v))go(-v);});
 });
 // ---- squaring a shape to its surroundings ----
-function flash(t){var h=$('#hint');h.textContent=t;clearTimeout(flash.t);flash.t=setTimeout(function(){h.textContent=HINTS[S.tool]||'';},3500);}
+function flash(t){var h=$('#hint');h.textContent=t;clearTimeout(flash.t);flash.t=setTimeout(function(){h.textContent=hintFor(S.tool)||'';},3500);}
 // Degrees (counter-clockwise +) to turn objs so their longest side runs parallel or square to the nearest property line, road edge or other shape. null = nothing nearby.
 function squareDelta(objs){
   var le=null,hasRoad=false,excl={};
@@ -2308,7 +2314,7 @@ function renderPlots(){
 }
 $('#splitBtn').addEventListener('click',function(){S.splitMode='line';setTool('split');});
 $('#splitShapeBtn').addEventListener('click',function(){S.splitMode='shape';setTool('split');});
-$('#splitMode').addEventListener('change',function(){S.splitMode=this.value;if(D)cancelDraw();});
+$('#splitMode').addEventListener('change',function(){S.splitMode=this.value;if(D)cancelDraw();markTools();$('#hint').textContent=hintFor(S.tool);});
 // ---- what fits on a lot ----
 function selPlot(){return S.plotSel?S.plots.filter(function(p){return p.name===S.plotSel;})[0]||null:null;}
 // Largest rectangle inside a polygon (local feet, rings closed). Tried square to each long side of the outline:

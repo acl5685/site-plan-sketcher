@@ -53,9 +53,16 @@ ok(!/property line/.test(checks()),'the setback flag goes with the lot line');
 // ---- cut a shape out as its own lot, then click it to see what fits
 t.key('z',{ctrlKey:true});t.key('z',{ctrlKey:true}); // back to: no lot lines... (undo the removal, then the line)
 t.click(t.$('#newBtn'));await t.freshSite(t.row(0,[0,1,2,3]));
+const lit=()=>t.$$('.tool.on').map(b=>b.dataset.tool).join();
 t.tab('site');t.click(t.$('#splitShapeBtn'));
 ok(t.$('#splitMode').value==='shape'&&!t.$('#splitMode').hidden,'Cut out a shape switches the tool to shape mode');
-await t.draw('split',t.rectPts(-250,-200,-150,-100));t.tool('select');
+ok(lit()==='cutlot'&&/corners of the new lot/.test(t.$('#hint').textContent),'and lights up Cut out lot on the toolbar, with its own hint ('+lit()+')');
+t.tool('split');
+ok(lit()==='split'&&t.$('#splitMode').value==='line'&&/split it in two/.test(t.$('#hint').textContent),'the Split lots toolbar button always draws a line ('+lit()+')');
+t.set('#splitMode','shape','change');ok(lit()==='cutlot','picking Shape in the draw bar lights up Cut out lot');
+t.tool('select');t.tool('cutlot');
+ok(lit()==='cutlot'&&t.$('#splitMode').value==='shape'&&!t.$('#drawbar').hidden,'the Cut out lot toolbar button starts a shape');
+await t.draw('cutlot',t.rectPts(-250,-200,-150,-100));t.tool('select');
 ok(rows().length===2,'a 100 ft square drawn on the site becomes its own lot ('+rows().length+' lots)');
 ok(near(num(rows()[0][1]),10000,15)&&near(num(rows()[1][1]),50000,60),'the cut-out is 10,000 sf and the rest about 50,000 sf ('+rows()[0][1]+', '+rows()[1][1]+')');
 ok(t.proj().splits[0].shape===true&&/Shape 1/.test(t.$('#splitList').textContent),'saved as a shape and listed as Shape 1');
