@@ -128,7 +128,8 @@ td:first-child{font-family:var(--font)}
 .rh{width:26px;height:26px;margin:-13px 0 0 -13px;background:#fff;border:2px solid #0a6e83;border-radius:50%;color:#0a6e83;font:700 16px/22px var(--font);text-align:center;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .rh:active{cursor:grabbing}
 #pbTip{flex-basis:100%;text-align:center}
-#selBar,#plotBar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:1100;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:12px;max-width:calc(100% - 24px);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#lsAsk{bottom:104px !important}
+#selBar,#plotBar,#lsAsk{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:1100;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:6px 10px;font-size:12px;max-width:calc(100% - 24px);box-shadow:0 2px 8px rgba(0,0,0,.25)}
 #selTip{flex-basis:100%;text-align:center}
 #drawInfo{font-family:var(--mono);white-space:nowrap}
 #lenBox{width:96px;font-family:var(--mono)}
@@ -355,6 +356,11 @@ td:first-child{font-family:var(--font)}
             <div class="field" style="flex:2 1 120px"><label for="aCars">Cars in 3D</label><select id="aCars"></select></div>
             <div class="field"><label for="aFill" title="Share of the stalls that have a car in them">Stalls filled %</label><input type="number" id="aFill" min="0" max="100" step="5"></div>
           </div>
+        </div>
+        <div id="aLs" hidden>
+          <div class="field" style="margin-top:6px"><label for="aUse">What is this planting for?</label><select id="aUse"><option value="">Not set</option></select></div>
+          <div class="note" id="aUseNote" style="margin-top:4px"></div>
+          <div id="aPlan" class="scroll-x" style="margin-top:6px"></div>
         </div>
         <div class="row" style="margin-top:6px" id="aPlantRow">
           <div class="field" style="flex:2 1 120px"><label for="aPlant">Plants in 3D</label><select id="aPlant"></select></div>
@@ -596,6 +602,15 @@ td:first-child{font-family:var(--font)}
       <button class="btn small" id="sbDone" title="Deselect (Esc)">Done</button>
       <span class="note" id="selTip"></span>
     </div>
+    <div id="lsAsk" role="dialog" aria-label="What the landscaping is for" hidden>
+      <b>What is this landscaping for?</b>
+      <button class="btn small primary" data-use="decor" title="Small flowering trees, shrubs in groups, perennials">Decorative</button>
+      <button class="btn small primary" data-use="screen" title="Evergreens in staggered rows with large shrubs, to hide or buffer something">Screening</button>
+      <button class="btn small" data-use="shade" title="Large canopy trees over lawn">Shade trees</button>
+      <button class="btn small" data-use="rain" title="A planted basin that takes runoff">Rain garden</button>
+      <button class="btn small" data-use="lawn">Lawn</button>
+      <button class="btn small" id="lsSkip" title="Leave it as plain landscaping. You can pick a purpose later on the Build tab.">Not now</button>
+    </div>
     <div id="plotBar" role="status" aria-label="Selected lot" hidden>
       <b id="pbName"></b>
       <span id="pbInfo"></span>
@@ -747,6 +762,32 @@ var AREAS={
   park:{name:'Parking',color:'#adb5bd',imperv:true},
   pond:{name:'Detention / stormwater',color:'#4dabf7'},
   hard:{name:'Sidewalk / plaza',color:'#dee2e6',imperv:true}
+};
+// Landscaping: what a planted area is for, and what goes in it.
+// area.ls = {use}. A landscaping area with a purpose gets a planting plan: how many of what, at what spacing, set out on
+// the map and in 3D. The plant lists are common, widely sold choices that do well in north-east Ohio (USDA zone 6a).
+var LS_USE={
+  decor:{name:'Decorative',note:'Planting to be looked at: small flowering trees, shrubs in groups, and perennials and grasses in the gaps.'},
+  screen:{name:'Screening',note:'A year-round screen: evergreens in staggered rows with large shrubs between them. Mix the species so one pest or disease cannot take the whole screen, and plant the trees 6 to 8 ft tall.'},
+  shade:{name:'Shade trees',note:'Large canopy trees over lawn or groundcover, for parking lots, street edges and open ground.'},
+  rain:{name:'Rain garden',note:'A shallow planted basin that takes runoff: plants that stand both wet and dry spells.'},
+  lawn:{name:'Lawn',note:'Mown grass.'}
+};
+// what is drawn for each kind of plant: its spread on the plan (ft), the 3D model and its scale, and its colour
+var LS_PLANT={
+  ev:{name:'Evergreen trees',r:6,m:'builtin:tree2',v:0.55,col:'#1b5e20'},
+  can:{name:'Shade trees',r:14,m:'builtin:tree1',v:1,col:'#2f9e44'},
+  orn:{name:'Ornamental trees',r:8,m:'builtin:tree1',v:0.55,col:'#d6336c'},
+  lsh:{name:'Large shrubs',r:3.5,m:'builtin:shrub',v:1.5,col:'#5c940d'},
+  shr:{name:'Shrubs',r:2.5,m:'builtin:shrub',v:1,col:'#82c91e'}
+};
+// suggested plants and spacing, by purpose and layer
+var LS_SPEC={
+  screen:{ev:['American arborvitae, eastern red cedar, white or Norway spruce','12 ft apart in staggered rows 12 ft apart'],lsh:['arrowwood viburnum, northern bayberry, inkberry holly, gray dogwood','6 ft apart, in rows between and in front of the trees']},
+  decor:{orn:['eastern redbud, flowering dogwood, serviceberry, disease-resistant crabapple','about 20 ft apart'],shr:['smooth or oakleaf hydrangea, ninebark, Virginia sweetspire, fothergilla','in groups, 6 ft apart'],per:['purple coneflower, black-eyed Susan, little bluestem, prairie dropseed','18 in apart over about a third of the bed']},
+  shade:{can:['red maple, swamp white oak, thornless honeylocust, Kentucky coffeetree, London planetree','about 35 ft apart'],turf:['lawn or a low groundcover beneath','']},
+  rain:{orn:['river birch, serviceberry, American hornbeam','about 30 ft apart'],shr:['red-osier dogwood, buttonbush, winterberry, Virginia sweetspire','in groups, 6 ft apart'],per:['swamp milkweed, blue flag iris, Joe-Pye weed, fox sedge, switchgrass','12 in apart over the basin floor']},
+  lawn:{turf:['turf grass, or a low-mow fescue mix','']}
 };
 var PRESETS=[
   {name:'Cuyahoga parcels (open data)',url:'https://gis.cuyahogacounty.gov/server/rest/services/Open_Data_Parcels/MapServer'},
@@ -1503,8 +1544,14 @@ function renderMap(){
     var poly=L.polygon(a.ring.map(ll2),{pane:'pAreas',className:'obj-path',color:k.color,weight:selIs('a',a.id)?3:1.5,fillColor:k.color,fillOpacity:.5}).addTo(gAreas);
     poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('a',a.id);else select({k:'a',id:a.id});L.DomEvent.stopPropagation(e);}});
     poly.on('mousedown',function(e){groupDown('a',a.id,e);});
-    var pg=S.parkG[a.id];
-    poly.bindTooltip(esc((a.name||k.name)+(pg&&pg.on?' · '+pg.count+' stalls':'')),{sticky:true});
+    var pg=S.parkG[a.id],lp=lsPlan(a);
+    poly.bindTooltip(esc((a.name||k.name)+(pg&&pg.on?' · '+pg.count+' stalls':'')+(lp?' · '+LS_USE[lp.use].name.toLowerCase():'')),{sticky:true});
+    // a planting plan: every tree and shrub at its spread, one shape per kind of plant (clicks pass through to the area)
+    if(lp)Object.keys(LS_PLANT).forEach(function(t){
+      var kd=LS_PLANT[t],rings=[];
+      lp.pts.forEach(function(p){if(p.t!==t)return;var c=[];for(var i=0;i<10;i++){var an=i/10*2*Math.PI;c.push(ll2(toLL([p.x+Math.cos(an)*kd.r,p.y+Math.sin(an)*kd.r])));}rings.push([c]);});
+      if(rings.length)L.polygon(rings,{pane:'pAreas',className:'plant-path plant-'+t,color:'#0b2e13',weight:1,fillColor:kd.col,fillOpacity:t==='can'?.55:.8,interactive:false}).addTo(gAreas);
+    });
     if(!pg||!pg.on)return;
     // a laid-out parking area: its aisles, its stalls and the count
     function wire(p){p.on('click',function(e){poly.fire('click',e);});p.on('mousedown',function(e){groupDown('a',a.id,e);});p.bindTooltip(esc((a.name||k.name)+' · '+pg.count+' stalls'),{sticky:true});}
@@ -1795,6 +1842,14 @@ function fillInspector(){
     }else if(isP)info+=' · about '+Math.floor(areaInSite(areaFeat(o))/S.set.stall)+' stalls at '+n0(S.set.stall)+' sf each (set on the Check tab)';
     $('#aInfo').textContent=info+angTxt([{k:'a',id:o.id,o:o}]);
     $('#aTrimRow').hidden=!(pg&&parkSpare(pg));
+    // landscaping: its purpose and the planting plan that goes with it
+    var canLs=o.kind==='land'||o.kind==='open',lp=canLs?lsPlan(o):null;
+    $('#aLs').hidden=!canLs;
+    if(canLs){
+      setv('#aUse',lp?lp.use:'');$('#aUseNote').textContent=lp?LS_USE[lp.use].note:'Pick a purpose to get a planting plan: what to plant, how many and how far apart.';
+      $('#aPlan').innerHTML=lp?'<table><thead><tr><th>Plant</th><th>How many</th><th>Spacing</th></tr></thead><tbody>'+lp.rows.map(function(r){return '<tr><td style="font-family:var(--font);white-space:normal"><b>'+esc(r.name)+'</b><br>'+esc(r.plants)+'</td><td>'+n0(r.n)+esc(r.unit)+'</td><td style="font-family:var(--font);white-space:normal">'+esc(r.spacing)+'</td></tr>';}).join('')+'</tbody></table><div class="note" style="margin-top:4px">Suggested plants are common choices that do well in north-east Ohio (zone 6a). Check species, sizes and counts against the city’s landscaping rules and with a landscape architect.</div>':'';
+      if(lp)$('#aPlantRow').hidden=true;
+    }
   }
 }
 function deleteSel(){
@@ -2044,7 +2099,7 @@ function finishDraw(){
       var id2=S.nextId++,na={id:id2,kind:S.areaKind,name:AREAS[S.areaKind].name,ring:pts};
       // a parking area lays itself out, and is selected so its stall count and settings show
       if(na.kind==='park'){S.counters.park=(S.counters.park||0)+1;na.name='Parking '+S.counters.park;na.pk=Object.assign({},S.parkCfg);S.sel={k:'a',id:id2};S.multi=[];}
-      else if(na.kind==='land'){S.sel={k:'a',id:id2};S.multi=[];} // green space is selected too, so its size shows and trees can be picked
+      else if(na.kind==='land'){S.sel={k:'a',id:id2};S.multi=[];S.lsAsk=id2;} // green space is selected too, and its purpose is asked
       S.areas.push(na);cancelDraw();renderAll();
     }
     else{S.carveShapes.push({id:S.nextId++,ring:pts});cancelDraw();siteChanged();}
@@ -2389,6 +2444,22 @@ $('#roadSw').addEventListener('change',function(){S.roadSw=this.value;});
 $('#walkW').addEventListener('input',function(){var v=parseFloat(this.value);if(v>=3)S.walkW=v;if(D)drawPreview();});
 $('#aName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#aName').value;});});
 $('#aKind').addEventListener('change',function(){inspUpdate(function(o){o.kind=$('#aKind').value;if(o.kind==='park'&&!o.pk)o.pk=Object.assign({},S.parkCfg);});});
+// landscaping purpose: in the inspector, and asked on the map right after a green space is drawn
+Object.keys(LS_USE).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=LS_USE[k].name;$('#aUse').appendChild(o);});
+var LS_LABEL={decor:'Decorative planting',screen:'Screening',shade:'Shade trees',rain:'Rain garden',lawn:'Lawn'};
+// an area still called by a stock name is renamed for its purpose; one you named yourself keeps its name
+function setLsUse(o,v){
+  var stock=!o.name||o.name===AREAS.land.name||o.name===AREAS.open.name||Object.keys(LS_LABEL).some(function(k){return o.name===LS_LABEL[k];});
+  if(v&&LS_USE[v]){o.ls={use:v};if(stock)o.name=LS_LABEL[v];}
+  else{delete o.ls;if(stock)o.name=(AREAS[o.kind]||AREAS.land).name;}
+}
+$('#aUse').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){setLsUse(o,v);});});
+$$('#lsAsk [data-use]').forEach(function(b){b.addEventListener('click',function(){
+  var a=S.areas.filter(function(x){return x.id===S.lsAsk;})[0];S.lsAsk=null;if(!a){renderSelBar();return;}
+  pushUndo();setLsUse(a,b.dataset.use);S.sel={k:'a',id:a.id};S.multi=[];renderAll();
+  var lp=lsPlan(a);if(lp)toast(LS_USE[lp.use].name+' planting: '+lp.rows.map(function(r){return n0(r.n)+r.unit+' '+r.name.toLowerCase();}).join(', ')+'. The plant list is on the Build tab.');
+});});
+$('#lsSkip').addEventListener('click',function(){S.lsAsk=null;renderSelBar();});
 // parking area layout: on or off, stall size, angle, aisle. The settings last used are the defaults for the next area drawn.
 function parkEdit(fn){inspUpdate(function(o){if(o.kind!=='park')return;if(!o.pk)o.pk=Object.assign({},S.parkCfg);fn(o.pk);var c=parkCfg(o);S.parkCfg={ang:c.auto?'auto':c.ang,w:c.w,d:c.d,aisle:c.aisle};if(!c.par)S.parkCfg.par=false;if(c.road)S.parkCfg.road=true;});}
 // unused paving worth mentioning: over 400 sf and over 6% of the area
@@ -2635,7 +2706,11 @@ function exportFeatures(){
       var c=parkCfg(a);
       Object.assign(p,{stalls:pg.count,parallelStalls:pg.par,pavedSf:Math.round(pg.sf),stallAngleDeg:c.ang,stallAngleBestFit:c.auto,stallWidthFt:c.w,stallDepthFt:c.d,aisleWidthFt:c.aisle,parallelFill:c.par,stallsOnRoad:c.road,carModel:a.pc?a.pc.m:null,carFill:a.pc?a.pc.f:null});
     }
+    // landscaping with a purpose: the purpose and the planting schedule on the area, and every tree and shrub as a point
+    var lp=lsPlan(a);
+    if(lp){p.landscapePurpose=lp.use;p.landscapePurposeName=LS_USE[lp.use].name;p.planting=lp.rows.map(lsText);}
     feats.push(turf.polygon([closeRing(a.ring)],p));
+    if(lp)lp.pts.forEach(function(q){feats.push(turf.point(toLL([q.x,q.y]),{kind:'plant',area:a.name,plant:LS_PLANT[q.t].name.replace(/s$/,''),suggested:LS_SPEC[lp.use][q.t][0],spreadFt:LS_PLANT[q.t].r*2}));});
     if(pg&&pg.on){
       pg.aisles.forEach(function(r){feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_aisle',area:a.name,aisleWidthFt:p.aisleWidthFt}));});
       // a parallel stall is listed by its own size: 8 ft off the aisle, 22 ft along it, at 0 degrees
@@ -2651,6 +2726,8 @@ $('#xCsv').addEventListener('click',function(){
   S.buildings.forEach(function(b){var fp=fpOf(b);rows.push([b.name,TYPES[b.type].name,b.pts?'':b.w,b.pts?'':b.d,b.st,b.pts?'':b.rot.toFixed(1),Math.round(fp),Math.round(fp*b.st),unitsOf(b),Math.round(commSf(b))]);});
   var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);S.plots.forEach(function(p){rows.push([p.name+' area sf',Math.round(p.sf)]);});
   rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
+  // planting schedule: one row per kind of plant in each landscaped area that has a purpose
+  S.areas.forEach(function(a){var lp=lsPlan(a);if(lp)lp.rows.forEach(function(r){rows.push([(a.name||'Landscaping')+' ('+LS_USE[lp.use].name.toLowerCase()+'): '+r.name.toLowerCase()+(r.unit?r.unit:''),r.n,r.plants,r.spacing]);});});
   if(st.walkLen){rows.push(['Sidewalk length ft',Math.round(st.walkLen)]);rows.push(['Sidewalk area sf',Math.round(st.walkSf)]);}
   rows.push(['Green space %',st.siteSf?st.greenPct.toFixed(1):'']);rows.push(['Green space sf (not built on or paved)',Math.round(st.openSf)]);rows.push(['Landscaping and open space drawn sf',Math.round(st.greenSf)]);
   rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
@@ -2768,6 +2845,7 @@ function projectFromGeoJSON(gj){
   by('area').forEach(function(f){
     var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
     var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};
+    if(LS_USE[p.landscapePurpose])na.ls={use:p.landscapePurpose};
     if(kind==='park'&&p.stallWidthFt){
       na.pk={ang:p.stallAngleBestFit?'auto':(+p.stallAngleDeg||90),w:+p.stallWidthFt,d:+p.stallDepthFt||PARK_DEF.d,aisle:+p.aisleWidthFt||PARK_DEF.aisle};if(p.stallsOnRoad)na.pk.road=true;if(p.parallelFill===false)na.pk.par=false;
       if(p.carModel)na.pc={m:p.carModel,f:p.carFill==null?70:p.carFill};
@@ -3074,6 +3152,10 @@ $('#plotList').addEventListener('click',function(e){
 });
 function renderSelBar(){
   renderPlotBar();
+  // the question asked after a green space is drawn stays up until it is answered, skipped, or the area is gone or given a purpose
+  var la=S.lsAsk&&S.areas.filter(function(x){return x.id===S.lsAsk;})[0];
+  if(S.lsAsk&&(!la||la.kind!=='land'||la.ls||(!D&&!(S.sel&&S.sel.k==='a'&&S.sel.id===S.lsAsk))))S.lsAsk=null;
+  $('#lsAsk').hidden=!S.lsAsk||!!D||(V3&&V3.on);
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
   $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking row',f:'Fence'}[S.sel.k]);
@@ -3662,11 +3744,79 @@ $('#pCars').addEventListener('change',function(){var v=this.value;inspUpdate(fun
 $('#pFill').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pc&&isFinite(d))o.pc.f=Math.max(0,Math.min(100,d));});});
 $('#aCars').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pc={m:v,f:o.pc&&o.pc.f!=null?o.pc.f:70};else delete o.pc;});});
 $('#aFill').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pc&&isFinite(d))o.pc.f=Math.max(0,Math.min(100,d));});});
+// ---------- landscaping: where each plant of a planting plan goes (the purposes and plant lists are LS_USE, LS_PLANT, LS_SPEC) ----------
+function lsUse(a){return a&&(a.kind==='land'||a.kind==='open')&&a.ls&&LS_USE[a.ls.use]?a.ls.use:null;}
+var lsCache=new Map();
+// Where each plant goes (local feet), before anything standing in the way is taken out. Rows run along the longest side.
+function lsLayout(a,use){
+  var key=use+'|'+a.id+'|'+a.ring.map(function(p){return p[0].toFixed(7)+','+p[1].toFixed(7);}).join(';');
+  if(lsCache.has(key))return lsCache.get(key);
+  if(lsCache.size>120)lsCache.clear();
+  var ring=a.ring.map(toLocal),dir=parkDirs(ring,1)[0],co=Math.cos(dir),si=Math.sin(dir),n=ring.length;
+  var Rr=ring.map(function(p){return [p[0]*co+p[1]*si,-p[0]*si+p[1]*co];}),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  Rr.forEach(function(p){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});
+  function clear(p,inset){if(!pointInRing(p,Rr))return false;for(var i=0;i<n;i++)if(ptSegDist(p,Rr[i],Rr[(i+1)%n]).d<inset-1e-6)return false;return true;}
+  // a staggered grid across the area, centred, each point at least `inset` ft in from the edge. rowAt(dy,inset) is
+  // where its first row falls; `from` starts the rows somewhere else (shrub rows set between the tree rows).
+  function rowAt(dy,inset){return y0+inset+((y1-y0-2*inset)%dy)/2;}
+  function grid(dx,dy,inset,from){
+    var out=[],H=y1-y0-2*inset,W=x1-x0-2*inset;if(H<0||W<0)return out;
+    var sy=from==null?rowAt(dy,inset):from,sx=x0+inset+(W%dx)/2,row=0;
+    for(var y=sy;y<=y1-inset+1e-6&&out.length<600;y+=dy,row++)
+      for(var x=sx-(row%2?dx/2:0);x<=x1-inset+1e-6&&out.length<600;x+=dx){var p=[x,y];if(x>=x0&&clear(p,inset))out.push(p);}
+    return out;
+  }
+  function far(p,list,d){for(var i=0;i<list.length;i++)if(Math.hypot(list[i][0]-p[0],list[i][1]-p[1])<d)return false;return true;}
+  function groups(list,seed){return list.filter(function(p){return Math.sin(p[0]*0.13+seed)+Math.cos(p[1]*0.17+seed*1.7)>0.35;});} // about a third, in drifts
+  var L={},seed=(a.id%97)*0.37,cen=polyCentroid(Rr);
+  function one(inset){return clear(cen,Math.min(inset,2))?[cen]:[];} // a bed too small for the grid still gets one tree
+  if(use==='screen'){
+    // two staggered rows of evergreens in a 30 ft strip, three from about 35 ft; a row of shrubs between and outside them
+    var ins=y1-y0>=10?5:2;
+    L.ev=grid(12,12,ins);if(!L.ev.length)L.ev=one(2);
+    L.lsh=grid(6,12,2.5,rowAt(12,ins)-6).filter(function(p){return far(p,L.ev,4.5);});
+  }else if(use==='decor'){
+    L.orn=grid(22,20,6);if(!L.orn.length)L.orn=one(4);
+    L.shr=groups(grid(6,6,3),seed).filter(function(p){return far(p,L.orn,5);});
+  }else if(use==='shade'){
+    L.can=grid(35,35,8);if(!L.can.length)L.can=one(6);
+  }else if(use==='rain'){
+    L.orn=grid(30,28,6);if(!L.orn.length)L.orn=one(4);
+    L.shr=groups(grid(6,6,3),seed).filter(function(p){return far(p,L.orn,5);});
+  }
+  var pts=[];Object.keys(L).forEach(function(t){L[t].forEach(function(p){pts.push({x:p[0]*co-p[1]*si,y:p[0]*si+p[1]*co,t:t});});});
+  var res={pts:pts,sf:Math.abs(polyAreaSigned(ring))};
+  lsCache.set(key,res);return res;
+}
+// The planting plan for an area: the plants that have room (nothing under a building, road or walk), and the schedule
+function lsPlan(a){
+  var use=lsUse(a);if(!use||!a.ring||a.ring.length<3)return null;
+  var lay=lsLayout(a,use),ctx=S.ctx;
+  var pts=lay.pts.filter(function(p){
+    if(!ctx)return true;var q=[p.x,p.y];
+    for(var id in ctx.rings)if(pointInRing(q,ctx.rings[id]))return false;
+    return !pointInAny(q,ctx.roadPolys)&&!pointInAny(q,ctx.walkPolys||[]);
+  });
+  var cnt={};pts.forEach(function(p){cnt[p.t]=(cnt[p.t]||0)+1;});
+  var spec=LS_SPEC[use],rows=[];
+  Object.keys(spec).forEach(function(t){
+    var s=spec[t],row={t:t,plants:s[0],spacing:s[1]};
+    if(LS_PLANT[t]){row.name=LS_PLANT[t].name;row.n=cnt[t]||0;row.unit='';}
+    else if(t==='per'){row.name='Perennials and grasses';row.n=Math.round(lay.sf*(use==='rain'?0.6/1:0.33/2.25));row.unit='';}
+    else{row.name=use==='lawn'?'Lawn':'Lawn or groundcover';row.n=Math.round(lay.sf);row.unit=' sf';}
+    if(row.n>0)rows.push(row);
+  });
+  return {use:use,pts:pts,rows:rows,sf:lay.sf};
+}
+function lsText(row){return n0(row.n)+row.unit+' '+row.name.toLowerCase()+(row.spacing?' ('+row.spacing+')':'')+': '+row.plants;}
 // Where the plants and cars stand, in local feet. Seeded by the object's id, so the same plan always gets the same trees.
 function propPlacements(){
   var P={trees:[],cars:[]},ctx=S.ctx;if(!ctx)return P;
   function blocked(p){for(var id in ctx.rings)if(pointInRing(p,ctx.rings[id]))return true;return pointInAny(p,ctx.roadPolys)||pointInAny(p,ctx.walkPolys||[]);}
   S.areas.forEach(function(a){
+    // a landscaping area with a purpose: its planting plan, each plant as its own kind of model
+    var lp=!(a.pm&&a.pm.m)&&lsPlan(a);
+    if(lp){var R2=rng(a.id*5381+lp.pts.length);lp.pts.forEach(function(p){var k=LS_PLANT[p.t];P.trees.push({m:k.m,x:p.x,y:p.y,rot:R2()*Math.PI*2,v:k.v*(0.85+R2()*0.3)});});return;}
     var pm=a.pm;if(!pm||!pm.m||!a.ring||a.ring.length<3)return;
     var ring=a.ring.map(toLocal),sf=Math.abs(polyAreaSigned(ring)),dens=Math.max(0.5,Math.min(40,+pm.d||6)),n=Math.min(600,Math.round(sf/1000*dens));
     if(n<1)return;
