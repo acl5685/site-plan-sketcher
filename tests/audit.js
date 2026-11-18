@@ -7,11 +7,11 @@ G('01 startup and sample project',async()=>{
   ok(t.errors.length===0,'no page errors on load');
   ok(/3\.8 ac/.test(t.stat('Site area').v)&&/165,\d{3} sf/.test(t.stat('Site area').s),'sample site is 3.8 ac / ~165,000 sf: '+JSON.stringify(t.stat('Site area')));
   ok(t.stat('Units').v==='19','sample units 19 ('+t.stat('Units').v+')');
-  ok(t.stat('Parking').v==='62 / 67','sample parking 62 provided / 67 required (Brecksville rules)');
+  ok(t.stat('Parking').v==='40 / 67','sample parking 40 laid out / 67 required (Brecksville rules): '+t.stat('Parking').v);
   ok(!t.$('#banner').hidden,'sample banner visible');
   ok(/All 4 building/.test(t.$('#checks').textContent),'sample passes all checks');
   ok(t.$$('#types .typebtn').length===6,'six building type buttons');
-  ok(t.$$('.tool').length===12,'twelve toolbar tools');
+  ok(t.$$('.tool').length===13,'thirteen toolbar tools');
 });
 
 G('02 loading parcels from an ArcGIS REST service',async()=>{
@@ -264,10 +264,13 @@ G('10 areas, parking and impervious',async()=>{
   t.tab('build');t.set('#areaKind','park','change');
   await t.draw('area',t.rectPts(-290,-215,-225,-165));
   const p=t.proj();ok(p.areas.length===1&&p.areas[0].kind==='park','parking area created');
-  ok(t.stat('Parking').v.split(' / ')[0]==='10','3,250 sf / 325 = 10 stalls ('+t.stat('Parking').v+')');
+  ok(t.stat('Parking').v.split(' / ')[0]==='10','65 x 50 ft lays out as two rows of five = 10 stalls ('+t.stat('Parking').v+')');
   ok(near(t.num(t.stat('Impervious').s),3250,40),'parking is impervious ('+t.stat('Impervious').s+')');
+  // counted from its square footage instead of a layout
+  t.set('#aLay','est','change');
+  ok(t.stat('Parking').v.split(' / ')[0]==='10','estimate: 3,250 sf / 320 = 10 stalls ('+t.stat('Parking').v+')');
   t.tab('check');t.set('#sStall','250');ok(t.stat('Parking').v.split(' / ')[0]==='13','stall size setting: 3,250/250 = 13');
-  t.set('#sStall','325');
+  t.set('#sStall','325');t.key('Escape');
   // landscaping is not impervious
   t.tab('build');t.set('#areaKind','land','change');await t.draw('area',t.rectPts(-200,-215,-150,-165));
   ok(near(t.num(t.stat('Impervious').s),3250,40),'landscaping adds no impervious area');
@@ -330,6 +333,7 @@ G('12 summary numbers',async()=>{
   t.click(t.$('.typebtn[data-type="sf"]'));t.set('#tW','40');t.set('#tD','50');t.set('#tSt','2');t.placeAt(-250,-150);
   t.click(t.$('.typebtn[data-type="th"]'));t.placeAt(-150,-120);
   t.set('#areaKind','park','change');await t.draw('area',t.rectPts(-290,-220,-160,-170)); // 130x50 = 6,500
+  t.set('#aLay','est','change');t.key('Escape'); // these totals are for parking counted from its square footage
   const site=t.num(t.stat('Site area').s);
   const fp=40*50+88*42;
   ok(near(t.num(t.stat('Building coverage').v),fp/site*100,0.06),'coverage '+t.stat('Building coverage').v+' vs '+(fp/site*100).toFixed(2));

@@ -153,7 +153,8 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="split" title="Draw a line across the site to split it into separate lots">Split lots</button>
       <button class="tool" data-tool="cutlot" title="Draw a shape on the site to cut it out as its own lot (the land stays in the site)">Cut out lot</button>
       <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
-      <button class="tool" data-tool="lot" title="Draw a parking aisle centerline; striped stalls fill in along both sides">Parking lot</button>
+      <button class="tool" data-tool="parkarea" title="Draw the outline of a parking area; stalls and aisles are laid out to fit the most cars, around any road drawn through it">Parking area</button>
+      <button class="tool" data-tool="lot" title="Draw one row of stalls or one aisle by hand, along a line">Parking row</button>
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
       <button class="tool" data-tool="bpoly" title="Draw any building shape corner by corner">Draw building</button>
       <button class="tool" data-tool="area" title="Draw landscaping, parking or open space">Area</button>
@@ -286,7 +287,7 @@ td:first-child{font-family:var(--font)}
       </div>
 
       <div id="insP" hidden>
-        <h3>Selected parking lot</h3>
+        <h3>Selected parking row</h3>
         <div class="row">
           <div class="field" style="flex:2 1 120px"><label for="pName">Name</label><input type="text" id="pName"></div>
           <div class="field"><label for="pAngle">Stall angle</label><select id="pAngle"><option value="0">0° parallel</option><option value="90">90°</option><option value="60">60°</option><option value="45">45°</option></select></div>
@@ -303,7 +304,7 @@ td:first-child{font-family:var(--font)}
         </div>
         <div class="note" id="pInfo" style="margin-top:6px"></div>
         <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="pRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="pRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="pRotBy">Rotate by °</label><input type="number" id="pRotBy" step="0.1" placeholder="e.g. 30"></div></div>
-        <div class="row" style="margin-top:6px"><button class="btn small" id="pSq" title="Turn so the aisle runs parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small" id="pFlip" title="Reverse the aisle direction. Angled stalls lean the other way and left / right swap.">Reverse direction</button><button class="btn small" id="pDup" title="Copy this lot beside the original">Duplicate</button><button class="btn small danger" id="pDel">Delete lot</button></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="pSq" title="Turn so the aisle runs parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small" id="pFlip" title="Reverse the aisle direction. Angled stalls lean the other way and left / right swap.">Reverse direction</button><button class="btn small" id="pDup" title="Copy this row beside the original">Duplicate</button><button class="btn small danger" id="pDel">Delete row</button></div>
       </div>
 
       <div id="insM" hidden>
@@ -324,7 +325,23 @@ td:first-child{font-family:var(--font)}
           <div class="field" style="flex:2 1 120px"><label for="aName">Name</label><input type="text" id="aName"></div>
           <div class="field"><label for="aKind">Kind</label><select id="aKind"></select></div>
         </div>
-        <div class="row" style="margin-top:6px">
+        <div id="aPark" hidden>
+          <div class="row" style="margin-top:6px">
+            <div class="field" style="flex:2 1 150px"><label for="aLay">Stalls</label><select id="aLay"><option value="lay">Lay out stalls and aisles to fit</option><option value="est">Estimate from the square footage</option></select></div>
+            <div class="field a-lay"><label for="aAng">Stall angle</label><select id="aAng"><option value="90">90° two-way</option><option value="60">60° one-way</option><option value="45">45° one-way</option></select></div>
+          </div>
+          <div class="row a-lay">
+            <div class="field"><label for="aSW">Stall width ft</label><input type="number" id="aSW" min="7" step="0.5"></div>
+            <div class="field"><label for="aSD" title="Measured square to the aisle">Stall depth ft</label><input type="number" id="aSD" min="12" step="0.5"></div>
+            <div class="field"><label for="aAisle">Aisle ft</label><input type="number" id="aAisle" min="10" step="1"></div>
+          </div>
+          <label class="chk a-lay" style="margin-top:6px" title="Leave off for a street: cars would back out into traffic"><input type="checkbox" id="aOnRoad"> Stalls can open straight onto a road through the lot (a private drive)</label>
+          <div class="row a-lay" style="margin-top:6px">
+            <div class="field" style="flex:2 1 120px"><label for="aCars">Cars in 3D</label><select id="aCars"></select></div>
+            <div class="field"><label for="aFill" title="Share of the stalls that have a car in them">Stalls filled %</label><input type="number" id="aFill" min="0" max="100" step="5"></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:6px" id="aPlantRow">
           <div class="field" style="flex:2 1 120px"><label for="aPlant">Plants in 3D</label><select id="aPlant"></select></div>
           <div class="field"><label for="aDens" title="Trees per 1,000 sf of this area">Per 1,000 sf</label><input type="number" id="aDens" min="0.5" max="40" step="0.5"></div>
         </div>
@@ -360,8 +377,9 @@ td:first-child{font-family:var(--font)}
         </div>
       </div>
       <div>
-        <h3>Parking lots</h3>
-        <div class="note">Choose Parking lot, then click points to pull a line; stalls appear along it, spaced to fit. For a bare row with no drive aisle pick "Row of stalls" or "Parallel" (aisle 0). Use Stalls on / Flip to put them on either side; set the angle to 0° for parallel parking (Width is the depth off the line, Depth is the length along it).</div>
+        <h3>Parking</h3>
+        <div class="note"><b>Parking area:</b> draw the road first, then choose Parking area and click the corners of the paved area. Stalls and aisles are laid out to fit the most cars; a road through it is kept clear and the aisles open onto it. A landscaping or sidewalk area drawn inside becomes an island. Select the area to change the stall size, the angle or the aisle width.</div>
+        <div class="note" style="margin-top:4px"><b>Parking row:</b> to place one row or aisle by hand, choose Parking row, then click points to pull a line; stalls appear along it, spaced to fit. For a bare row with no drive aisle pick "Row of stalls" or "Parallel" (aisle 0). Use Stalls on / Flip to put them on either side; set the angle to 0° for parallel parking (Width is the depth off the line, Depth is the length along it).</div>
         <div class="row" style="margin-top:6px">
           <div class="field"><label for="lotPreset">Layout</label>
             <select id="lotPreset">
@@ -474,7 +492,7 @@ td:first-child{font-family:var(--font)}
           <label class="btn small" style="display:inline-block;color:var(--ink);cursor:pointer">Add .glb model<input type="file" id="libFile" accept=".glb,model/gltf-binary" multiple hidden></label>
         </div>
         <div id="libList"></div>
-        <p class="note">Built-in trees and a car are always available. To use your own, export from Blender with File › Export › glTF 2.0, Format: glTF Binary (.glb), then add the file here or drop it anywhere on the page. Pick them on a landscaping area (trees), a parking lot (cars) or a building (replaces the generated building, fitted to its footprint). Models stay in this browser; a project only remembers their names.</p>
+        <p class="note">Built-in trees and a car are always available. To use your own, export from Blender with File › Export › glTF 2.0, Format: glTF Binary (.glb), then add the file here or drop it anywhere on the page. Pick them on a landscaping area (trees), a parking area or row (cars) or a building (replaces the generated building, fitted to its footprint). Models stay in this browser; a project only remembers their names.</p>
       </div>
       <div class="note" id="utilNote"></div>
     </div>
@@ -725,7 +743,7 @@ var S={
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
   set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
-  roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
+  roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},parkCfg:{ang:90,w:10,d:20,aisle:24},parkG:{},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
   angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free',split:'free',fence:'free'},snapSkip:null,
   splits:[],plots:[], // lot lines (or cut-out shapes) drawn on the site, and the lots they cut it into
   splitMode:'line',plotSel:null // what the Split lots tool draws; the lot clicked to see what fits on it
@@ -861,6 +879,8 @@ function buildCtx(){
     if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(r){r.forEach(function(q){v.push(q);});addSegs(r);});});
     g.stalls.forEach(function(r){addSegs(r.map(toLL));});
   });
+  S.parkG={};
+  S.areas.forEach(function(a){if(a.kind==='park'&&a.pk)S.parkG[a.id]=parkGeom(a);});
   S.snapV=v;S.snapSegs=sg;
 }
 // Do two convex outlines overlap by more than eps feet? (separating-axis test)
@@ -925,6 +945,240 @@ function lotGeom(lot){
     });
   }
   res.count=res.stalls.length;
+  return res;
+}
+// ---- parking areas: an outline that fills itself with stalls and aisles ----
+// area.pk = {ang: stall angle 90/60/45, w: stall width, d: stall depth square to the aisle, aisle: aisle width,
+// road: stalls may open straight onto a road}. A parking area without pk is only counted from its square footage.
+// Rows are tried along each long edge of the outline and square to it, at every offset across it. Roads, buildings and
+// other areas inside the outline are kept clear. Only stalls on an aisle that reaches a road are kept (with no road at
+// the outline, the largest connected group); a cross aisle is added where it lets in more cars than it displaces.
+// The arrangement with the most stalls wins.
+var PARK_DEF={ang:90,w:10,d:20,aisle:24},PARK_AISLE={90:24,60:16,45:13},parkCache=new Map(),parkQuick=false;
+function parkCfg(a){var k=a.pk||{};return {ang:(+k.ang===60||+k.ang===45)?+k.ang:90,w:Math.max(7,+k.w||PARK_DEF.w),d:Math.max(12,+k.d||PARK_DEF.d),aisle:Math.max(10,+k.aisle||PARK_DEF.aisle),road:!!k.road};}
+function ivCut(ivs,bl){ // intervals with the blocked ranges taken out
+  if(!bl.length||!ivs.length)return ivs;
+  bl.sort(function(p,q){return p[0]-q[0];});
+  var out=[];
+  ivs.forEach(function(iv){
+    var a=iv[0];
+    for(var k=0;k<bl.length&&a<iv[1];k++){var b=bl[k];if(b[1]<=a)continue;if(b[0]>=iv[1])break;if(b[0]>a)out.push([a,b[0]]);if(b[1]>a)a=b[1];}
+    if(a<iv[1])out.push([a,iv[1]]);
+  });
+  return out;
+}
+function ivAnd(A,B){var out=[],i=0,j=0;while(i<A.length&&j<B.length){var a=Math.max(A[i][0],B[j][0]),b=Math.min(A[i][1],B[j][1]);if(b>a)out.push([a,b]);if(A[i][1]<B[j][1])i++;else j++;}return out;}
+// Where a straight band lies wholly inside an outline (rings, even-odd): the stretches along it with no edge passing
+// through. ax 0 = a band between two y values, answered as x ranges; ax 1 = a band between two x values, as y ranges.
+function bandFree(rings,v0,v1,ax){
+  var u=ax?1:0,v=ax?0:1,vm=(v0+v1)/2,xs=[],bl=[],e=0.02;
+  for(var i=0;i<rings.length;i++){
+    var r=rings[i],n=r.length;
+    for(var j=0;j<n;j++){
+      var a=r[j],b=r[(j+1)%n],av=a[v],bv=b[v],au=a[u],bu=b[u];
+      if(av===bv&&au===bu)continue;
+      if((av>vm)!==(bv>vm))xs.push(au+(vm-av)/(bv-av)*(bu-au));
+      var lo=av<bv?av:bv,hi=av<bv?bv:av;
+      if(hi<=v0+e||lo>=v1-e)continue;
+      if(hi-lo<1e-9){bl.push(au<bu?[au,bu]:[bu,au]);continue;}
+      var ta=lo>v0?lo:v0,tb=hi<v1?hi:v1,xa=au+(ta-av)/(bv-av)*(bu-au),xb=au+(tb-av)/(bv-av)*(bu-au);
+      bl.push(xa<xb?[xa,xb]:[xb,xa]);
+    }
+  }
+  if(xs.length<2)return [];
+  xs.sort(function(p,q){return p-q;});
+  var ins=[];for(var k=0;k+1<xs.length;k+=2)ins.push([xs[k],xs[k+1]]);
+  return ivCut(ins,bl);
+}
+// Directions worth trying for the rows: along the longest edges of the outline, and square to each
+function parkDirs(ring,max){
+  var c=[],n=ring.length,PI=Math.PI;
+  function gap(p,q){var d=Math.abs(p-q);return Math.min(d,PI-d);}
+  for(var i=0;i<n;i++){
+    var a=ring[i],b=ring[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l<8)continue;
+    var d=Math.atan2(b[1]-a[1],b[0]-a[0]);d=((d%PI)+PI)%PI;
+    var hit=null;for(var k=0;k<c.length;k++)if(gap(c[k].d,d)<0.0175){hit=c[k];break;}
+    if(hit){hit.l+=l;if(l>hit.m){hit.m=l;hit.d=d;}}else c.push({d:d,l:l,m:l});
+  }
+  c.sort(function(p,q){return q.l-p.l;});
+  var out=[];
+  function add(d){d=((d%PI)+PI)%PI;if(!out.some(function(o){return gap(o,d)<0.0175;}))out.push(d);}
+  c.slice(0,max).forEach(function(q){add(q.d);add(q.d+PI/2);});
+  return out.length?out:[0,PI/2];
+}
+// One paved piece (rings in local feet). aisleRings: where an aisle may run when that is more than the piece itself.
+// roads: road outlines at the piece. Returns {stalls, aisles (four-corner outlines in local feet), count, lost, road} or null.
+function parkSolve(piece,aisleRings,roads,cfg,quick){
+  var th=cfg.ang*Math.PI/180,sq=cfg.ang>=89.9,D=cfg.d,A=cfg.aisle,pitch=sq?cfg.w:cfg.w/Math.sin(th),shift=sq?0:D/Math.tan(th),per=2*D+A,need=pitch+shift-1e-6;
+  function cnt(ivs){var n=0;for(var i=0;i<ivs.length;i++){var k=Math.floor((ivs[i][1]-ivs[i][0]-shift)/pitch+1e-6);if(k>0)n+=k;}return n;}
+  // every arrangement of rows: a direction and an offset. In the turned frame aisles run along x; one module is a
+  // row of stalls, the aisle, and a second row facing it.
+  var cands=[];
+  parkDirs(piece[0],quick?2:3).forEach(function(dir){
+    var co=Math.cos(dir),si=Math.sin(dir);
+    function R(p){return [p[0]*co+p[1]*si,-p[0]*si+p[1]*co];}
+    var Rp=piece.map(function(r){return r.map(R);}),Ra=aisleRings?aisleRings.map(function(r){return r.map(R);}):Rp;
+    var x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+    Rp[0].forEach(function(p){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});
+    var H=y1-y0,offs=[],seen={},step=quick?4:1,fr={co:co,si:si,Ra:Ra,x0:x0,x1:x1};
+    function addO(o){o=((o%per)+per)%per;var k=Math.round(o*100);if(!seen[k]){seen[k]=1;offs.push(o);}}
+    [0,D,D+A,H,H-D-A,H-D].forEach(addO);for(var o=step;o<per;o+=step)addO(o);
+    offs.forEach(function(off){
+      var segs=[],tot=0;
+      for(var y=y0-per+off;y<y1;y+=per){
+        var a0=y+D,a1=a0+A,IA=bandFree(Ra,a0,a1);if(!IA.length)continue;
+        var I1=a0>y0+1?ivAnd(bandFree(Rp,y,a0),IA):[],I2=a1<y1-1?ivAnd(bandFree(Rp,a1,a1+D),IA):[];
+        if(!I1.length&&!I2.length)continue;
+        for(var ji=0;ji<IA.length;ji++){
+          var J=IA[ji],s={y0:a0,y1:a1,a:J[0],b:J[1],rows:[],n:0},two=[[I1,y,-1],[I2,a1,1]];
+          for(var q=0;q<2;q++){
+            var iv=two[q][0].filter(function(v){return v[0]>=J[0]-1e-6&&v[1]<=J[1]+1e-6&&v[1]-v[0]>=need;});
+            if(iv.length){s.rows.push({y0:two[q][1],y1:two[q][1]+D,side:two[q][2],ivs:iv});s.n+=cnt(iv);}
+          }
+          if(s.n){segs.push(s);tot+=s.n;}
+        }
+      }
+      if(tot)cands.push({fr:fr,segs:segs,tot:tot});
+    });
+  });
+  if(!cands.length)return null;
+  cands.sort(function(p,q){return q.tot-p.tot;});
+  // Which aisles can be driven to, adding cross aisles while each one gains more stalls than it removes
+  function link(c,useRoad){
+    var f=c.fr,co=f.co,si=f.si,segs=c.segs,blocks=[];
+    function inRoad(x,y){return pointInAny([x*co-y*si,x*si+y*co],roads);}
+    segs.forEach(function(s){
+      s.ok=s.rl=s.rh=false;if(!useRoad)return;
+      var ys=[s.y0+A*0.25,s.y0+A*0.5,s.y0+A*0.75];
+      s.rl=ys.some(function(y){return inRoad(s.a-1.5,y)||inRoad(s.a-5,y);});
+      s.rh=ys.some(function(y){return inRoad(s.b+1.5,y)||inRoad(s.b+5,y);});
+      s.ok=s.rl||s.rh;
+      if(!s.ok&&cfg.road)for(var x=s.a+1;x<s.b;x+=5)if(inRoad(x,ys[1])){s.ok=true;break;}
+    });
+    if(!useRoad){var big=segs[0];segs.forEach(function(s){if(s.n>big.n)big=s;});big.ok=true;}
+    function rowIvs(r){var bx=[];for(var k=0;k<blocks.length;k++){var b=blocks[k];if(b.y0<r.y1-0.05&&b.y1>r.y0+0.05)bx.push([b.x0,b.x1]);}return bx.length?ivCut(r.ivs,bx):r.ivs;}
+    function score(){var t=0;segs.forEach(function(s){if(s.ok)s.rows.forEach(function(r){t+=cnt(rowIvs(r));});});return t;}
+    var cur=score();
+    for(var round=0;round<(quick?2:3);round++){
+      if(!segs.some(function(s){return !s.ok;}))break;
+      var xs=[],gs=Math.max(quick?10:5,(f.x1-f.x0)/(quick?16:32)),pick=null;
+      segs.forEach(function(s){xs.push(s.a,s.b-A);});
+      for(var x=f.x0;x<=f.x1-A;x+=gs)xs.push(x);
+      xs.forEach(function(xc){
+        bandFree(f.Ra,xc,xc+A,1).forEach(function(K){
+          var mem=segs.filter(function(s){return s.y0>=K[0]-0.05&&s.y1<=K[1]+0.05&&s.a<=xc+0.05&&s.b>=xc+A-0.05;});
+          var un=mem.filter(function(s){return !s.ok;});if(!un.length)return;
+          var lo=Infinity,hi=-Infinity,an=[];
+          un.forEach(function(s){lo=Math.min(lo,s.y0);hi=Math.max(hi,s.y1);});
+          mem.forEach(function(s){if(s.ok)an.push([s.y0,s.y1]);});
+          if(useRoad){
+            var xm=xc+A/2;
+            if(inRoad(xm,K[0]-1.5)||inRoad(xm,K[0]-5))an.push([K[0],K[0]]);
+            if(inRoad(xm,K[1]+1.5)||inRoad(xm,K[1]+5))an.push([K[1],K[1]]);
+            if(cfg.road)for(var y=K[0]+1;y<K[1];y+=4)if(inRoad(xm,y))an.push([y,y]);
+          }
+          var bd=Infinity,ba=null;an.forEach(function(q){var d=Math.max(0,lo-q[1],q[0]-hi);if(d<bd){bd=d;ba=q;}});
+          if(!ba)return;
+          var blk={x0:xc,x1:xc+A,y0:Math.min(lo,ba[0]),y1:Math.max(hi,ba[1])};
+          blocks.push(blk);un.forEach(function(s){s.ok=true;});
+          var sc=score();
+          un.forEach(function(s){s.ok=false;});blocks.pop();
+          if(sc>cur&&(!pick||sc>pick.sc||(sc===pick.sc&&blk.y1-blk.y0<pick.blk.y1-pick.blk.y0)))pick={sc:sc,blk:blk,un:un};
+        });
+      });
+      if(!pick)break;
+      blocks.push(pick.blk);pick.un.forEach(function(s){s.ok=true;});cur=pick.sc;
+    }
+    return {c:c,score:cur,blocks:blocks};
+  }
+  function run(useRoad){
+    var best=null;
+    // between arrangements with the same count, the simpler one wins: fewer cross aisles, then fewer aisles
+    function fuss(r){var n=0;r.c.segs.forEach(function(s){if(s.ok)n++;});return r.blocks.length*100+n;}
+    for(var ci=0;ci<cands.length;ci++){
+      if(best&&cands[ci].tot<best.score)break;
+      var r=link(cands[ci],useRoad);
+      if(!best||r.score>best.score||(r.score===best.score&&r.score>0&&fuss(r)<fuss(best))){best=r;best.keep=r.c.segs.map(function(s){return [s.ok,s.rl,s.rh];});}
+    }
+    if(best)best.c.segs.forEach(function(s,i){s.ok=best.keep[i][0];s.rl=best.keep[i][1];s.rh=best.keep[i][2];});
+    return best;
+  }
+  var road=roads.length>0,best=run(road);
+  if(road&&!best.score){road=false;best=run(false);}
+  if(!best.score)return null;
+  // the winner, turned back into place
+  var f=best.c.fr,co=f.co,si=f.si,out={stalls:[],aisles:[],count:0,lost:0,road:road};
+  function U(x,y){return [x*co-y*si,x*si+y*co];}
+  function onRoad(x,y){return roads.length>0&&pointInAny(U(x,y),roads);}
+  best.c.segs.forEach(function(s){
+    if(!s.ok){out.lost+=s.n;return;}
+    var lo=Infinity,hi=-Infinity,ym=(s.y0+s.y1)/2;
+    s.rows.forEach(function(row){
+      var bx=[];best.blocks.forEach(function(b){if(b.y0<row.y1-0.05&&b.y1>row.y0+0.05)bx.push([b.x0,b.x1]);});
+      (bx.length?ivCut(row.ivs,bx):row.ivs).forEach(function(v){
+        var n=Math.floor((v[1]-v[0]-shift)/pitch+1e-6);if(n<1)return;
+        var st=v[0]+(v[1]-v[0]-(n*pitch+shift))/2,yf=row.side<0?row.y1:row.y0,yb=row.side<0?row.y0:row.y1;
+        for(var k=0;k<n;k++){var x=st+k*pitch;out.stalls.push([U(x,yf),U(x+pitch,yf),U(x+pitch+shift,yb),U(x+shift,yb)]);}
+        lo=Math.min(lo,st);hi=Math.max(hi,st+n*pitch+shift);out.count+=n;
+      });
+    });
+    if(hi<lo)return;
+    // the aisle runs the length of its stalls, and on to the road or cross aisle that feeds it
+    var x,e0=lo,e1=hi,hit=false;
+    for(x=lo;x>=s.a;x-=2)if(onRoad(x,ym)){e0=x;hit=true;break;}
+    if(!hit&&s.rl)e0=s.a;
+    hit=false;for(x=hi;x<=s.b;x+=2)if(onRoad(x,ym)){e1=x;hit=true;break;}
+    if(!hit&&s.rh)e1=s.b;
+    best.blocks.forEach(function(b){if(b.y0<=s.y0+0.05&&b.y1>=s.y1-0.05&&b.x0>=s.a-0.05&&b.x1<=s.b+0.05){e0=Math.min(e0,b.x0);e1=Math.max(e1,b.x1);}});
+    if(e1-e0>1&&!onRoad((e0+e1)/2,ym))out.aisles.push([U(e0,s.y0),U(e1,s.y0),U(e1,s.y1),U(e0,s.y1)]);
+  });
+  best.blocks.forEach(function(b){out.aisles.push([U(b.x0,b.y0),U(b.x1,b.y0),U(b.x1,b.y1),U(b.x0,b.y1)]);});
+  return out;
+}
+function ringBB(r){var b=[Infinity,Infinity,-Infinity,-Infinity];r.forEach(function(p){if(p[0]<b[0])b[0]=p[0];if(p[1]<b[1])b[1]=p[1];if(p[0]>b[2])b[2]=p[0];if(p[1]>b[3])b[3]=p[1];});return b;}
+// The layout of one parking area: {on, stalls, aisles, count, sf (paved, inside the site), parts, noRoad, cut, lost}
+function parkGeom(a){
+  var res={on:false,stalls:[],aisles:[],count:0,sf:0,parts:0,noRoad:0,cut:false,lost:0};
+  if(a.kind!=='park'||!a.pk||!a.ring||a.ring.length<3)return res;
+  res.on=true;
+  var cfg=parkCfg(a),ctx=S.ctx,bb=ringBB(a.ring),dx=8/ORG.kx,dy=8/ORG.ky;
+  function near(b){return !(b[0]>bb[2]+dx||b[2]<bb[0]-dx||b[1]>bb[3]+dy||b[3]<bb[1]-dy);}
+  // what takes land out of it: buildings and other kinds of area (a planted island, a walk), then roads
+  var solid=[],rd=[],rk=[];
+  S.buildings.forEach(function(b){var r=((ctx&&ctx.rings[b.id])||bldgRingLocal(b)).map(toLL);if(near(ringBB(r)))solid.push(r);});
+  S.areas.forEach(function(o){if(o!==a&&o.kind!=='park'&&o.ring&&o.ring.length>=3&&near(ringBB(o.ring)))solid.push(o.ring);});
+  S.roads.forEach(function(r){
+    var f=roadPoly(r);if(!f)return;
+    var hw=r.width/2+8,b=ringBB(r.pts);
+    if(near([b[0]-hw/ORG.kx,b[1]-hw/ORG.ky,b[2]+hw/ORG.kx,b[3]+hw/ORG.ky])){rd.push(f);rk.push([r.width,r.pts]);}
+  });
+  var key=JSON.stringify([a.ring,cfg,S.siteVer||0,parkQuick?1:0,solid,rk]);
+  if(parkCache.has(key))return parkCache.get(key);
+  if(parkCache.size>80)parkCache.clear();
+  parkCache.set(key,res);
+  var drive=null,use=null,roadIn=null;
+  try{
+    drive=S.site?turf.intersect(areaFeat(a),S.site):areaFeat(a);
+    solid.forEach(function(r){if(drive)drive=turf.difference(drive,turf.polygon([closeRing(r)]));});
+    use=drive;rd.forEach(function(f){if(use)use=turf.difference(use,f);});
+    if(cfg.road&&drive&&use)roadIn=turf.difference(drive,use);
+  }catch(e){console.warn('parking area',e);res.bad=true;return res;}
+  if(!use)return res;
+  res.sf=areaOf(use);res.cut=rd.length>0&&areaOf(drive)-res.sf>20;
+  function loc(pl){return pl.map(function(r){var q=r.map(toLocal);q.pop();return q;});}
+  var roads=[];rd.forEach(function(f){polysOf(f).forEach(function(pl){roads.push(loc(pl));});});
+  polysOf(use).forEach(function(pl){
+    var pc=loc(pl);if(Math.abs(polyAreaSigned(pc[0]))<cfg.w*cfg.d*2)return;
+    var rn=roads.filter(function(rp){return minRingDist(pc[0],rp[0]).d<6;}),ar=null;
+    // where stalls may open onto the road, an aisle can be the road itself: this piece plus the road inside the outline
+    if(roadIn&&rn.length){
+      try{ar=[];polysOf(turf.union(turf.polygon(pl),roadIn)).forEach(function(q){loc(q).forEach(function(r){ar.push(r);});});}catch(e){ar=null;}
+    }
+    var s=parkSolve(pc,ar,rn,cfg,parkQuick);
+    if(!s)return;
+    res.parts++;res.count+=s.count;res.lost+=s.lost;if(!s.road)res.noRoad++;
+    s.stalls.forEach(function(q){res.stalls.push(q);});s.aisles.forEach(function(q){res.aisles.push(q);});
+  });
   return res;
 }
 function bType(b){return TYPES[b.type]||TYPES.sf;}
@@ -1010,14 +1264,17 @@ function computeStats(checks){
   S.buildings.forEach(function(b){var f=fpOf(b);st.fp+=f;st.gfa+=f*b.st;st.units+=unitsOf(b);st.comm+=commSf(b);});
   var ru=null;S.roads.forEach(function(r){var f=roadPoly(r);if(!f)return;try{ru=ru?turf.union(ru,f):f;}catch(e){}});
   if(ru)st.roadSf=areaInSite(ru);
+  // a laid-out parking area counts its drawn stalls and only its own paving (roads, buildings and islands in it are
+  // counted where they belong); one without a layout is estimated from its square footage
+  st.areaStalls=0;var estSf=0;
   S.areas.forEach(function(a){
-    var sf=areaInSite(areaFeat(a)),k=a.kind;
-    if(k==='park')st.parkSf+=sf;else if(k==='hard')st.hardSf+=sf;else if(k==='pond')st.pondSf+=sf;else st.greenSf+=sf;
+    var k=a.kind,pg=k==='park'?S.parkG[a.id]:null,laid=!!(pg&&pg.on&&!pg.bad),sf=laid?pg.sf:areaInSite(areaFeat(a));
+    if(k==='park'){st.parkSf+=sf;if(laid)st.areaStalls+=pg.count;else estSf+=sf;}else if(k==='hard')st.hardSf+=sf;else if(k==='pond')st.pondSf+=sf;else st.greenSf+=sf;
   });
   st.lotStalls=0;st.lotSf=0;
   S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g)return;st.lotStalls+=g.count;st.lotSf+=(g.aisle?areaInSite(g.aisle):0)+g.stallSf;});
   var rq=0,re=0;S.buildings.forEach(function(b){var q=parkReq(b);rq+=q.n;re+=q.enc;});st.reqStalls=codeRound(rq);st.reqEnclosed=Math.round(re);
-  st.provStalls=Math.floor(st.parkSf/S.set.stall)+st.lotStalls;
+  st.provStalls=Math.floor(estSf/S.set.stall)+st.areaStalls+st.lotStalls;
   st.imperv=st.fp+st.roadSf+st.parkSf+st.hardSf+st.lotSf;
   st.acres=st.siteSf/ACRE;
   st.flags=checks.reduce(function(n,c){return n+c.msgs.length;},0)+(S.terr?S.terr.msgs.length:0)+(S.plotInfo?S.plotInfo.msgs.length:0);
@@ -1082,7 +1339,15 @@ function renderMap(){
     var poly=L.polygon(a.ring.map(ll2),{pane:'pAreas',className:'obj-path',color:k.color,weight:selIs('a',a.id)?3:1.5,fillColor:k.color,fillOpacity:.5}).addTo(gAreas);
     poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('a',a.id);else select({k:'a',id:a.id});L.DomEvent.stopPropagation(e);}});
     poly.on('mousedown',function(e){groupDown('a',a.id,e);});
-    poly.bindTooltip(esc(a.name||k.name),{sticky:true});
+    var pg=S.parkG[a.id];
+    poly.bindTooltip(esc((a.name||k.name)+(pg&&pg.on?' · '+pg.count+' stalls':'')),{sticky:true});
+    if(!pg||!pg.on)return;
+    // a laid-out parking area: its aisles, its stalls and the count
+    function wire(p){p.on('click',function(e){poly.fire('click',e);});p.on('mousedown',function(e){groupDown('a',a.id,e);});p.bindTooltip(esc((a.name||k.name)+' · '+pg.count+' stalls'),{sticky:true});}
+    if(pg.aisles.length)wire(L.polygon(pg.aisles.map(function(r){return r.map(toLL).map(ll2);}),{pane:'pLots',className:'obj-path',stroke:false,fillColor:'#3b4249',fillOpacity:.8}).addTo(gAreas));
+    if(pg.stalls.length)wire(L.polygon(pg.stalls.map(function(r){return r.map(toLL).map(ll2);}),{pane:'pLots',className:'obj-path',color:'#f8f9fa',weight:1.3,fillColor:'#4a525a',fillOpacity:.6}).addTo(gAreas));
+    var lc=polyCentroid(a.ring.map(toLocal));
+    L.marker(ll2(toLL(lc)),{pane:'pFence',interactive:false,icon:L.divIcon({className:'blabel',iconSize:[110,30],iconAnchor:[55,15],html:pg.count+' stalls'})}).addTo(gAreas);
   });
   // roads
   S.roads.forEach(function(r){
@@ -1097,7 +1362,7 @@ function renderMap(){
   S.lots.forEach(function(l){
     var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;var sel=selIs('p',l.id);
     function lotClick(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('p',l.id);else select({k:'p',id:l.id});L.DomEvent.stopPropagation(e);}}
-    function wire(poly){poly.on('click',lotClick);poly.on('mousedown',function(e){groupDown('p',l.id,e);});poly.bindTooltip(esc((l.name||'Parking lot')+' · '+g.count+' stalls'),{sticky:true});}
+    function wire(poly){poly.on('click',lotClick);poly.on('mousedown',function(e){groupDown('p',l.id,e);});poly.bindTooltip(esc((l.name||'Parking row')+' · '+g.count+' stalls'),{sticky:true});}
     if(g.aisle)wire(L.polygon(ringsToLatLngs(polysOf(g.aisle)),{pane:'pLots',className:'obj-path',color:sel?'#ffffff':'#495057',weight:sel?3:1.5,fillColor:'#3b4249',fillOpacity:.85}).addTo(gRoads));
     if(g.stalls.length)wire(L.polygon(g.stalls.map(function(r){return r.map(toLL).map(ll2);}),{pane:'pLots',className:'obj-path',color:'#f8f9fa',weight:1.3,fillColor:'#4a525a',fillOpacity:.6}).addTo(gRoads));
     L.polyline(l.pts.map(ll2),{pane:'pLots',color:'#adb5bd',weight:1,dashArray:'3 6',interactive:false}).addTo(gRoads);
@@ -1160,7 +1425,7 @@ function renderPanels(){
     stat('Units',n0(st.units),st.acres?n1(dens)+' per acre':'')+
     stat('Floor area',n0(st.gfa)+' sf',st.comm?n0(st.comm)+' sf commercial':'gross, all floors')+
     stat('Impervious',st.siteSf?n1(imp)+'%':'—',n0(st.imperv)+' sf')+
-    stat('Parking',st.provStalls+' / '+st.reqStalls,(parkOk?'stalls provided / required':'short by '+(st.reqStalls-st.provStalls))+(st.lotStalls?' · '+st.lotStalls+' striped':'')+(st.reqEnclosed?' · '+st.reqEnclosed+' of the required must be enclosed':''),st.reqStalls?(parkOk?'good':'bad'):'');
+    stat('Parking',st.provStalls+' / '+st.reqStalls,(parkOk?'stalls provided / required':'short by '+(st.reqStalls-st.provStalls))+(st.lotStalls+st.areaStalls?' · '+(st.lotStalls+st.areaStalls)+' striped':'')+(st.reqEnclosed?' · '+st.reqEnclosed+' of the required must be enclosed':''),st.reqStalls?(parkOk?'good':'bad'):'');
   var n=S.parcels?S.parcels.features.length:0;
   $('#parcelSummary').textContent=n?(n+' parcels loaded, '+S.selected.size+' picked, '+S.carved.size+' carved out'+(S.carveShapes.length?', '+S.carveShapes.length+' carved shape(s)':'')+'.'+(siteWarn?' '+siteWarn+' parcel shape(s) could not be merged and were left out, so check the site outline.':'')):'No parcels loaded yet.';
   // checks
@@ -1176,6 +1441,7 @@ function renderPanels(){
   else if(st.provStalls>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
   if(st.reqStalls&&!st.comm&&st.provStalls>st.reqStalls*1.5+1e-9)pn.push('Open residential parking is capped at 150% of required ('+Math.floor(st.reqStalls*1.5)+') unless approved as a conditional use (§1183.08(a)).');
   if(st.reqStalls&&st.units&&st.comm)pn.push('Mixed residential and commercial use: required spaces are added together unless the Commission approves shared parking (up to 50%, §1183.06(b)).');
+  S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on&&pg.count&&pg.noRoad)pn.push((a.name||'Parking')+': no road reaches '+(pg.parts>1?'part of it':'it')+'. Draw a road to its edge, or through it, so cars can get in.');});
   pn.forEach(function(m){html+='<div class="note" style="margin-top:4px">'+esc(m)+'</div>';});
   $('#checks').innerHTML=html;
   // schedule
@@ -1201,7 +1467,7 @@ function renderOffsetTable(){
   if(c.minProp!==null)html+='<div class="note" style="margin-top:4px">Closest point to a property line: '+ftf(c.minProp)+'</div>';
   $('#iOffs').innerHTML=html;
 }
-function siteChanged(){S.site=computeSite();computePlots();restyleParcels();renderAll();}
+function siteChanged(){S.site=computeSite();S.siteVer=(S.siteVer||0)+1;computePlots();restyleParcels();renderAll();}
 // Lots: the site cut along each lot line. A hair-thin strip is taken out along the line (each end run 3 ft further,
 // so a line that stops on the boundary still cuts through); every piece left is a lot. Fewer than two pieces = no lots.
 function computePlots(){
@@ -1260,7 +1526,9 @@ function renderAll(){
   if(V3&&V3.on)schedule3D();
 }
 function renderLight(){ // during drags: no stats recompute beyond checks
-  buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);renderMap();if(!S.snapSkip)renderHandles();renderPanels();
+  parkQuick=true; // parking areas get a coarser search while something is being dragged; the full one runs on release
+  try{buildCtx();S.checks=computeChecks();S.stats=computeStats(S.checks);renderMap();if(!S.snapSkip)renderHandles();renderPanels();}
+  finally{parkQuick=false;}
 }
 
 // ---------- selection and inspector ----------
@@ -1331,7 +1599,18 @@ function fillInspector(){
     setv('#fName',o.name||'');setv('#fStyle',fenceKind(o));setv('#fH',o.h);$('#fClosed').checked=!!o.closed;$('#fClosed').disabled=o.pts.length<3;
     var fl=fenceLen(o);$('#fInfo').textContent=n0(fl)+' ft long · '+(o.closed?o.pts.length:o.pts.length-1)+(((o.closed?o.pts.length:o.pts.length-1)===1)?' run':' runs')+' · about '+(Math.max(1,Math.round(fl/8))+(o.closed?0:1))+' posts at 8 ft';
   }
-  else{setv('#aName',o.name||'');setv('#aKind',o.kind);fillModelSelect($('#aPlant'),'tree',o.pm&&o.pm.m,'None');setv('#aDens',o.pm&&o.pm.d!=null?o.pm.d:6);$('#aInfo').textContent=n0(areaOf(areaFeat(o)))+' sf'+angTxt([{k:'a',id:o.id,o:o}]);}
+  else{
+    setv('#aName',o.name||'');setv('#aKind',o.kind);fillModelSelect($('#aPlant'),'tree',o.pm&&o.pm.m,'None');setv('#aDens',o.pm&&o.pm.d!=null?o.pm.d:6);
+    var isP=o.kind==='park',lay=isP&&!!o.pk,pg=lay?S.parkG[o.id]:null,info=n0(areaOf(areaFeat(o)))+' sf';
+    $('#aPark').hidden=!isP;$('#aPlantRow').hidden=lay;$$('#aPark .a-lay').forEach(function(e){e.hidden=!lay;});
+    if(isP)setv('#aLay',lay?'lay':'est');
+    if(lay){
+      var pc=parkCfg(o);setv('#aAng',String(pc.ang));setv('#aSW',pc.w);setv('#aSD',pc.d);setv('#aAisle',pc.aisle);$('#aOnRoad').checked=pc.road;
+      fillModelSelect($('#aCars'),'car',o.pc&&o.pc.m,'None');setv('#aFill',o.pc&&o.pc.f!=null?o.pc.f:70);
+      if(pg)info=parkText(o,pg);
+    }else if(isP)info+=' · about '+Math.floor(areaInSite(areaFeat(o))/S.set.stall)+' stalls at '+n0(S.set.stall)+' sf each (set on the Check tab)';
+    $('#aInfo').textContent=info+angTxt([{k:'a',id:o.id,o:o}]);
+  }
 }
 function deleteSel(){
   if(S.multi.length>=2){deleteGroup();return;}
@@ -1352,6 +1631,7 @@ var HINTS={
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
   building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
   area:'Click corners of the area. Double-click or press Enter to finish.',
+  parkarea:'Click the corners of the parking area, then double-click or press Enter. Stalls and aisles are laid out to fit the most cars; a road drawn through it is kept clear.',
   fence:'Click along the fence line. Click the first corner again to close it into a loop, or double-click / press Enter to finish.',
   bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
 };
@@ -1364,10 +1644,11 @@ function updateDrawbar(){
   if(on)$('#angMode').value=S.angMode[S.tool]||'free';
 }
 // Cut out lot is the Split lots tool drawing a shape, so it has no tool of its own: it lights up whenever that is what is drawn
-function markTools(){var on=S.tool==='split'&&S.splitMode==='shape'?'cutlot':S.tool;$$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===on);});}
-function hintFor(t){return t==='split'&&S.splitMode==='shape'?HINTS.cutlot:HINTS[t];}
+function markTools(){var on=S.tool==='split'&&S.splitMode==='shape'?'cutlot':(S.tool==='area'&&S.areaKind==='park'?'parkarea':S.tool);$$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===on);});}
+function hintFor(t){return t==='split'&&S.splitMode==='shape'?HINTS.cutlot:(t==='area'&&S.areaKind==='park'?HINTS.parkarea:HINTS[t]);}
 function setTool(t){
   if(t==='cutlot'){S.splitMode='shape';t='split';}
+  if(t==='parkarea'){S.areaKind='park';$('#areaKind').value='park';t='area';} // Parking area is the Area tool drawing parking
   cancelDraw();S.tool=t;
   markTools();
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
@@ -1517,7 +1798,7 @@ function finishDraw(){
     else flash('The site is now '+S.plots.length+' lots. Choose Select and click a lot to see what fits on it.');
   }else if(kind==='lot'&&pts.length>=2){
     pushUndo();var lid=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;
-    S.lots.push(Object.assign({id:lid,name:'Parking lot '+S.counters.lot,pts:pts},S.lotCfg));S.sel={k:'p',id:lid};S.multi=[];cancelDraw();renderAll();
+    S.lots.push(Object.assign({id:lid,name:'Parking row '+S.counters.lot,pts:pts},S.lotCfg));S.sel={k:'p',id:lid};S.multi=[];cancelDraw();renderAll();
   }else if(kind==='bpoly'&&pts.length>=3){
     var f0=pts[0],l0=pts[pts.length-1];if(f0[0]===l0[0]&&f0[1]===l0[1])pts.pop();
     if(pts.length>=3&&Math.abs(polyAreaSigned(pts.map(toLocal)))>20){
@@ -1525,7 +1806,12 @@ function finishDraw(){
     }else cancelDraw();
   }else if((kind==='area'||kind==='carvepoly')&&pts.length>=3){
     pushUndo();
-    if(kind==='area'){var id2=S.nextId++;S.areas.push({id:id2,kind:S.areaKind,name:AREAS[S.areaKind].name,ring:pts});cancelDraw();renderAll();}
+    if(kind==='area'){
+      var id2=S.nextId++,na={id:id2,kind:S.areaKind,name:AREAS[S.areaKind].name,ring:pts};
+      // a parking area lays itself out, and is selected so its stall count and settings show
+      if(na.kind==='park'){S.counters.park=(S.counters.park||0)+1;na.name='Parking '+S.counters.park;na.pk=Object.assign({},S.parkCfg);S.sel={k:'a',id:id2};S.multi=[];}
+      S.areas.push(na);cancelDraw();renderAll();
+    }
     else{S.carveShapes.push({id:S.nextId++,ring:pts});cancelDraw();siteChanged();}
   }else{cancelDraw();}
 }
@@ -1791,12 +2077,28 @@ $('#iAlign').addEventListener('click',function(){
 $('#rName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#rName').value;});});
 $('#rWidth').addEventListener('input',function(){inspUpdate(function(o){o.width=Math.max(6,num($('#rWidth'),o.width));});});
 $('#aName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#aName').value;});});
-$('#aKind').addEventListener('change',function(){inspUpdate(function(o){o.kind=$('#aKind').value;});});
+$('#aKind').addEventListener('change',function(){inspUpdate(function(o){o.kind=$('#aKind').value;if(o.kind==='park'&&!o.pk)o.pk=Object.assign({},S.parkCfg);});});
+// parking area layout: on or off, stall size, angle, aisle. The settings last used are the defaults for the next area drawn.
+function parkEdit(fn){inspUpdate(function(o){if(o.kind!=='park')return;if(!o.pk)o.pk=Object.assign({},S.parkCfg);fn(o.pk);var c=parkCfg(o);S.parkCfg={ang:c.ang,w:c.w,d:c.d,aisle:c.aisle};});}
+$('#aLay').addEventListener('change',function(){var lay=this.value==='lay';inspUpdate(function(o){if(lay){if(!o.pk)o.pk=Object.assign({},S.parkCfg);}else delete o.pk;});});
+$('#aAng').addEventListener('change',function(){var v=+this.value;parkEdit(function(k){var was=parkCfg({pk:k});k.ang=v;if(was.aisle===PARK_AISLE[was.ang])k.aisle=PARK_AISLE[v]||24;});});
+[['#aSW','w',7],['#aSD','d',12],['#aAisle','aisle',10]].forEach(function(f){$(f[0]).addEventListener('input',function(){var v=parseFloat(this.value);if(!(v>=f[2]))return;parkEdit(function(k){k[f[1]]=v;});});});
+$('#aOnRoad').addEventListener('change',function(){var on=this.checked;parkEdit(function(k){if(on)k.road=true;else delete k.road;});});
+// what the inspector says about a laid-out parking area
+function parkText(a,pg){
+  if(pg.bad)return 'This outline crosses itself, so stalls cannot be laid out. Drag a corner to untangle it.';
+  var c=parkCfg(a),t=pg.count+(pg.count===1?' stall':' stalls')+' · '+n0(pg.sf)+' sf paved'+(pg.count?' · '+n0(pg.sf/pg.count)+' sf per stall':'');
+  if(pg.cut)t+=' · the road through it is kept clear'+(pg.parts>1?', leaving '+pg.parts+' parts':'');
+  if(!pg.count)t+=' · nothing fits yet: one row of stalls with its aisle needs '+n0(c.d+c.aisle)+' ft of depth';
+  else if(pg.noRoad)t+=' · no road reaches '+(pg.parts>1?pg.noRoad+' of its '+pg.parts+' parts':'it')+': draw a road to its edge, or through it, so cars can get in';
+  if(pg.lost)t+=' · '+pg.lost+' more would fit, but no aisle reaches them';
+  return t;
+}
 
 // road and area defaults, snapping
 $('#roadPreset').addEventListener('change',function(){var v=parseFloat($('#roadPreset').value);if(v>0){S.roadW=v;$('#roadW').value=v;}});
 $('#roadW').addEventListener('input',function(){S.roadW=Math.max(6,num($('#roadW'),26));});
-$('#areaKind').addEventListener('change',function(){S.areaKind=$('#areaKind').value;});
+$('#areaKind').addEventListener('change',function(){S.areaKind=$('#areaKind').value;markTools();if(S.tool==='area')$('#hint').textContent=hintFor('area');});
 // fences: the defaults for new ones, and the selected one
 Object.keys(FENCES).forEach(function(k){[$('#fenceStyle'),$('#fStyle')].forEach(function(sel){var o=document.createElement('option');o.value=k;o.textContent=FENCES[k].name;sel.appendChild(o);});});
 $('#fenceStyle').value=S.fenceCfg.style;
@@ -1922,12 +2224,13 @@ function demoProject(){
   ingestParcels({features:feats});
   for(var r2=0;r2<rows;r2++)for(var c2=0;c2<4;c2++)S.selected.add(String(r2*cols+c2+1));
   S.carved.add(String(1*cols+2+1));
-  S.roads=[{id:1,name:'Private drive',width:24,pts:[toLL([-300,-75]),toLL([-120,-75])]}];
+  // the drive runs on through the top of the parking area, so its aisles open onto it
+  S.roads=[{id:1,name:'Private drive',width:24,pts:[[-300,-75],[-125,-75],[-95,-102],[83,-102]].map(toLL)}];
   var bs=[];
   function mk(t,x,y,w2,d2,st,rot){var b=newBuilding(t,w2,d2,st,rot,toLL([x,y]));bs.push(b);}
   mk('th',-240,-170,88,42,3,0);mk('th',-130,-170,88,42,3,0);mk('mu',-50,150,60,90,3,90);mk('sf',-240,-20,42,55,2,0);
   S.buildings=bs;
-  S.areas=[{id:S.nextId++,kind:'park',name:'Parking',ring:[[-65,-215],[95,-215],[95,-90],[-65,-90]].map(toLL)},
+  S.areas=[{id:S.nextId++,kind:'park',name:'Parking',pk:{ang:90,w:10,d:20,aisle:24},ring:[[-65,-215],[95,-215],[95,-90],[-65,-90]].map(toLL)},
            {id:S.nextId++,kind:'land',name:'Landscaping',ring:[[-300,60],[-200,60],[-200,225],[-300,225]].map(toLL)}];
   S.demo=true;S.sel=null;S.multi=[];
   map.setView([c.lat,c.lng],17.5);
@@ -1991,7 +2294,18 @@ function exportFeatures(){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
     feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
-  S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
+  S.areas.forEach(function(a){
+    var p={kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))},pg=S.parkG[a.id];
+    if(pg&&pg.on){
+      var c=parkCfg(a);
+      Object.assign(p,{stalls:pg.count,pavedSf:Math.round(pg.sf),stallAngleDeg:c.ang,stallWidthFt:c.w,stallDepthFt:c.d,aisleWidthFt:c.aisle,stallsOnRoad:c.road,carModel:a.pc?a.pc.m:null,carFill:a.pc?a.pc.f:null});
+    }
+    feats.push(turf.polygon([closeRing(a.ring)],p));
+    if(pg&&pg.on){
+      pg.aisles.forEach(function(r){feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_aisle',area:a.name,aisleWidthFt:p.aisleWidthFt}));});
+      pg.stalls.forEach(function(r,i){feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_stall',area:a.name,stall:i+1,widthFt:p.stallWidthFt,depthFt:p.stallDepthFt,angleDeg:p.stallAngleDeg}));});
+    }
+  });
   S.fences.forEach(function(f){if(f.pts.length>=2)feats.push(turf.lineString(fencePath(f),{kind:'fence',name:f.name,fenceStyle:fenceKind(f),styleName:FENCES[fenceKind(f)].name,heightFt:+f.h||FENCES[fenceKind(f)].h,lengthFt:Math.round(fenceLen(f)),closed:!!f.closed}));});
   return feats;
 }
@@ -2002,6 +2316,8 @@ $('#xCsv').addEventListener('click',function(){
   var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);S.plots.forEach(function(p){rows.push([p.name+' area sf',Math.round(p.sf)]);});
   rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
   rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
+  S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on)rows.push([(a.name||'Parking')+' stalls',pg.count]);});
+  if(st.areaStalls)rows.push(['Laid-out stalls (parking areas)',st.areaStalls]);
   if(S.fences.length){S.fences.forEach(function(f){rows.push([(f.name||'Fence')+' ('+FENCES[fenceKind(f)].name+', '+(+f.h||0)+' ft high) length ft',Math.round(fenceLen(f))]);});rows.push(['Fence length ft',Math.round(fenceTotal())]);}
   if(S.terr){rows.push(['Building pad cut cy',Math.round(S.terr.cut)]);rows.push(['Building pad fill cy',Math.round(S.terr.fill)]);}
   download('building-schedule.csv',rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n'),'text/csv');
@@ -2028,7 +2344,7 @@ function dxfText(){
   S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(function(ring){ents.push(poly('PARKING',ring.slice(0,-1),true));});});g.stalls.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});});
   S.buildings.forEach(function(b){ents.push(poly('BUILDINGS',S.ctx.rings[b.id].map(toLL),true));ents.push(text('LABELS',b.c,4,b.name+' '+n0(fpOf(b))+' SF'));});
   var amap={park:'PARKING',land:'LANDSCAPE',open:'OPENSPACE',pond:'STORMWATER',hard:'HARDSCAPE'};
-  S.areas.forEach(function(a){ents.push(poly(amap[a.kind],a.ring,true));});
+  S.areas.forEach(function(a){ents.push(poly(amap[a.kind],a.ring,true));var pg=S.parkG[a.id];if(pg&&pg.on)pg.stalls.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});});
   S.fences.forEach(function(f){if(f.pts.length>=2)ents.push(poly('FENCES',f.pts,!!f.closed&&f.pts.length>=3));});
   var s='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n70\n1\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n';
   s+='0\nTABLE\n2\nLAYER\n70\n'+Object.keys(layers).length+'\n';
@@ -2104,7 +2420,13 @@ function projectFromGeoJSON(gj){
   o.counters.lot=o.lots.length;
   by('area').forEach(function(f){
     var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
-    var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};o.areas.push(na);
+    var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};
+    if(kind==='park'&&p.stallWidthFt){
+      na.pk={ang:+p.stallAngleDeg||90,w:+p.stallWidthFt,d:+p.stallDepthFt||PARK_DEF.d,aisle:+p.aisleWidthFt||PARK_DEF.aisle};if(p.stallsOnRoad)na.pk.road=true;
+      if(p.carModel)na.pc={m:p.carModel,f:p.carFill==null?70:p.carFill};
+      o.counters.park=(o.counters.park||0)+1;
+    }
+    o.areas.push(na);
   });
   by('fence').forEach(function(f){
     var p=f.properties,q=f.geometry.coordinates,loop=!!p.closed&&q.length>=4,st=FENCES[p.fenceStyle]?p.fenceStyle:'privacy';
@@ -2407,7 +2729,7 @@ function renderSelBar(){
   renderPlotBar();
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
-  $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking lot',f:'Fence'}[S.sel.k]);
+  $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking row',f:'Fence'}[S.sel.k]);
   $('#sbDup').hidden=many||S.sel.k!=='b';
   $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft';
 }
@@ -2460,7 +2782,7 @@ $('#pDel').addEventListener('click',deleteSel);
 $('#pFlip').addEventListener('click',function(){var o=getSel();if(!o||!o.pts)return;pushUndo();o.pts=o.pts.slice().reverse();renderAll();});
 $('#pDup').addEventListener('click',function(){
   var o=getSel();if(!o)return;pushUndo();
-  var c=JSON.parse(JSON.stringify(o));c.id=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;c.name='Parking lot '+S.counters.lot;
+  var c=JSON.parse(JSON.stringify(o));c.id=S.nextId++;S.counters.lot=(S.counters.lot||0)+1;c.name='Parking row '+S.counters.lot;
   var P=c.pts.map(toLocal),dx=P[1][0]-P[0][0],dy=P[1][1]-P[0][1],l=Math.hypot(dx,dy)||1,off=o.aisleW+(o.sides==='both'?2:1)*(o.angle<1?o.stallW:o.stallD)+(o.aisleW?0:2);
   c.pts=c.pts.map(function(q){var p=toLocal(q);return toLL([p[0]-dy/l*off,p[1]+dx/l*off]);});
   S.lots.push(c);S.sel={k:'p',id:c.id};S.multi=[];renderAll();
@@ -2694,8 +3016,15 @@ function terrainChecks(g,res){
     var lg=S.lotG[l.id];if(!lg||!lg.stalls.length)return;
     var over=0,mx=0;
     lg.stalls.forEach(function(q){var s=slopeAt(g,(q[0][0]+q[2][0])/2,(q[0][1]+q[2][1])/2);if(s>mx)mx=s;if(s>S.set.slopePark+0.05)over++;});
-    t.lots.push({name:l.name||'Parking lot',max:mx,over:over,n:lg.stalls.length});
-    if(over/lg.stalls.length>0.1)t.msgs.push({name:l.name||'Parking lot',msg:over+' of '+lg.stalls.length+' stalls sit on existing ground steeper than '+n1(S.set.slopePark)+'% (steepest '+n1(mx)+'%).'});
+    t.lots.push({name:l.name||'Parking row',max:mx,over:over,n:lg.stalls.length});
+    if(over/lg.stalls.length>0.1)t.msgs.push({name:l.name||'Parking row',msg:over+' of '+lg.stalls.length+' stalls sit on existing ground steeper than '+n1(S.set.slopePark)+'% (steepest '+n1(mx)+'%).'});
+  });
+  S.areas.forEach(function(a){
+    var pg=S.parkG[a.id];if(!pg||!pg.stalls.length)return;
+    var over=0,mx=0;
+    pg.stalls.forEach(function(q){var s=slopeAt(g,(q[0][0]+q[2][0])/2,(q[0][1]+q[2][1])/2);if(s>mx)mx=s;if(s>S.set.slopePark+0.05)over++;});
+    t.lots.push({name:a.name||'Parking',max:mx,over:over,n:pg.stalls.length});
+    if(over/pg.stalls.length>0.1)t.msgs.push({name:a.name||'Parking',msg:over+' of '+pg.stalls.length+' stalls sit on existing ground steeper than '+n1(S.set.slopePark)+'% (steepest '+n1(mx)+'%).'});
   });
   return t;
 }
@@ -2980,6 +3309,8 @@ $('#aPlant').addEventListener('change',function(){var v=this.value;inspUpdate(fu
 $('#aDens').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pm&&isFinite(d))o.pm.d=Math.max(0.5,Math.min(40,d));});});
 $('#pCars').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pc={m:v,f:o.pc&&o.pc.f!=null?o.pc.f:70};else delete o.pc;});});
 $('#pFill').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pc&&isFinite(d))o.pc.f=Math.max(0,Math.min(100,d));});});
+$('#aCars').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pc={m:v,f:o.pc&&o.pc.f!=null?o.pc.f:70};else delete o.pc;});});
+$('#aFill').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pc&&isFinite(d))o.pc.f=Math.max(0,Math.min(100,d));});});
 // Where the plants and cars stand, in local feet. Seeded by the object's id, so the same plan always gets the same trees.
 function propPlacements(){
   var P={trees:[],cars:[]},ctx=S.ctx;if(!ctx)return P;
@@ -3000,8 +3331,10 @@ function propPlacements(){
       P.trees.push({m:pm.m,x:x,y:y,rot:R()*Math.PI*2,v:0.8+R()*0.4});
     }
   });
-  S.lots.forEach(function(l){
-    var pc=l.pc,g=S.lotG[l.id];if(!pc||!pc.m||!g||!g.stalls.length)return;
+  // cars: in the stalls of parking rows and of laid-out parking areas
+  var parked=S.lots.map(function(l){return {id:l.id,pc:l.pc,g:S.lotG[l.id]};}).concat(S.areas.map(function(a){return {id:a.id,pc:a.pc,g:S.parkG[a.id]};}));
+  parked.forEach(function(l){
+    var pc=l.pc,g=l.g;if(!pc||!pc.m||!g||!g.stalls.length)return;
     var fill=Math.max(0,Math.min(100,pc.f==null?70:+pc.f))/100,R=rng(l.id*104729+g.stalls.length),N=g.stalls.length,order=[],taken={},k;
     for(k=0;k<N;k++)order.push(k);
     for(k=N-1;k>0;k--){var s=Math.floor(R()*(k+1)),tmp=order[k];order[k]=order[s];order[s]=tmp;} // a seeded shuffle, so exactly this share of stalls is filled
@@ -3556,6 +3889,9 @@ function drapeCanvas(g,box,mode){
   S.lots.forEach(function(l){var gl=S.lotG[l.id];if(!gl)return;
     if(gl.aisle){path(llRings(gl.aisle));c.fillStyle='#3b4249';c.fill('evenodd');}
     gl.stalls.forEach(function(q){path([q]);c.fillStyle='#4a525a';c.fill();c.lineWidth=Math.max(1,sc*0.35);c.strokeStyle='#f8f9fa';c.stroke();});});
+  S.areas.forEach(function(a){var pg=S.parkG[a.id];if(!pg||!pg.on)return;
+    pg.aisles.forEach(function(q){path([q]);c.fillStyle='#3b4249';c.fill();});
+    pg.stalls.forEach(function(q){path([q]);c.fillStyle='#4a525a';c.fill();c.lineWidth=Math.max(1,sc*0.35);c.strokeStyle='#f8f9fa';c.stroke();});});
   if(S.plots.length>=2){path(S.plots.map(function(p){return p.coords[0].map(toLocal);}));c.setLineDash([6*sc,5*sc]);c.lineWidth=Math.max(1.5,sc*0.6);c.strokeStyle='#ffd43b';c.stroke();c.setLineDash([]);}
   if(S.site){path(llRings(S.site));c.setLineDash([10*sc,5*sc]);c.lineWidth=Math.max(2,sc*0.8);c.strokeStyle='#ff4d6d';c.stroke();c.setLineDash([]);}
   return cv;
@@ -3581,7 +3917,7 @@ function info3D(g){
   }else h+='<div class="flag">Terrain unavailable'+(V3.demErr?': '+esc(V3.demErr.message):'')+'. Showing flat ground.</div>';
   // plants, cars and building models in use, and any that cannot be shown
   var PL=propPlacements(),used={},bits=[];
-  S.areas.forEach(function(a){if(a.pm&&a.pm.m)used[a.pm.m]=1;});S.lots.forEach(function(l){if(l.pc&&l.pc.m)used[l.pc.m]=1;});
+  S.areas.forEach(function(a){if(a.pm&&a.pm.m)used[a.pm.m]=1;if(a.pc&&a.pc.m&&S.parkG[a.id])used[a.pc.m]=1;});S.lots.forEach(function(l){if(l.pc&&l.pc.m)used[l.pc.m]=1;});
   var bm=S.buildings.filter(function(b){return b.mod&&!b.pts;});bm.forEach(function(b){used[b.mod]=1;});
   if(PL.trees.length)bits.push(n0(PL.trees.length)+(PL.trees.length===1?' plant':' plants')+(PL.trees.length>1200?' (first 1,200 drawn)':''));
   if(PL.cars.length)bits.push(n0(PL.cars.length)+(PL.cars.length===1?' car':' cars'));
