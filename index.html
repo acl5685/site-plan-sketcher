@@ -128,7 +128,7 @@ td:first-child{font-family:var(--font)}
 #lenBox{width:96px;font-family:var(--mono)}
 #map:not(.tool-select) .obj-path{pointer-events:none!important}
 #map:not(.tool-parcels):not(.tool-carve) .parcel-path{pointer-events:none!important}
-#map.tool-split,#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
+#map.tool-split,#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-fence,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
 .blabel{background:none;border:0;color:#fff;font:500 11px/1.25 var(--font);text-align:center;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;pointer-events:none}
 .dim{background:none;border:0;font:500 11px var(--mono);white-space:nowrap;pointer-events:none;text-align:center}
 .dim span{padding:1px 4px;border-radius:3px;background:rgba(15,20,22,.82);color:#fff;border:1px solid currentColor}
@@ -156,6 +156,7 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
       <button class="tool" data-tool="bpoly" title="Draw any building shape corner by corner">Draw building</button>
       <button class="tool" data-tool="area" title="Draw landscaping, parking or open space">Area</button>
+      <button class="tool" data-tool="fence" title="Draw a fence line; click the first corner again to close it into a loop">Fence</button>
     </div>
     <div class="top-actions">
       <button class="btn" id="view3dBtn" title="See the plan in 3D on lidar terrain (USGS 3DEP)">3D view</button>
@@ -331,6 +332,20 @@ td:first-child{font-family:var(--font)}
         <div class="row" style="margin-top:6px"><button class="btn small" id="aSq" title="Turn so the longest side is parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small danger" id="aDel">Delete area</button></div>
       </div>
 
+      <div id="insF" hidden>
+        <h3>Selected fence</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="fName">Name</label><input type="text" id="fName"></div>
+          <div class="field"><label for="fStyle">Style</label><select id="fStyle"></select></div>
+          <div class="field"><label for="fH">Height ft</label><input type="number" id="fH" min="1" max="20" step="0.5"></div>
+        </div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="fClosed"> Closed loop (the last corner joins back to the first)</label>
+        <div class="note" id="fInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="fRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="fRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="fRotBy">Rotate by °</label><input type="number" id="fRotBy" step="1" placeholder="e.g. 30"></div></div>
+        <div class="row" style="margin-top:6px"><button class="btn small danger" id="fDel">Delete fence</button></div>
+        <div class="note" style="margin-top:4px">Drag the white corner handles on the map to reshape the fence.</div>
+      </div>
+
       <div>
         <h3>Roads</h3>
         <div class="row">
@@ -365,6 +380,15 @@ td:first-child{font-family:var(--font)}
       <div>
         <h3>Areas</h3>
         <div class="field"><label for="areaKind">Draw as</label><select id="areaKind"></select></div>
+      </div>
+      <div>
+        <h3>Fences</h3>
+        <div class="row">
+          <div class="field" style="flex:2 1 120px"><label for="fenceStyle">Style</label><select id="fenceStyle"></select></div>
+          <div class="field"><label for="fenceH">Height ft</label><input type="number" id="fenceH" min="1" max="20" step="0.5" value="6"></div>
+        </div>
+        <div class="note" id="fenceInfo" style="margin-top:4px"></div>
+        <div class="note">Choose Fence, then click along the fence line. Click the first corner again to close it into a loop. To fence a whole lot, choose Select, click inside the lot and use Fence this lot.</div>
       </div>
       <div>
         <h3>Snapping</h3>
@@ -530,6 +554,7 @@ td:first-child{font-family:var(--font)}
       <b id="pbName"></b>
       <span id="pbInfo"></span>
       <button class="btn small primary" id="pbAdd">Add this building</button>
+      <button class="btn small" id="pbFence" title="Put a fence along this lot's lines, in the style and height set under Fences on the Build tab">Fence this lot</button>
       <button class="btn small" id="pbDone" title="Close (Esc)">Done</button>
       <span class="note" id="pbTip"></span>
     </div>
@@ -695,12 +720,12 @@ function closeRing(r){var a=r.slice();if(a.length&&(a[0][0]!==a[a.length-1][0]||
 // ---------- state ----------
 var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
-  roads:[],buildings:[],areas:[],sel:null,
+  roads:[],buildings:[],areas:[],fences:[],fenceCfg:{style:'privacy',h:6},sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
   set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
-  angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free',split:'free'},snapSkip:null,
+  angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',lot:'free',split:'free',fence:'free'},snapSkip:null,
   splits:[],plots:[], // lot lines (or cut-out shapes) drawn on the site, and the lots they cut it into
   splitMode:'line',plotSel:null // what the Split lots tool draws; the lot clicked to see what fits on it
 };
@@ -708,7 +733,7 @@ var undoStack=[],shiftHeld=false,drag=null,D=null,ghostLL=null,raf=0;
 
 // ---------- map ----------
 var map=L.map('map',{doubleClickZoom:false,maxZoom:21,zoomSnap:0.5}).setView([41.3198,-81.6268],17);
-var panes=[['pTerr',402],['pParcels',405],['pAreas',410],['pRoads',415],['pLots',417],['pSite',420],['pBldg',430],['pDims',440],['pDraw',450]];
+var panes=[['pTerr',402],['pParcels',405],['pAreas',410],['pRoads',415],['pLots',417],['pSite',420],['pFence',425],['pBldg',430],['pDims',440],['pDraw',450]];
 panes.forEach(function(p){var e=map.createPane(p[0]);e.style.zIndex=p[1];});
 var baseLayers={
   imagery:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,maxZoom:21,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}),
@@ -724,12 +749,12 @@ function setBase(k){
 }
 
 // ---------- undo / persistence ----------
-function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,nextId:S.nextId,counters:S.counters});}
+function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,fences:S.fences,nextId:S.nextId,counters:S.counters});}
 function pushUndo(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();}
 function restore(str){
   var o=JSON.parse(str);
   S.selected=new Set(o.selected);S.carved=new Set(o.carved);S.carveShapes=o.carveShapes;S.splits=o.splits||[];S.roads=o.roads;
-  S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
+  S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.fences=o.fences||[];S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
   siteChanged();
 }
 function undo(){if(D){D.pts.pop();drawPreview();return;}if(!undoStack.length)return;restore(undoStack.pop());}
@@ -738,7 +763,7 @@ function projectJSON(){
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.push(f);});
   return {v:1,org:[ORG.lng,ORG.lat],labelField:S.labelField,parcels:{type:'FeatureCollection',features:keep},
     selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,buildings:S.buildings,
-    areas:S.areas,lots:S.lots,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
+    areas:S.areas,lots:S.lots,fences:S.fences,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
     overlays:S.overlays.filter(function(o){return o.url;}).map(function(o){return {name:o.name,url:o.url,tiled:o.tiled,opacity:o.opacity};})};
 }
 function saveLocal(){try{localStorage.setItem('sitePlanSketcher.v1',JSON.stringify(projectJSON()));}catch(e){}if(typeof renderLayouts==='function'&&$('#pane-layouts').classList.contains('on'))renderLayouts();}
@@ -746,7 +771,7 @@ function loadProject(o){
   if(o.org)setOrg(o.org[0],o.org[1]);
   S.parcels=o.parcels||null;S.labelField=o.labelField||null;
   S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
-  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];
+  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];S.fences=o.fences||[];
   if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
   S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
   fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
@@ -784,6 +809,25 @@ function roadPoly(r){
   roadCache.set(key,f);return f;
 }
 function polysOf(f){if(!f)return [];var g=f.geometry;return g.type==='Polygon'?[g.coordinates]:g.coordinates;}
+// Fences: a line of corners (lng/lat), a style and a height. A closed fence joins its last corner back to its first.
+var FENCES={
+  privacy:{name:'Wood privacy',color:'#b07a45',post:'#7a5230',h:6,dash:null},
+  picket:{name:'Picket',color:'#f8f9fa',post:'#ffffff',h:4,dash:'2 5'},
+  rail:{name:'Split rail',color:'#c9a26b',post:'#8d6e4a',h:4,dash:'12 5'},
+  chain:{name:'Chain link',color:'#ced4da',post:'#9aa1a8',h:4,dash:'1 5'},
+  metal:{name:'Ornamental metal',color:'#212529',post:'#1c1f22',h:5,dash:'7 3'}
+};
+function fenceKind(f){return FENCES[f.style]?f.style:'privacy';}
+function fencePath(f){return f.closed&&f.pts.length>=3?f.pts.concat([f.pts[0]]):f.pts;}
+function fenceLen(f){var P=fencePath(f).map(toLocal),l=0;for(var i=0;i<P.length-1;i++)l+=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]);return l;}
+function fenceTotal(){var t=0;S.fences.forEach(function(f){t+=fenceLen(f);});return t;}
+function newFence(pts,closed){
+  S.counters.fence=(S.counters.fence||0)+1;
+  var f={id:S.nextId++,name:'Fence '+S.counters.fence,style:S.fenceCfg.style,h:S.fenceCfg.h,pts:pts};
+  if(closed)f.closed=true;
+  return f;
+}
+function isPtsKind(k){return k==='r'||k==='p'||k==='f';} // shapes stored as a line of points
 function buildCtx(){
   var sitePolys=[],siteRings=[],roadPolys=[];
   // once the site is split, each lot stands in for the site: its lines are the property lines buildings answer to
@@ -807,6 +851,7 @@ function buildCtx(){
   function addSegs(r){for(var i=0;i<r.length;i++){var a=r[i],b2=r[(i+1)%r.length];if(a[0]!==b2[0]||a[1]!==b2[1])sg.push([a,b2]);}}
   S.buildings.forEach(function(b){if(b.id!==S.snapSkip)addSegs(bldgRingLocal(b).map(toLL));});
   S.areas.forEach(function(a){addSegs(a.ring);});
+  S.fences.forEach(function(f){if(S.snapSkip==='f'+f.id)return;var fp=fencePath(f);fp.forEach(function(q){v.push(q);});for(var i=0;i<fp.length-1;i++)sg.push([fp[i],fp[i+1]]);});
   roadRings.forEach(function(r){var rl=r.map(toLL);rl.forEach(function(q){v.push(q);});addSegs(rl);});
   S.lotG={};
   S.lots.forEach(function(l){
@@ -1058,6 +1103,17 @@ function renderMap(){
     var mi=Math.floor((l.pts.length-1)/2),ma=l.pts[mi],mb=l.pts[mi+1]||ma;
     L.marker([(ma[1]+mb[1])/2,(ma[0]+mb[0])/2],{pane:'pLots',interactive:false,icon:L.divIcon({className:'blabel',iconSize:[110,30],iconAnchor:[55,15],html:g.count+' stalls'})}).addTo(gRoads);
   });
+  // fences: a dark casing, the style's colour and dash on top, and a wide unseen line that takes the clicks
+  S.fences.forEach(function(f){
+    if(!f.pts||f.pts.length<2)return;
+    var k=FENCES[fenceKind(f)],sel=selIs('f',f.id),ll=fencePath(f).map(ll2);
+    L.polyline(ll,{pane:'pFence',color:sel?'#ffffff':(fenceKind(f)==='metal'?'#dee2e6':'#1a2225'),weight:sel?8:6,opacity:.9,interactive:false}).addTo(gRoads);
+    L.polyline(ll,{pane:'pFence',color:k.color,weight:3,dashArray:k.dash,lineCap:k.dash?'butt':'round',interactive:false}).addTo(gRoads);
+    var hit=L.polyline(ll,{pane:'pFence',className:'obj-path',color:'#000',weight:14,opacity:0,fenceId:f.id}).addTo(gRoads);
+    hit.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('f',f.id);else select({k:'f',id:f.id});L.DomEvent.stopPropagation(e);}});
+    hit.on('mousedown',function(e){groupDown('f',f.id,e);});
+    hit.bindTooltip(esc((f.name||'Fence')+' · '+k.name+' · '+n1(+f.h||k.h)+' ft high · '+n0(fenceLen(f))+' ft long'),{sticky:true});
+  });
   // buildings
   S.buildings.forEach(function(b){
     var t=bType(b),ring=S.ctx.rings[b.id].map(toLL).map(ll2),sel=selIs('b',b.id);
@@ -1150,24 +1206,33 @@ function siteChanged(){S.site=computeSite();computePlots();restyleParcels();rend
 function computePlots(){
   S.plots=[];
   if(!S.site||!S.splits.length)return;
-  var f=S.site;
+  function sfOf(co){var lp=co.map(function(r){return r.map(toLocal);}),a=Math.abs(polyAreaSigned(lp[0]));for(var h=1;h<lp.length;h++)a-=Math.abs(polyAreaSigned(lp[h]));return a;}
+  // a real lot is over 20 sf and not a sliver: a strip under about 2 ft wide (left where a drawn edge runs just off a boundary) is not one
+  function real(co){var lp=co[0].map(toLocal),per=0;for(var i=0;i<lp.length-1;i++)per+=Math.hypot(lp[i+1][0]-lp[i][0],lp[i+1][1]-lp[i][1]);var a=sfOf(co);return a>20&&per>0&&2*a/per>=2;}
+  var pieces=polysOf(S.site);
   S.splits.forEach(function(s){
-    if(!f||!s.pts||s.pts.length<2)return;
+    if(!s.pts||s.pts.length<2)return;
     try{
       var P=s.pts.map(toLocal),n=P.length;
       var ext=function(a,b){var l=Math.hypot(a[0]-b[0],a[1]-b[1])||1;return [a[0]+(a[0]-b[0])/l*3,a[1]+(a[1]-b[1])/l*3];};
       // a cut-out shape is cut along its closed outline, so what is inside it becomes a lot of its own
       var line=(s.shape?P.concat([P[0]]):[ext(P[0],P[1])].concat(P.slice(1,n-1),[ext(P[n-1],P[n-2])])).map(toLL);
-      f=turf.difference(f,turf.buffer(turf.lineString(line),0.003,{units:'meters',steps:1}))||f;
+      var strip=turf.buffer(turf.lineString(line),0.003,{units:'meters',steps:1}),next=[];
+      // a piece is only cut when the line goes right through it; one the line merely pokes into stays whole
+      pieces.forEach(function(co){
+        var parts=[];
+        try{parts=polysOf(turf.difference(turf.polygon(co),strip)).filter(real);}catch(e){console.warn('split',e);}
+        if(parts.length>=2)parts.forEach(function(q){next.push(q);});else next.push(co);
+      });
+      pieces=next;
     }catch(e){console.warn('split',e);}
   });
-  var out=polysOf(f).map(function(co){
-    var lp=co.map(function(r){return r.map(toLocal);}),a=Math.abs(polyAreaSigned(lp[0]));
-    for(var h=1;h<lp.length;h++)a-=Math.abs(polyAreaSigned(lp[h]));
+  var out=pieces.map(function(co){
+    var lp=co.map(function(r){return r.map(toLocal);}),a=sfOf(co);
     var c=polyCentroid(lp[0]);
     if(!pointInPoly(c,lp)){try{c=toLocal(turf.pointOnFeature(turf.polygon(co)).geometry.coordinates);}catch(e){}} // e.g. a lot with another cut out of its middle
     return {coords:co,sf:a,c:c};
-  }).filter(function(p){return p.sf>20;});
+  }).filter(function(p){return real(p.coords);});
   if(out.length<2)return;
   // number them in reading order: north to south in 60 ft bands, west to east within a band
   out.sort(function(p,q){var rp=Math.round(p.c[1]/60),rq=Math.round(q.c[1]/60);return rp!==rq?rq-rp:p.c[0]-q.c[0];});
@@ -1200,7 +1265,7 @@ function renderLight(){ // during drags: no stats recompute beyond checks
 // ---------- selection and inspector ----------
 function select(sel){S.sel=sel;if(sel)S.plotSel=null;renderAll();if(sel){showTab('build');}}
 // ---------- multi-select ----------
-function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:S.areas));}
+function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:(k==='f'?S.fences:S.areas)));}
 function multiObjs(){return S.multi.map(function(m){return {k:m.k,id:m.id,o:arrOf(m.k).filter(function(x){return x.id===m.id;})[0]};}).filter(function(m){return m.o;});}
 function setMulti(list){S.multi=list.length>=2?list:[];S.sel=list.length===1?list[0]:null;renderAll();if(list.length)showTab('build');}
 function toggleMulti(k,id){
@@ -1209,16 +1274,16 @@ function toggleMulti(k,id){
   if(hit>=0)cur.splice(hit,1);else cur.push({k:k,id:id});
   setMulti(cur);
 }
-function shapePts(k,o){return k==='b'?(S.ctx&&S.ctx.rings[o.id]?S.ctx.rings[o.id].map(toLL):[o.c]):((k==='r'||k==='p')?o.pts:o.ring);}
+function shapePts(k,o){return k==='b'?(S.ctx&&S.ctx.rings[o.id]?S.ctx.rings[o.id].map(toLL):[o.c]):(isPtsKind(k)?o.pts:o.ring);}
 function nudgeAny(k,o,dx,dy){
   function sh(q){var p=toLocal(q);return toLL([p[0]+dx,p[1]+dy]);}
-  if(k==='b'){o.c=sh(o.c);if(o.pts)o.pts=o.pts.map(sh);}else if(k==='r'||k==='p')o.pts=o.pts.map(sh);else o.ring=o.ring.map(sh);
+  if(k==='b'){o.c=sh(o.c);if(o.pts)o.pts=o.pts.map(sh);}else if(isPtsKind(k))o.pts=o.pts.map(sh);else o.ring=o.ring.map(sh);
 }
 function rotateAny(k,o,ctr,deg){
   var a=deg*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
   function rt(q){var p=toLocal(q),x=p[0]-ctr[0],y=p[1]-ctr[1];return toLL([ctr[0]+x*co-y*si,ctr[1]+x*si+y*co]);}
   if(k==='b'){o.c=rt(o.c);if(o.pts)o.pts=o.pts.map(rt);else o.rot=normAngle(o.rot+deg);}
-  else if(k==='r'||k==='p')o.pts=o.pts.map(rt);else o.ring=o.ring.map(rt);
+  else if(isPtsKind(k))o.pts=o.pts.map(rt);else o.ring=o.ring.map(rt);
 }
 function groupCenter(objs){
   // mean of each shape's vertex-average: a point that turns with the group, so Q after E lands exactly back where it started
@@ -1243,7 +1308,8 @@ function getSel(){
 function fillInspector(){
   $('#insM').hidden=S.multi.length<2;if(S.multi.length>=2)$('#mCount').textContent=S.multi.length;
   var o=getSel();
-  $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');
+  $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');$('#insF').hidden=!(o&&S.sel.k==='f');
+  $('#fenceInfo').textContent=S.fences.length?S.fences.length+(S.fences.length===1?' fence':' fences')+' on the plan · '+n0(fenceTotal())+' ft in all':'';
   if(!o)return;
   var ae=document.activeElement;
   function setv(id,v){var e=$(id);if(e!==ae)e.value=v;}
@@ -1260,6 +1326,10 @@ function fillInspector(){
     var fp=fpOf(o);$('#iInfo').textContent=n0(fp)+' sf footprint · '+n0(fp*o.st)+' sf gross · '+unitsOf(o)+' units'+(o.units===null||o.units===undefined?' (auto)':'')+(commSf(o)?' · '+n0(commSf(o))+' sf commercial':'')+(parkReq(o).rule?' · parking '+n1(parkReq(o).n)+' = '+parkReq(o).rule:'')+(cust?angTxt([{k:'b',id:o.id,o:o}]):'');
   }else if(S.sel.k==='r'){setv('#rName',o.name||'');setv('#rWidth',o.width);}
   else if(S.sel.k==='p'){fillLot(o);}
+  else if(S.sel.k==='f'){
+    setv('#fName',o.name||'');setv('#fStyle',fenceKind(o));setv('#fH',o.h);$('#fClosed').checked=!!o.closed;$('#fClosed').disabled=o.pts.length<3;
+    var fl=fenceLen(o);$('#fInfo').textContent=n0(fl)+' ft long · '+(o.closed?o.pts.length:o.pts.length-1)+(((o.closed?o.pts.length:o.pts.length-1)===1)?' run':' runs')+' · about '+(Math.max(1,Math.round(fl/8))+(o.closed?0:1))+' posts at 8 ft';
+  }
   else{setv('#aName',o.name||'');setv('#aKind',o.kind);fillModelSelect($('#aPlant'),'tree',o.pm&&o.pm.m,'None');setv('#aDens',o.pm&&o.pm.d!=null?o.pm.d:6);$('#aInfo').textContent=n0(areaOf(areaFeat(o)))+' sf'+angTxt([{k:'a',id:o.id,o:o}]);}
 }
 function deleteSel(){
@@ -1271,7 +1341,7 @@ function deleteSel(){
 
 // ---------- tools ----------
 var HINTS={
-  select:'Click a building, road or area to select it. Shift+click or Shift+drag a box to select several, then drag or use the arrow keys to move them together.',
+  select:'Click a building, road, fence or area to select it. Shift+click or Shift+drag a box to select several, then drag or use the arrow keys to move them together.',
   parcels:'Click the parcels you plan to develop. Click again to remove one.',
   carve:'Click parcels to carve them out of the project site. Click again to restore.',
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
@@ -1280,10 +1350,11 @@ var HINTS={
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
   building:'Move to position the building, click to place. Q / E rotates. Esc exits.',
   area:'Click corners of the area. Double-click or press Enter to finish.',
+  fence:'Click along the fence line. Click the first corner again to close it into a loop, or double-click / press Enter to finish.',
   bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
 };
-function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly'||t==='split';}
-function isLineKind(k){return k==='road'||k==='lot'||(k==='split'&&S.splitMode!=='shape');}
+function isDrawTool(t){return t==='road'||t==='lot'||t==='area'||t==='carvepoly'||t==='bpoly'||t==='split'||t==='fence';}
+function isLineKind(k){return k==='road'||k==='lot'||k==='fence'||(k==='split'&&S.splitMode!=='shape');}
 function updateDrawbar(){
   var on=isDrawTool(S.tool);$('#drawbar').hidden=!on;
   $('#drawType').hidden=S.tool!=='bpoly';
@@ -1295,7 +1366,7 @@ function setTool(t){
   $$('.tool').forEach(function(b){b.classList.toggle('on',b.dataset.tool===t);});
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
   $('#hint').textContent=HINTS[t];gGhost.clearLayers();ghostLL=null;
-  if(t==='building'||t==='road'||t==='lot'||t==='area'||t==='bpoly')showTab('build');
+  if(t==='building'||t==='road'||t==='lot'||t==='area'||t==='bpoly'||t==='fence')showTab('build');
   updateDrawbar();renderHandles();
 }
 function cancelDraw(){D=null;gDraw.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
@@ -1310,6 +1381,7 @@ function snapTargets(excl){
   S.areas.forEach(function(a){if(!excl['a:'+a.id])ring(a.ring);});
   S.lots.forEach(function(l){if(excl['p:'+l.id])return;l.pts.forEach(function(q){v.push(q);});var g=S.lotG[l.id];if(g){if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(ring);});g.stalls.forEach(function(r){ring(r.map(toLL));});}});
   S.roads.forEach(function(r){if(excl['r:'+r.id])return;r.pts.forEach(function(q){v.push(q);});var f=roadPoly(r);if(f)polysOf(f).forEach(function(pl){pl.forEach(ring);});});
+  S.fences.forEach(function(f){if(excl['f:'+f.id])return;var fp=fencePath(f);fp.forEach(function(q){v.push(q);});for(var i=0;i<fp.length-1;i++)sg.push([fp[i],fp[i+1]]);});
   function cp(c){return map.latLngToContainerPoint(L.latLng(c[1],c[0]));}
   return {v:v,vp:v.map(cp),sgl:sg.map(function(x){return [toLocal(x[0]),toLocal(x[1])];})};
 }
@@ -1394,6 +1466,9 @@ function drawPreview(){
     col='#ffd43b';if(pts.length>=2)L.polygon(pts.map(ll2),{pane:'pDraw',color:col,weight:3,dashArray:'8 5',fillColor:col,fillOpacity:.18,interactive:false}).addTo(gDraw);
   }else if(D.kind==='split'){
     col='#ffd43b';if(pts.length>=1)L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:3,dashArray:'8 5',interactive:false}).addTo(gDraw);
+  }else if(D.kind==='fence'){
+    col=FENCES[S.fenceCfg.style].color;
+    if(pts.length>=1){L.polyline(pts.map(ll2),{pane:'pDraw',color:'#1a2225',weight:6,opacity:.8,interactive:false}).addTo(gDraw);L.polyline(pts.map(ll2),{pane:'pDraw',color:col,weight:3,interactive:false}).addTo(gDraw);}
   }else if(pts.length>=2){
     L.polygon(pts.map(ll2),{pane:'pDraw',color:col,weight:2,dashArray:'6 4',fillColor:col,fillOpacity:.22,interactive:false}).addTo(gDraw);
   }
@@ -1404,6 +1479,7 @@ function drawPreview(){
     var mid=[(last[0]+cur[0])/2,(last[1]+cur[1])/2];
     L.marker(ll2(mid),{pane:'pDraw',interactive:false,icon:L.divIcon({className:'dim building',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%)">'+ftf(segLen)+'</span>'})}).addTo(gDraw);
     info='Side '+ftf(segLen);if(D.kind==='lot'&&D.lotCount!==undefined)info+=' · '+D.lotCount+' stalls';
+    if(D.kind==='fence'){var tl=0,TP=pts.map(toLocal);for(var ti=0;ti<TP.length-1;ti++)tl+=Math.hypot(TP[ti+1][0]-TP[ti][0],TP[ti+1][1]-TP[ti][1]);info+=' · '+n0(tl)+' ft of fence';}
     if(!isLineKind(D.kind)&&pts.length>=3)info+=' · '+n0(Math.abs(polyAreaSigned(pts.map(toLocal))))+' sf';
   }
   $('#drawInfo').textContent=info;
@@ -1421,6 +1497,9 @@ function finishDraw(){
   if(kind==='road'&&pts.length>=2){
     pushUndo();var id=S.nextId++;S.counters.road=(S.counters.road||0)+1;
     S.roads.push({id:id,name:'Road '+S.counters.road,width:S.roadW,pts:pts});S.sel=null;S.multi=[];cancelDraw();renderAll();
+  }else if(kind==='fence'&&pts.length>=2){
+    var loop=!!D.closeIt&&pts.length>=3;
+    pushUndo();var nf=newFence(pts,loop);S.fences.push(nf);S.sel={k:'f',id:nf.id};S.multi=[];cancelDraw();renderAll();
   }else if(kind==='split'&&pts.length>=2){
     var shape=S.splitMode==='shape';
     if(shape){var s0=pts[0],s1=pts[pts.length-1];if(pts.length>3&&s0[0]===s1[0]&&s0[1]===s1[1])pts.pop();}
@@ -1500,6 +1579,7 @@ map.on('click',function(e){
     if(D&&D.pts.length&&D.typed>0){commitTyped();return;}
     var pt=drawPoint(e.latlng);
     if(D&&!isLineKind(D.kind)&&D.pts.length>=3&&pt[0]===D.pts[0][0]&&pt[1]===D.pts[0][1]){finishDraw();return;}
+    if(D&&D.kind==='fence'&&D.pts.length>=3&&pt[0]===D.pts[0][0]&&pt[1]===D.pts[0][1]){D.closeIt=true;finishDraw();return;} // back on the first corner: a closed loop
     addDrawPoint(pt);
   }
   else if(t==='building'){
@@ -1539,7 +1619,7 @@ map.on('mousemove',function(e){
       gdrag.items.forEach(function(it){
         var o=it.m.o,g=it.orig;
         function sh(q){return [q[0]+gdx,q[1]+gdy];}
-        if(it.m.k==='b'){o.c=sh(g.c);if(g.pts)o.pts=g.pts.map(sh);}else if(it.m.k==='r'||it.m.k==='p')o.pts=g.pts.map(sh);else o.ring=g.ring.map(sh);
+        if(it.m.k==='b'){o.c=sh(g.c);if(g.pts)o.pts=g.pts.map(sh);}else if(isPtsKind(it.m.k))o.pts=g.pts.map(sh);else o.ring=g.ring.map(sh);
       });
       if(!raf)raf=requestAnimationFrame(function(){raf=0;renderLight();});
     }
@@ -1571,7 +1651,7 @@ function endDrag(){
     var q=mq;mq=null;map.dragging.enable();if(q.rect)gDraw.removeLayer(q.rect);
     if(q.moved){
       marqueeAt=Date.now();var bd=L.latLngBounds(q.start,q.cur),cur=S.multi.length?S.multi.slice():(S.sel?[S.sel]:[]);
-      ['b','r','p','a'].forEach(function(k){arrOf(k).forEach(function(o){
+      ['b','r','p','a','f'].forEach(function(k){arrOf(k).forEach(function(o){
         var pts=shapePts(k,o);if(!pts.length||!pts.every(function(c){return bd.contains(L.latLng(c[1],c[0]));}))return;
         if(!cur.some(function(m){return m.k===k&&m.id===o.id;}))cur.push({k:k,id:o.id});
       });});
@@ -1606,10 +1686,10 @@ document.addEventListener('keydown',function(e){
     var dir=rk==='e'?1:-1,step=rotStepFor(e);
     if(S.tool==='building'){S.tpl.rot=Math.round(normAngle(S.tpl.rot-dir*step)*1000)/1000;syncTpl();if(lastMouse)updateGhost(lastMouse);}
     else if(S.sel&&S.sel.k==='b'){var b=getSel();pushUndo();if(b.pts)rotatePts(b,-dir*step);else b.rot=Math.round(normAngle(b.rot-dir*step)*1000)/1000;renderAll();}
-    else if(S.sel&&(S.sel.k==='a'||S.sel.k==='r'||S.sel.k==='p')){var o2=getSel();if(o2){pushUndo();rotateShape(o2,-dir*step);renderAll();}}
+    else if(S.sel&&S.sel.k!=='b'){var o2=getSel();if(o2){pushUndo();rotateShape(o2,-dir*step);renderAll();}}
     return;
   }
-  if(S.sel&&(S.sel.k==='a'||S.sel.k==='r'||S.sel.k==='p')&&/Arrow/.test(e.key)){
+  if(S.sel&&S.sel.k!=='b'&&/Arrow/.test(e.key)){
     var o3=getSel(),am=e.shiftKey?5:1,mx=0,my=0;
     if(e.key==='ArrowLeft')mx=-am;if(e.key==='ArrowRight')mx=am;if(e.key==='ArrowUp')my=am;if(e.key==='ArrowDown')my=-am;
     if(o3){pushUndo();nudgeShape(o3,mx,my);renderAll();e.preventDefault();}return;
@@ -1635,8 +1715,8 @@ $('#undoBtn').addEventListener('click',undo);
 $('#finishBtn').addEventListener('click',finishDraw);
 $('#cancelBtn').addEventListener('click',cancelDraw);
 $('#newBtn').addEventListener('click',function(){
-  if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.selected.size&&!S.demo){return;}
-  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};
+  if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.fences.length&&!S.selected.size&&!S.demo){return;}
+  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.sel=null;S.multi=[];S.counters={};
   if(!S.parcels)gParcels.clearLayers();siteChanged();
 });
 $('#clearPicks').addEventListener('click',function(){pushUndo();S.selected.clear();S.carved.clear();S.carveShapes=[];siteChanged();});
@@ -1711,6 +1791,16 @@ $('#aKind').addEventListener('change',function(){inspUpdate(function(o){o.kind=$
 $('#roadPreset').addEventListener('change',function(){var v=parseFloat($('#roadPreset').value);if(v>0){S.roadW=v;$('#roadW').value=v;}});
 $('#roadW').addEventListener('input',function(){S.roadW=Math.max(6,num($('#roadW'),26));});
 $('#areaKind').addEventListener('change',function(){S.areaKind=$('#areaKind').value;});
+// fences: the defaults for new ones, and the selected one
+Object.keys(FENCES).forEach(function(k){[$('#fenceStyle'),$('#fStyle')].forEach(function(sel){var o=document.createElement('option');o.value=k;o.textContent=FENCES[k].name;sel.appendChild(o);});});
+$('#fenceStyle').value=S.fenceCfg.style;
+$('#fenceStyle').addEventListener('change',function(){S.fenceCfg.style=this.value;S.fenceCfg.h=FENCES[this.value].h;$('#fenceH').value=S.fenceCfg.h;if(D)drawPreview();});
+$('#fenceH').addEventListener('input',function(){var v=parseFloat(this.value);if(v>=1&&v<=20)S.fenceCfg.h=v;});
+$('#fName').addEventListener('input',function(){inspUpdate(function(o){o.name=$('#fName').value;});});
+$('#fStyle').addEventListener('change',function(){inspUpdate(function(o){o.style=$('#fStyle').value;});});
+$('#fH').addEventListener('input',function(){var v=parseFloat(this.value);if(!(v>=1&&v<=20))return;inspUpdate(function(o){o.h=v;});});
+$('#fClosed').addEventListener('change',function(){var on=this.checked;inspUpdate(function(o){if(on&&o.pts.length>=3)o.closed=true;else delete o.closed;});});
+$('#fDel').addEventListener('click',deleteSel);
 $('#oVsnap').addEventListener('change',function(){S.opt.vsnap=$('#oVsnap').checked;});
 $('#oAlign').addEventListener('change',function(){S.opt.align=$('#oAlign').checked;});
 $('#oHold').addEventListener('change',function(){S.opt.hold=$('#oHold').checked;});
@@ -1743,7 +1833,7 @@ $('#labelField').addEventListener('change',function(){S.labelField=$('#labelFiel
 function ingestParcels(gj){
   var feats=(gj.features||[]).filter(function(f){return f.geometry&&/Polygon/.test(f.geometry.type);});
   var idF=detectIdField((feats[0]&&feats[0].properties)||{}),keep=new Map();
-  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
+  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.set(id,f);});
   feats.forEach(function(f,i){
     var p=f.properties||(f.properties={});
@@ -1896,6 +1986,7 @@ function exportFeatures(){
     feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
   S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
+  S.fences.forEach(function(f){if(f.pts.length>=2)feats.push(turf.lineString(fencePath(f),{kind:'fence',name:f.name,fenceStyle:fenceKind(f),styleName:FENCES[fenceKind(f)].name,heightFt:+f.h||FENCES[fenceKind(f)].h,lengthFt:Math.round(fenceLen(f)),closed:!!f.closed}));});
   return feats;
 }
 $('#xGeo').addEventListener('click',function(){download('site-plan.geojson',JSON.stringify(turf.featureCollection(exportFeatures())),'application/geo+json');});
@@ -1905,6 +1996,7 @@ $('#xCsv').addEventListener('click',function(){
   var st=S.stats;rows.push([]);rows.push(['Site area sf',Math.round(st.siteSf)]);rows.push(['Site area acres',st.acres.toFixed(3)]);S.plots.forEach(function(p){rows.push([p.name+' area sf',Math.round(p.sf)]);});
   rows.push(['Building coverage %',st.siteSf?(st.fp/st.siteSf*100).toFixed(1):'']);rows.push(['Impervious %',st.siteSf?(st.imperv/st.siteSf*100).toFixed(1):'']);
   rows.push(['Units per acre',st.acres?(st.units/st.acres).toFixed(1):'']);rows.push(['Parking required',st.reqStalls]);rows.push(['Parking provided',st.provStalls]);rows.push(['Striped stalls (parking lots)',st.lotStalls]);
+  if(S.fences.length){S.fences.forEach(function(f){rows.push([(f.name||'Fence')+' ('+FENCES[fenceKind(f)].name+', '+(+f.h||0)+' ft high) length ft',Math.round(fenceLen(f))]);});rows.push(['Fence length ft',Math.round(fenceTotal())]);}
   if(S.terr){rows.push(['Building pad cut cy',Math.round(S.terr.cut)]);rows.push(['Building pad fill cy',Math.round(S.terr.fill)]);}
   download('building-schedule.csv',rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n'),'text/csv');
 });
@@ -1917,7 +2009,7 @@ function dxfText(){
     var o=S.site?toLocal(turf.bbox(S.site).slice(0,2)):[0,0];
     project=function(ll){var p=toLocal(ll);return [p[0]-o[0],p[1]-o[1]];};
   }
-  var layers={SITE:1,PARCELS:8,ROADS:5,BUILDINGS:2,PARKING:9,STRIPING:7,LANDSCAPE:3,OPENSPACE:3,STORMWATER:4,HARDSCAPE:7,LABELS:7,LOTS:6},ents=[];
+  var layers={SITE:1,PARCELS:8,ROADS:5,BUILDINGS:2,PARKING:9,STRIPING:7,LANDSCAPE:3,OPENSPACE:3,STORMWATER:4,HARDSCAPE:7,LABELS:7,LOTS:6,FENCES:30},ents=[];
   function poly(layer,ring,closed){
     var s='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n'+(closed?1:0)+'\n';
     ring.forEach(function(p){var q=project(p);s+='0\nVERTEX\n8\n'+layer+'\n10\n'+q[0].toFixed(3)+'\n20\n'+q[1].toFixed(3)+'\n30\n0\n';});
@@ -1931,6 +2023,7 @@ function dxfText(){
   S.buildings.forEach(function(b){ents.push(poly('BUILDINGS',S.ctx.rings[b.id].map(toLL),true));ents.push(text('LABELS',b.c,4,b.name+' '+n0(fpOf(b))+' SF'));});
   var amap={park:'PARKING',land:'LANDSCAPE',open:'OPENSPACE',pond:'STORMWATER',hard:'HARDSCAPE'};
   S.areas.forEach(function(a){ents.push(poly(amap[a.kind],a.ring,true));});
+  S.fences.forEach(function(f){if(f.pts.length>=2)ents.push(poly('FENCES',f.pts,!!f.closed&&f.pts.length>=3));});
   var s='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n70\n1\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n';
   s+='0\nTABLE\n2\nLAYER\n70\n'+Object.keys(layers).length+'\n';
   Object.keys(layers).forEach(function(k){s+='0\nLAYER\n2\n'+k+'\n70\n0\n62\n'+layers[k]+'\n6\nCONTINUOUS\n';});
@@ -1943,7 +2036,7 @@ $('#xProj').addEventListener('click',function(){download('site-plan-project.json
 // ---------- open a project or site plan file (button or drag and drop) ----------
 var toastTimer=null;
 function toast(t,err){var e=$('#toast');e.textContent=t;e.className='on'+(err?' err':'');clearTimeout(toastTimer);toastTimer=setTimeout(function(){e.className='';},err?9000:6000);}
-var PLAN_KINDS=['site_boundary','parcel','road','road_centerline','building','area','parking_aisle','parking_aisle_centerline','parking_stall','lot','lot_line'];
+var PLAN_KINDS=['site_boundary','parcel','road','road_centerline','building','area','parking_aisle','parking_aisle_centerline','parking_stall','lot','lot_line','fence'];
 function isPlanGeoJSON(o){return o&&o.type==='FeatureCollection'&&(o.features||[]).some(function(f){return f&&f.properties&&PLAN_KINDS.indexOf(f.properties.kind)>=0;});}
 // Rebuild a project from this tool's own GeoJSON export. Settings, setbacks and per-building unit overrides that
 // the export does not carry fall back to defaults; geometry, names, types, stories, widths and stall layouts come back.
@@ -1951,7 +2044,7 @@ function projectFromGeoJSON(gj){
   var feats=(gj.features||[]).filter(function(f){return f&&f.geometry&&f.properties;});
   function by(k){return feats.filter(function(f){return f.properties.kind===k;});}
   function ringOf(f){return f.geometry.coordinates[0].slice(0,-1);}
-  var o={v:1,selected:[],carved:[],carveShapes:[],roads:[],lots:[],buildings:[],areas:[],counters:{},nextId:1,demo:false};
+  var o={v:1,selected:[],carved:[],carveShapes:[],roads:[],lots:[],buildings:[],areas:[],fences:[],counters:{},nextId:1,demo:false};
   var site=by('site_boundary')[0],pfeats=[],seen={};
   var ref=site||feats.filter(function(f){return /Polygon|LineString/.test(f.geometry.type);})[0];
   var c0=turf.centroid(ref).geometry.coordinates;o.org=c0;setOrg(c0[0],c0[1]);
@@ -2007,9 +2100,14 @@ function projectFromGeoJSON(gj){
     var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
     var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};o.areas.push(na);
   });
+  by('fence').forEach(function(f){
+    var p=f.properties,q=f.geometry.coordinates,loop=!!p.closed&&q.length>=4,st=FENCES[p.fenceStyle]?p.fenceStyle:'privacy';
+    var nf={id:o.nextId++,name:p.name||'Fence',style:st,h:+p.heightFt||FENCES[st].h,pts:loop?q.slice(0,-1):q};if(loop)nf.closed=true;o.fences.push(nf);
+  });
+  o.counters.fence=o.fences.length;
   return o;
 }
-function planHasWork(){return !S.demo&&(S.buildings.length||S.roads.length||S.lots.length||S.areas.length);}
+function planHasWork(){return !S.demo&&(S.buildings.length||S.roads.length||S.lots.length||S.areas.length||S.fences.length);}
 function openPlanFile(file){
   if(/\.glb$/i.test(file.name))return addModelFiles([file]);
   return file.text().then(function(t){
@@ -2078,7 +2176,7 @@ $('#iRotL').addEventListener('click',function(){rotFree(S.set.rotStep);});
 $('#iRotR').addEventListener('click',function(){rotFree(-S.set.rotStep);});
 $('#iRotBy').addEventListener('change',function(){var v=parseFloat(this.value);this.value='';if(isFinite(v))rotFree(-v);});
 $('#mClear').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
-['a','r','p'].forEach(function(k){
+['a','r','p','f'].forEach(function(k){
   function go(deg){var o=getSel();if(!o||!(o.ring||o.pts)||!deg)return;pushUndo();rotateShape(o,deg);renderAll();}
   $('#'+k+'RotL').addEventListener('click',function(){go(S.set.rotStep);});
   $('#'+k+'RotR').addEventListener('click',function(){go(-S.set.rotStep);});
@@ -2091,7 +2189,7 @@ function squareDelta(objs){
   var le=null,hasRoad=false,excl={};
   objs.forEach(function(m){
     excl[m.k+':'+(m.id!==undefined?m.id:m.o.id)]=true;if(m.k==='r')hasRoad=true;
-    var P=shapePts(m.k,m.o).map(toLocal),n=P.length,lim=(m.k==='r'||m.k==='p')?n-1:n;
+    var P=shapePts(m.k,m.o).map(toLocal),n=P.length,lim=isPtsKind(m.k)?n-1:n;
     for(var i=0;i<lim;i++){var a=P[i],b=P[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>1e-6&&(!le||l>le.len))le={len:l,ang:Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI};}
   });
   if(!le||!S.ctx)return null;
@@ -2151,6 +2249,14 @@ function renderHandles(){
     var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
     m.on('dragstart',function(){pushUndo();S.snapSkip=b.id;buildCtx();});
     m.on('drag',function(){b.pts[i]=snapLL(m.getLatLng());recenter(b);renderLight();fillInspector();});
+    m.on('dragend',function(){S.snapSkip=null;renderAll();});
+  });
+  // a fence: a handle on every corner
+  var fn=(S.sel&&S.sel.k==='f'&&S.multi.length<2)?getSel():null;
+  if(fn)fn.pts.forEach(function(pt,i){
+    var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
+    m.on('dragstart',function(){pushUndo();S.snapSkip='f'+fn.id;buildCtx();});
+    m.on('drag',function(){fn.pts[i]=snapLL(m.getLatLng());renderLight();fillInspector();});
     m.on('dragend',function(){S.snapSkip=null;renderAll();});
   });
   rotHandle();
@@ -2276,6 +2382,16 @@ $('#pbAdd').addEventListener('click',function(){
   S.buildings.push(b);S.plotSel=null;S.sel={k:'b',id:b.id};renderAll();showTab('build');
 });
 $('#pbDone').addEventListener('click',function(){S.plotSel=null;renderAll();});
+// a fence along the clicked lot's own lines (its outer outline; corners closer than 0.1 ft are merged)
+$('#pbFence').addEventListener('click',function(){
+  var p=selPlot();if(!p)return;
+  var ring=p.coords[0].slice(0,-1),P=ring.map(toLocal),pts=[];
+  P.forEach(function(q,i){var l=pts.length?toLocal(pts[pts.length-1]):null;if(!l||Math.hypot(q[0]-l[0],q[1]-l[1])>0.1)pts.push(ring[i]);});
+  if(pts.length>3){var a=toLocal(pts[0]),z=toLocal(pts[pts.length-1]);if(Math.hypot(a[0]-z[0],a[1]-z[1])<=0.1)pts.pop();}
+  if(pts.length<3)return;
+  pushUndo();var f=newFence(pts,true);f.name=p.name+' fence';
+  S.fences.push(f);S.plotSel=null;S.sel={k:'f',id:f.id};S.multi=[];renderAll();showTab('build');
+});
 $('#splitClear').addEventListener('click',function(){if(!S.splits.length)return;pushUndo();S.splits=[];siteChanged();});
 $('#plotList').addEventListener('click',function(e){
   var b=e.target.closest('button[data-split]');if(!b)return;
@@ -2285,7 +2401,7 @@ function renderSelBar(){
   renderPlotBar();
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
-  $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking lot'}[S.sel.k]);
+  $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking lot',f:'Fence'}[S.sel.k]);
   $('#sbDup').hidden=many||S.sel.k!=='b';
   $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft';
 }
@@ -2454,6 +2570,7 @@ function planBoxLocal(pad){ // everything drawn plus a margin, in local feet
   S.roads.forEach(function(r){r.pts.forEach(addLL);});
   S.lots.forEach(function(l){l.pts.forEach(addLL);});
   S.areas.forEach(function(a){a.ring.forEach(addLL);});
+  S.fences.forEach(function(f){f.pts.forEach(addLL);});
   if(!isFinite(b.x0))return null;
   pad=pad||0;return {x0:b.x0-pad,y0:b.y0-pad,x1:b.x1+pad,y1:b.y1+pad};
 }
@@ -3112,7 +3229,77 @@ function rebuildScene(g){
     o.traverse(function(m){if(m.userData.body){m.material=m.material.clone();m.material.color.set(CAR_COLORS[(n*5+(p.m.length))%CAR_COLORS.length]);m.userData.ownMat=true;}});
     grp.add(o);
   });
+  // fences follow the ground post to post
+  S.fences.forEach(function(f){fenceMeshes(T,f,cx,cy,function(x,y){return Y(ground(x,y));}).forEach(function(m){grp.add(m);});});
   V3.size=Math.max(box.x1-box.x0,box.y1-box.y0)/2;V3.midY=g?Y((g.min+g.max)/2):0;
+}
+// ---------- fences in 3D ----------
+// One picture per style: 8 ft of fence, as tall as the fence, repeated along the run. See-through styles are cut out with alpha.
+function paintFence(style){
+  var cv=document.createElement('canvas');cv.width=256;cv.height=128;
+  var c=null;try{c=cv.getContext('2d');}catch(e){}
+  if(!c)return null;
+  var W=256,H=128,i;
+  if(style==='privacy'){ // 6 in boards, tight together
+    for(i=0;i<16;i++){c.fillStyle=['#a8733d','#b47d47','#9f6b37','#b07843'][(i*7)%4];c.fillRect(i*16,0,16,H);}
+    c.fillStyle='rgba(60,36,14,.6)';for(i=0;i<16;i++)c.fillRect(i*16,0,1.5,H);
+    c.fillStyle='rgba(60,36,14,.22)';c.fillRect(0,0,W,4);c.fillRect(0,H*0.22,W,2);c.fillRect(0,H*0.8,W,2);
+  }else if(style==='picket'){ // pointed pickets on two rails
+    c.fillStyle='#dfe3e6';c.fillRect(0,H*0.30,W,9);c.fillRect(0,H*0.74,W,9);
+    c.fillStyle='#ffffff';
+    for(i=0;i<16;i++){var x=i*16+3;c.beginPath();c.moveTo(x,H);c.lineTo(x,14);c.lineTo(x+5,2);c.lineTo(x+10,14);c.lineTo(x+10,H);c.closePath();c.fill();}
+  }else if(style==='rail'){ // three rails
+    [0.10,0.44,0.78].forEach(function(t){c.fillStyle='#93724c';c.fillRect(0,H*t,W,14);c.fillStyle='rgba(50,32,14,.35)';c.fillRect(0,H*t+10,W,4);});
+  }else if(style==='chain'){ // diamond mesh with a top rail
+    c.strokeStyle='#c9ced3';c.lineWidth=1.8;
+    for(i=-H;i<W+H;i+=16){c.beginPath();c.moveTo(i,0);c.lineTo(i+H,H);c.stroke();c.beginPath();c.moveTo(i+H,0);c.lineTo(i,H);c.stroke();}
+    c.fillStyle='#9aa1a8';c.fillRect(0,0,W,5);c.fillRect(0,H-4,W,4);
+  }else{ // ornamental metal: pickets between two rails
+    c.fillStyle='#1c1f22';c.fillRect(0,10,W,6);c.fillRect(0,H-18,W,6);
+    for(i=0;i<16;i++)c.fillRect(i*16+6,0,4,H);
+  }
+  return cv;
+}
+function fenceTex(style){
+  var T=window.THREE,key='fence|'+style;V3.tex=V3.tex||{};
+  if(V3.tex[key]!==undefined)return V3.tex[key];
+  var cv=paintFence(style);
+  if(!cv)return (V3.tex[key]=null);
+  var t=new T.CanvasTexture(cv);t.wrapS=T.RepeatWrapping;
+  t.encoding=T.sRGBEncoding;t.anisotropy=Math.min(8,V3.r.capabilities.getMaxAnisotropy());t.userData.keep=true;
+  return (V3.tex[key]=t);
+}
+// Panels and posts for one fence. Each run is cut into bays of about 8 ft with a post at every break; the bottom of a
+// bay follows the ground at its two posts, so the fence steps down a slope. gy(x,y) is the ground height in the scene.
+function fenceMeshes(T,f,cx,cy,gy){
+  var st=fenceKind(f),K=FENCES[st],h=Math.max(1,+f.h||K.h),P=fencePath(f).map(toLocal),pos=[],uv=[],pp=[],out=[],run=0;
+  var pw=st==='rail'?0.25:0.17,ph=h+(st==='chain'?0.1:0.3);
+  function quad(arr,a,b,c,d){[a,b,c,a,c,d].forEach(function(v){arr.push(v[0],v[1],v[2]);});}
+  function V(p,z){return [p[0]-cx,gy(p[0],p[1])+z,-(p[1]-cy)];}
+  function post(p){
+    var g0=gy(p[0],p[1]),b=g0-0.5,t=g0+ph,q=[[-pw,-pw],[pw,-pw],[pw,pw],[-pw,pw]].map(function(d){return [p[0]+d[0]-cx,-(p[1]+d[1]-cy)];});
+    for(var i=0;i<4;i++){var a=q[i],n=q[(i+1)%4];quad(pp,[a[0],b,a[1]],[n[0],b,n[1]],[n[0],t,n[1]],[a[0],t,a[1]]);}
+    quad(pp,[q[0][0],t,q[0][1]],[q[1][0],t,q[1][1]],[q[2][0],t,q[2][1]],[q[3][0],t,q[3][1]]);
+  }
+  for(var i=0;i<P.length-1;i++){
+    var a=P[i],b=P[i+1],len=Math.hypot(b[0]-a[0],b[1]-a[1]);if(len<0.05)continue;
+    var n=Math.max(1,Math.round(len/8));
+    for(var k=0;k<n;k++){
+      var p0=[a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n],p1=[a[0]+(b[0]-a[0])*(k+1)/n,a[1]+(b[1]-a[1])*(k+1)/n],u0=(run+len*k/n)/8,u1=(run+len*(k+1)/n)/8;
+      quad(pos,V(p0,0),V(p1,0),V(p1,h),V(p0,h));uv.push(u0,0,u1,0,u1,1,u0,0,u1,1,u0,1);
+      post(p0);
+    }
+    run+=len;
+    if(i===P.length-2&&!(f.closed&&f.pts.length>=3))post(b);
+  }
+  function geo(p,u){var g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(p,3));if(u)g.setAttribute('uv',new T.Float32BufferAttribute(u,2));g.computeVertexNormals();return g;}
+  if(pos.length){
+    var tex=fenceTex(st),mat=new T.MeshLambertMaterial({color:tex?'#ffffff':K.color,side:T.DoubleSide});
+    if(tex){mat.map=tex;mat.alphaTest=0.3;}
+    var m=new T.Mesh(geo(pos,uv),mat);m.name=f.name||'Fence';m.castShadow=st==='privacy';m.receiveShadow=true;out.push(m);
+  }
+  if(pp.length){var pm=new T.Mesh(geo(pp),new T.MeshLambertMaterial({color:K.post,side:T.DoubleSide}));pm.name=(f.name||'Fence')+' posts';pm.castShadow=true;out.push(pm);}
+  return out;
 }
 // One shared texture per facade, bay content and band height. Wall UVs count bays across and bands up, so every
 // wall shows whole bays (no half windows at the corners).
@@ -3394,6 +3581,7 @@ function info3D(g){
   if(PL.cars.length)bits.push(n0(PL.cars.length)+(PL.cars.length===1?' car':' cars'));
   if(bm.length)bits.push(bm.length+(bm.length===1?' building model':' building models'));
   if(bits.length)h+='<div id="v3dProps"><b>3D models:</b> '+bits.join(' · ')+'</div>';
+  if(S.fences.length)h+='<div id="v3dFences"><b>Fences:</b> '+S.fences.length+' · '+n0(fenceTotal())+' ft</div>';
   var missing=Object.keys(used).filter(function(n){return !modelInfo(n);});
   if(missing.length)h+='<div class="flag">Not in this browser’s library: '+missing.map(esc).join(', ')+'. Add the files on the Layers tab.</div>';
   Object.keys(used).forEach(function(n){var t=V3.tpl[n];if(t&&t.err&&modelInfo(n))h+='<div class="flag">Could not load '+esc(n)+': '+esc(t.err)+'.</div>';});
