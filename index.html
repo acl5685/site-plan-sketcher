@@ -90,6 +90,10 @@ td:first-child{font-family:var(--font)}
 #toast.on{display:block}#toast.err{background:#c92a2a}
 .legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;margin-top:6px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.libRow{display:grid;grid-template-columns:1fr auto auto auto;gap:4px 6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);font-size:12px}
+.libRow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libRow select,.libRow input{width:auto;max-width:92px}
+.libRow input[type=number]{width:58px}
 .facades{display:flex;flex-wrap:wrap;gap:4px}
 .facades button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--ink);font-size:11px;cursor:pointer}
 .facades button.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:600}
@@ -243,6 +247,7 @@ td:first-child{font-family:var(--font)}
         <div class="field" style="margin-top:6px"><label id="iFacadeLbl">Facade (shown in 3D view)</label>
           <div id="iFacade" class="facades" role="radiogroup" aria-labelledby="iFacadeLbl"></div>
         </div>
+        <div class="field rect-only" style="margin-top:6px"><label for="iModel" title="Replace the generated building with a model from the 3D models list, stretched to this footprint and its stories">3D model</label><select id="iModel"></select></div>
         <div class="row" style="margin-top:6px">
           <div class="field"><label for="iPad" title="Finished floor elevation in feet (NAVD 88). Leave empty to balance cut and fill.">Pad elevation ft</label><input type="number" id="iPad" step="0.5" placeholder="auto"></div>
           <div class="note" id="iTerr" style="flex:2 1 140px;align-self:end"></div>
@@ -290,6 +295,10 @@ td:first-child{font-family:var(--font)}
           <div class="field"><label for="pStallW">Stall width ft</label><input type="number" id="pStallW" min="7" step="0.5"></div>
           <div class="field"><label for="pStallD">Stall depth ft</label><input type="number" id="pStallD" min="12" step="0.5"></div>
         </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field" style="flex:2 1 120px"><label for="pCars">Cars in 3D</label><select id="pCars"></select></div>
+          <div class="field"><label for="pFill" title="Share of the stalls that have a car in them">Stalls filled %</label><input type="number" id="pFill" min="0" max="100" step="5"></div>
+        </div>
         <div class="note" id="pInfo" style="margin-top:6px"></div>
         <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="pRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="pRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="pRotBy">Rotate by °</label><input type="number" id="pRotBy" step="0.1" placeholder="e.g. 30"></div></div>
         <div class="row" style="margin-top:6px"><button class="btn small" id="pSq" title="Turn so the aisle runs parallel or square to the nearest edge">Square to nearest edge</button><button class="btn small" id="pFlip" title="Reverse the aisle direction. Angled stalls lean the other way and left / right swap.">Reverse direction</button><button class="btn small" id="pDup" title="Copy this lot beside the original">Duplicate</button><button class="btn small danger" id="pDel">Delete lot</button></div>
@@ -312,6 +321,10 @@ td:first-child{font-family:var(--font)}
         <div class="row">
           <div class="field" style="flex:2 1 120px"><label for="aName">Name</label><input type="text" id="aName"></div>
           <div class="field"><label for="aKind">Kind</label><select id="aKind"></select></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field" style="flex:2 1 120px"><label for="aPlant">Plants in 3D</label><select id="aPlant"></select></div>
+          <div class="field"><label for="aDens" title="Trees per 1,000 sf of this area">Per 1,000 sf</label><input type="number" id="aDens" min="0.5" max="40" step="0.5"></div>
         </div>
         <div class="note" id="aInfo" style="margin-top:6px"></div>
         <div class="row" style="margin-top:6px;align-items:flex-end"><button class="btn small" id="aRotL" title="Rotate counter-clockwise (Q)">&#8634; Rotate</button><button class="btn small" id="aRotR" title="Rotate clockwise (E)">&#8635; Rotate</button><div class="field" style="flex:0 0 90px"><label for="aRotBy">Rotate by °</label><input type="number" id="aRotBy" step="1" placeholder="e.g. 30"></div></div>
@@ -429,6 +442,14 @@ td:first-child{font-family:var(--font)}
         </div>
         <div class="msg" id="ovMsg"></div>
         <div id="ovList"></div>
+      </div>
+      <div>
+        <h3>3D models</h3>
+        <div class="row">
+          <label class="btn small" style="display:inline-block;color:var(--ink);cursor:pointer">Add .glb model<input type="file" id="libFile" accept=".glb,model/gltf-binary" multiple hidden></label>
+        </div>
+        <div id="libList"></div>
+        <p class="note">Built-in trees and a car are always available. To use your own, export from Blender with File › Export › glTF 2.0, Format: glTF Binary (.glb), then add the file here or drop it anywhere on the page. Pick them on a landscaping area (trees), a parking lot (cars) or a building (replaces the generated building, fitted to its footprint). Models stay in this browser; a project only remembers their names.</p>
       </div>
       <div class="note" id="utilNote"></div>
     </div>
@@ -1229,7 +1250,7 @@ function fillInspector(){
   if(S.sel.k==='b'){
     var cust=!!o.pts;
     $$('.rect-only').forEach(function(e){e.hidden=cust;});$('#iFree').hidden=!cust;
-    setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);markFacade(o);
+    setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);markFacade(o);fillModelSelect($('#iModel'),'building',o.mod,'Generated (by building type)');
     var tc=(S.checks||[]).filter(function(q){return q.b.id===o.id;})[0],tu=tc&&tc.terr;
     setv('#iPad',o.pad==null?'':o.pad);$('#iPad').placeholder=tu&&o.pad==null?n1(tu.pad)+' (auto)':'auto';
     $('#iTerr').textContent=tu?'Ground '+n1(tu.min)+'–'+n1(tu.max)+' ft, '+n1(tu.slope)+'% slope · cut '+n0(tu.cut)+' cy · fill '+n0(tu.fill)+' cy':'Turn on terrain on the Check tab to see slope and cut/fill.';
@@ -1239,7 +1260,7 @@ function fillInspector(){
     var fp=fpOf(o);$('#iInfo').textContent=n0(fp)+' sf footprint · '+n0(fp*o.st)+' sf gross · '+unitsOf(o)+' units'+(o.units===null||o.units===undefined?' (auto)':'')+(commSf(o)?' · '+n0(commSf(o))+' sf commercial':'')+(parkReq(o).rule?' · parking '+n1(parkReq(o).n)+' = '+parkReq(o).rule:'')+(cust?angTxt([{k:'b',id:o.id,o:o}]):'');
   }else if(S.sel.k==='r'){setv('#rName',o.name||'');setv('#rWidth',o.width);}
   else if(S.sel.k==='p'){fillLot(o);}
-  else{setv('#aName',o.name||'');setv('#aKind',o.kind);$('#aInfo').textContent=n0(areaOf(areaFeat(o)))+' sf'+angTxt([{k:'a',id:o.id,o:o}]);}
+  else{setv('#aName',o.name||'');setv('#aKind',o.kind);fillModelSelect($('#aPlant'),'tree',o.pm&&o.pm.m,'None');setv('#aDens',o.pm&&o.pm.d!=null?o.pm.d:6);$('#aInfo').textContent=n0(areaOf(areaFeat(o)))+' sf'+angTxt([{k:'a',id:o.id,o:o}]);}
 }
 function deleteSel(){
   if(S.multi.length>=2){deleteGroup();return;}
@@ -1867,14 +1888,14 @@ function exportFeatures(){
   S.lots.forEach(function(l){
     var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;
     if(g.aisle)feats.push(turf.feature(g.aisle.geometry,{kind:'parking_aisle',name:l.name,aisleWidthFt:l.aisleW,stallAngleDeg:l.angle,stalls:g.count}));
-    feats.push(turf.lineString(l.pts,{kind:'parking_aisle_centerline',name:l.name}));
+    feats.push(turf.lineString(l.pts,{kind:'parking_aisle_centerline',name:l.name,carModel:l.pc?l.pc.m:null,carFill:l.pc?l.pc.f:null}));
     g.stalls.forEach(function(r,i){feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_stall',lot:l.name,stall:i+1,widthFt:l.stallW,depthFt:l.stallD,angleDeg:l.angle}));});
   });
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
-    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,facade:facadeOf(b),padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
-  S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
+  S.areas.forEach(function(a){feats.push(turf.polygon([closeRing(a.ring)],{kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))}));});
   return feats;
 }
 $('#xGeo').addEventListener('click',function(){download('site-plan.geojson',JSON.stringify(turf.featureCollection(exportFeatures())),'application/geo+json');});
@@ -1960,12 +1981,13 @@ function projectFromGeoJSON(gj){
     if(p.units!=null&&unitsOf(b)!==p.units)b.units=p.units;
     if(FACADES[p.facade]&&p.facade!==facadeOf(b))b.fa=p.facade;
     if(typeof p.padFt==='number')b.pad=p.padFt;
+    if(typeof p.model==='string'&&p.model)b.mod=p.model;
     var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
     o.buildings.push(b);
   });
   var lots={};
   by('parking_aisle_centerline').forEach(function(f){var n=f.properties.name;
-    lots[n]={id:o.nextId++,name:n,pts:f.geometry.coordinates,aisleW:0,stallW:S.lotCfg.stallW,stallD:S.lotCfg.stallD,angle:S.lotCfg.angle,sides:'left',pos:0,neg:0};});
+    lots[n]={id:o.nextId++,name:n,pts:f.geometry.coordinates,aisleW:0,stallW:S.lotCfg.stallW,stallD:S.lotCfg.stallD,angle:S.lotCfg.angle,sides:'left',pos:0,neg:0};if(f.properties.carModel)lots[n].pc={m:f.properties.carModel,f:f.properties.carFill==null?70:f.properties.carFill};});
   by('parking_aisle').forEach(function(f){var l=lots[f.properties.name];if(l){l.aisleW=f.properties.aisleWidthFt||0;l.angle=f.properties.stallAngleDeg;}});
   by('parking_stall').forEach(function(f){
     var p=f.properties,l=lots[p.lot];if(!l)return;
@@ -1983,12 +2005,13 @@ function projectFromGeoJSON(gj){
   o.counters.lot=o.lots.length;
   by('area').forEach(function(f){
     var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
-    o.areas.push({id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)});
+    var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};o.areas.push(na);
   });
   return o;
 }
 function planHasWork(){return !S.demo&&(S.buildings.length||S.roads.length||S.lots.length||S.areas.length);}
 function openPlanFile(file){
+  if(/\.glb$/i.test(file.name))return addModelFiles([file]);
   return file.text().then(function(t){
     var o=JSON.parse(t),msgText;
     if(o&&o.kind==='site-plan-layouts'&&Array.isArray(o.layouts)){
@@ -2022,7 +2045,7 @@ $('#openProj').addEventListener('change',function(ev){
   window.addEventListener('dragleave',function(e){if(!hasFiles(e))return;depth--;if(depth<=0)hide();});
   window.addEventListener('drop',function(e){
     if(!hasFiles(e))return;e.preventDefault();hide();
-    var f=e.dataTransfer.files[0];if(f)openPlanFile(f);
+    var fl=Array.prototype.slice.call(e.dataTransfer.files);if(fl.length&&fl.every(function(f){return /\.glb$/i.test(f.name);}))addModelFiles(fl);else if(fl[0])openPlanFile(fl[0]);
   });
 })();
 
@@ -2292,7 +2315,7 @@ $('#lenBox').addEventListener('keydown',function(e){
 function fillLot(o){
   var ae=document.activeElement;
   function sv(id,v){var e=$(id);if(e!==ae)e.value=v;}
-  sv('#pName',o.name||'');sv('#pAngle',String(o.angle));sv('#pSides',o.sides);sv('#pAisle',o.aisleW);sv('#pStallW',o.stallW);sv('#pStallD',o.stallD);
+  fillModelSelect($('#pCars'),'car',o.pc&&o.pc.m,'None');sv('#pFill',o.pc&&o.pc.f!=null?o.pc.f:70);sv('#pName',o.name||'');sv('#pAngle',String(o.angle));sv('#pSides',o.sides);sv('#pAisle',o.aisleW);sv('#pStallW',o.stallW);sv('#pStallD',o.stallD);
   var g=S.lotG[o.id];
   if(g){var len=0,P=o.pts.map(toLocal);for(var i=0;i<P.length-1;i++)len+=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]);
     var sf=(g.aisle?areaOf(g.aisle):0)+g.stallSf;
@@ -2436,24 +2459,37 @@ function planBoxLocal(pad){ // everything drawn plus a margin, in local feet
 }
 function demBounds(g){var a=toLocal(g.ll0),c=toLocal(g.ll1);return {x0:a[0],y0:a[1],x1:c[0],y1:c[1]};}
 function demCovers(g,b){var d=demBounds(g);return b.x0>=d.x0-1&&b.y0>=d.y0-1&&b.x1<=d.x1+1&&b.y1<=d.y1+1;}
-// A small IndexedDB cache, so reopening a plan does not download the same terrain again.
-function demStore(key,val){
+// A small IndexedDB store in this browser: 'dem' caches terrain so reopening a plan does not download it again,
+// 'models' holds the 3D model library. Without IndexedDB (private windows) the models live in memory for this
+// page load and the terrain is simply not cached.
+var MEMDB={dem:{},models:{}};
+function idbOpen(){
   return new Promise(function(res){
     try{
-      var rq=indexedDB.open('sitePlanSketcher',1);
-      rq.onupgradeneeded=function(){rq.result.createObjectStore('dem');};
-      rq.onerror=function(){res(null);};
-      rq.onsuccess=function(){
-        try{
-          var st=rq.result.transaction('dem',val?'readwrite':'readonly').objectStore('dem');
-          if(!val){var q=st.get(key);q.onsuccess=function(){res(q.result||null);};q.onerror=function(){res(null);};return;}
-          var kq=st.getAllKeys();
-          kq.onsuccess=function(){if(kq.result.length>12&&kq.result.indexOf(key)<0)st.clear();st.put(val,key);res(true);};
-          kq.onerror=function(){res(null);};
-        }catch(e){res(null);}
-      };
+      var rq=indexedDB.open('sitePlanSketcher',2);
+      rq.onupgradeneeded=function(){var d=rq.result;['dem','models'].forEach(function(s){if(!d.objectStoreNames.contains(s))d.createObjectStore(s);});};
+      rq.onerror=function(){res(null);};rq.onblocked=function(){res(null);};
+      rq.onsuccess=function(){res(rq.result);};
     }catch(e){res(null);}
   });
+}
+function idbDo(store,mode,fn,mem){ // fn(objectStore,done) runs against IndexedDB; mem(object) is the in-memory fallback
+  return idbOpen().then(function(db){
+    if(!db)return store==='models'?mem(MEMDB.models):mem({});
+    return new Promise(function(res){
+      function done(v){try{db.close();}catch(e){}res(v);} // one short-lived connection per operation
+      try{fn(db.transaction(store,mode).objectStore(store),done);}catch(e){done(store==='models'?mem(MEMDB.models):null);}
+    });
+  });
+}
+function idbGet(store,key){return idbDo(store,'readonly',function(st,done){var q=st.get(key);q.onsuccess=function(){done(q.result||null);};q.onerror=function(){done(null);};},function(m){return m[key]||null;});}
+function idbPut(store,key,val){return idbDo(store,'readwrite',function(st,done){var q=st.put(val,key);q.onsuccess=function(){done(true);};q.onerror=function(){done(null);};},function(m){m[key]=val;return true;});}
+function idbDel(store,key){return idbDo(store,'readwrite',function(st,done){var q=st.delete(key);q.onsuccess=function(){done(true);};q.onerror=function(){done(null);};},function(m){delete m[key];return true;});}
+function idbKeys(store){return idbDo(store,'readonly',function(st,done){var q=st.getAllKeys();q.onsuccess=function(){done(q.result||[]);};q.onerror=function(){done([]);};},function(m){return Object.keys(m);}).then(function(k){return k||[];});}
+function idbClear(store){return idbDo(store,'readwrite',function(st,done){var q=st.clear();q.onsuccess=function(){done(true);};q.onerror=function(){done(null);};},function(m){Object.keys(m).forEach(function(k){delete m[k];});return true;});}
+function demStore(key,val){
+  if(!val)return idbGet('dem',key);
+  return idbKeys('dem').then(function(ks){return ks.length>12&&ks.indexOf(key)<0?idbClear('dem'):null;}).then(function(){return idbPut('dem',key,val);});
 }
 function demSave(g){demStore(g.key,{ll0:g.ll0,ll1:g.ll1,nx:g.nx,ny:g.ny,z:g.z,min:g.min,max:g.max,holes:g.holes,survey:g.survey,res:g.res});}
 function fetchDEM(b){
@@ -2741,11 +2777,127 @@ function markFacade(o){var k=facadeOf(o);$$('#iFacade button').forEach(function(
 buildFacadePicker();
 $('#iFacade').addEventListener('click',function(e){var b=e.target.closest('button[data-fa]');if(!b)return;var k=b.getAttribute('data-fa');inspUpdate(function(o){o.fa=k;});});
 
+// ---------- 3D model library: built-in trees and a car, plus .glb files you add (stored in this browser) ----------
+// Plants go on areas, cars on parking-lot stalls, and a building model replaces the generated building, stretched to
+// its footprint. What is chosen is saved on the object (area.pm, lot.pc, building.mod); the files themselves are not.
+var BUILTIN={
+  'builtin:tree1':{name:'Deciduous tree',kind:'tree',size:32},
+  'builtin:tree2':{name:'Conifer',kind:'tree',size:42},
+  'builtin:shrub':{name:'Shrub',kind:'tree',size:5},
+  'builtin:car':{name:'Car',kind:'car',size:15}
+};
+var KIND_SIZE={tree:30,car:15,building:0};
+var LIB={items:[]};
+function modelInfo(id){return BUILTIN[id]||LIB.items.filter(function(m){return m.name===id;})[0]||null;}
+function modelsOf(kind){
+  var out=[];Object.keys(BUILTIN).forEach(function(id){if(BUILTIN[id].kind===kind)out.push({id:id,name:BUILTIN[id].name});});
+  LIB.items.forEach(function(m){if(m.kind===kind)out.push({id:m.name,name:m.name});});return out;
+}
+function fillModelSelect(sel,kind,cur,none){
+  if(document.activeElement===sel)return;
+  sel.innerHTML='<option value="">'+esc(none)+'</option>'+modelsOf(kind).map(function(m){return '<option value="'+esc(m.id)+'">'+esc(m.name)+'</option>';}).join('')+
+    (cur&&!modelInfo(cur)?'<option value="'+esc(cur)+'">'+esc(cur)+' (not in library)</option>':'');
+  sel.value=cur||'';
+}
+function guessKind(n){return /tree|shrub|bush|plant|oak|pine|maple|spruce|conifer|hedge/i.test(n)?'tree':(/car|sedan|suv|truck|van|vehicle|auto/i.test(n)?'car':'building');}
+function saveModel(it){return idbPut('models',it.name,{name:it.name,kind:it.kind,size:it.size,buf:it.buf});}
+function addModelFile(f){
+  return f.arrayBuffer().then(function(buf){
+    var m=new Uint8Array(buf,0,4);
+    if(!(m[0]===0x67&&m[1]===0x6C&&m[2]===0x54&&m[3]===0x46))throw new Error(f.name+' is not a binary glTF. In Blender use File › Export › glTF 2.0 and choose Format: glTF Binary (.glb).');
+    if(buf.byteLength>40*1048576)throw new Error(f.name+' is '+(buf.byteLength/1048576).toFixed(0)+' MB. Keep models under 40 MB (fewer polygons and smaller textures).');
+    var kind=guessKind(f.name),it={name:f.name,kind:kind,size:KIND_SIZE[kind],buf:buf};
+    LIB.items=LIB.items.filter(function(x){return x.name!==f.name;}).concat([it]);
+    if(V3&&V3.tpl)delete V3.tpl[f.name];
+    return saveModel(it).then(function(){libChanged();return it;});
+  });
+}
+function libChanged(){renderLib();if(S.sel)fillInspector();if(V3&&V3.on)schedule3D();}
+function renderLib(){
+  var h='<div class="note"><b>Built in:</b> '+Object.keys(BUILTIN).map(function(id){return esc(BUILTIN[id].name);}).join(', ')+'</div>';
+  if(LIB.items.length)h+='<div class="libRow note"><span>Your models</span><span>Kind</span><span>Size ft</span><span></span></div>';
+  LIB.items.forEach(function(m,i){
+    var kinds=[['tree','Tree / plant'],['car','Car'],['building','Building']];
+    h+='<div class="libRow"><span class="nm" title="'+esc(m.name)+'">'+esc(m.name)+'<br><span class="note">'+(m.buf.byteLength/1048576).toFixed(1)+' MB</span></span>'+
+      '<select data-lib="'+i+'" data-f="kind" aria-label="What '+esc(m.name)+' is">'+kinds.map(function(k){return '<option value="'+k[0]+'"'+(m.kind===k[0]?' selected':'')+'>'+k[1]+'</option>';}).join('')+'</select>'+
+      '<input type="number" data-lib="'+i+'" data-f="size" min="1" step="1" value="'+(m.kind==='building'?'':m.size)+'"'+(m.kind==='building'?' disabled placeholder="fits"':'')+' title="'+(m.kind==='tree'?'Height in feet':(m.kind==='car'?'Length in feet':'Buildings are fitted to their footprint'))+'" aria-label="Size in feet">'+
+      '<button class="btn small danger" data-lib="'+i+'" data-f="del" title="Remove from the library">✕</button></div>';
+  });
+  if(!LIB.items.length)h+='<div class="note" style="margin-top:4px">No models of your own yet.</div>';
+  $('#libList').innerHTML=h;
+}
+$('#libList').addEventListener('change',function(e){
+  var el=e.target.closest('[data-lib]');if(!el)return;
+  var it=LIB.items[+el.getAttribute('data-lib')],f=el.getAttribute('data-f');if(!it)return;
+  if(f==='kind'){it.kind=el.value;it.size=KIND_SIZE[it.kind]||0;}
+  else if(f==='size'){var v=parseFloat(el.value);if(isFinite(v)&&v>0)it.size=v;}
+  saveModel(it);libChanged();
+});
+$('#libList').addEventListener('click',function(e){
+  var el=e.target.closest('button[data-f="del"]');if(!el)return;
+  var it=LIB.items[+el.getAttribute('data-lib')];if(!it)return;
+  LIB.items=LIB.items.filter(function(x){return x!==it;});if(V3&&V3.tpl)delete V3.tpl[it.name];
+  idbDel('models',it.name);libChanged();
+});
+function addModelFiles(files){
+  return Promise.all(Array.prototype.map.call(files,function(f){return addModelFile(f).then(function(it){return it;},function(e){toast(e.message,true);return null;});})).then(function(r){
+    r=r.filter(Boolean);if(!r.length)return;
+    toast('Added '+r.map(function(x){return x.name;}).join(', ')+' to the 3D models list as '+r.map(function(x){return {tree:'a tree / plant',car:'a car',building:'a building'}[x.kind];}).join(', ')+'. Check what it is on the Layers tab, then pick it on an area, parking lot or building.');
+    return r;
+  });
+}
+$('#libFile').addEventListener('change',function(ev){addModelFiles(ev.target.files);ev.target.value='';});
+idbKeys('models').then(function(ks){return Promise.all(ks.map(function(k){return idbGet('models',k);}));}).then(function(rs){
+  rs.filter(Boolean).forEach(function(r){if(!LIB.items.some(function(x){return x.name===r.name;}))LIB.items.push({name:r.name,kind:r.kind,size:r.size,buf:r.buf});});
+  libChanged();
+});
+// pickers on the building, area and parking-lot inspectors
+$('#iModel').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.mod=v;else delete o.mod;});});
+$('#aPlant').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pm={m:v,d:(o.pm&&o.pm.d)||6};else delete o.pm;});});
+$('#aDens').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pm&&isFinite(d))o.pm.d=Math.max(0.5,Math.min(40,d));});});
+$('#pCars').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pc={m:v,f:o.pc&&o.pc.f!=null?o.pc.f:70};else delete o.pc;});});
+$('#pFill').addEventListener('input',function(){var d=parseFloat(this.value);inspUpdate(function(o){if(o.pc&&isFinite(d))o.pc.f=Math.max(0,Math.min(100,d));});});
+// Where the plants and cars stand, in local feet. Seeded by the object's id, so the same plan always gets the same trees.
+function propPlacements(){
+  var P={trees:[],cars:[]},ctx=S.ctx;if(!ctx)return P;
+  function blocked(p){for(var id in ctx.rings)if(pointInRing(p,ctx.rings[id]))return true;return pointInAny(p,ctx.roadPolys);}
+  S.areas.forEach(function(a){
+    var pm=a.pm;if(!pm||!pm.m||!a.ring||a.ring.length<3)return;
+    var ring=a.ring.map(toLocal),sf=Math.abs(polyAreaSigned(ring)),dens=Math.max(0.5,Math.min(40,+pm.d||6)),n=Math.min(600,Math.round(sf/1000*dens));
+    if(n<1)return;
+    var R=rng(a.id*7919+n),minD=0.6*Math.sqrt(1000/dens),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,grid={},got=0;
+    ring.forEach(function(p){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+    for(var tries=0;tries<n*40&&got<n;tries++){
+      var x=x0+R()*(x1-x0),y=y0+R()*(y1-y0),p=[x,y];
+      if(!pointInRing(p,ring)||blocked(p))continue;
+      var gx=Math.floor(x/minD),gy=Math.floor(y/minD),ok=true;
+      for(var dx=-1;dx<=1&&ok;dx++)for(var dy=-1;dy<=1&&ok;dy++){var c=grid[(gx+dx)+','+(gy+dy)];if(c)for(var q=0;q<c.length;q++)if(Math.hypot(c[q][0]-x,c[q][1]-y)<minD){ok=false;break;}}
+      if(!ok)continue;
+      (grid[gx+','+gy]=grid[gx+','+gy]||[]).push(p);got++;
+      P.trees.push({m:pm.m,x:x,y:y,rot:R()*Math.PI*2,v:0.8+R()*0.4});
+    }
+  });
+  S.lots.forEach(function(l){
+    var pc=l.pc,g=S.lotG[l.id];if(!pc||!pc.m||!g||!g.stalls.length)return;
+    var fill=Math.max(0,Math.min(100,pc.f==null?70:+pc.f))/100,R=rng(l.id*104729+g.stalls.length),N=g.stalls.length,order=[],taken={},k;
+    for(k=0;k<N;k++)order.push(k);
+    for(k=N-1;k>0;k--){var s=Math.floor(R()*(k+1)),tmp=order[k];order[k]=order[s];order[s]=tmp;} // a seeded shuffle, so exactly this share of stalls is filled
+    order.slice(0,Math.round(fill*N)).forEach(function(i){taken[i]=1;});
+    g.stalls.forEach(function(q,qi){
+      var flip=R()<0.5,v=0.95+R()*0.1;if(!taken[qi])return;
+      var e1=[q[1][0]-q[0][0],q[1][1]-q[0][1]],e3=[q[3][0]-q[0][0],q[3][1]-q[0][1]],l1=Math.hypot(e1[0],e1[1]),l3=Math.hypot(e3[0],e3[1]),lg=l1>=l3?e1:e3;
+      P.cars.push({m:pc.m,x:(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4,y:(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4,ang:Math.atan2(lg[1],lg[0])+(flip?Math.PI:0),len:Math.max(l1,l3),v:v});
+    });
+  });
+  return P;
+}
+
 // ---------- 3D view (Three.js, loaded on first use) ----------
 var THREE_URL='https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js';
 var ORBIT_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js';
 var EXPORT_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/exporters/GLTFExporter.js';
-var V3={on:false,infoShut:true,lib:null,libErr:null,demErr:null,r:null,scene:null,cam:null,ctl:null,sun:null,group:null,timer:null,size:500,midY:0,fit:true};
+var GLTF_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js';
+var V3={on:false,infoShut:true,tpl:{},lib:null,libErr:null,demErr:null,r:null,scene:null,cam:null,ctl:null,sun:null,group:null,timer:null,size:500,midY:0,fit:true};
 function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error('could not load '+src));};document.head.appendChild(s);});}
 function load3D(){
   if(window.THREE&&window.THREE.OrbitControls)return Promise.resolve();
@@ -2835,7 +2987,55 @@ function ray3D(e){
   rc.setFromCamera(new T.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),V3.cam);
   return rc;
 }
-function hit3D(e){return ray3D(e).intersectObjects(V3.group.children.filter(function(o){return o.isMesh&&o.userData.bid!=null;}),false)[0]||null;}
+function hit3D(e){
+  var ms=[];V3.group.traverse(function(o){if(o.isMesh&&o.userData.bid!=null)ms.push(o);});
+  return ray3D(e).intersectObjects(ms,false)[0]||null;
+}
+// Built-in low-poly plants and a car, in feet, standing on y = 0 (the library of your own models is loaded from .glb files).
+function builtinModel(T,id){
+  var g=new T.Group();
+  function m(c){return new T.MeshLambertMaterial({color:c});}
+  function part(geo,mat,x,y,z,sx,sy,sz){var o=new T.Mesh(geo,mat);o.position.set(x,y,z);if(sx)o.scale.set(sx,sy,sz);g.add(o);return o;}
+  if(id==='builtin:tree1'){
+    part(new T.CylinderGeometry(0.7,1.1,11,6),m(0x6b4f3a),0,5.5,0);
+    part(new T.IcosahedronGeometry(8,1),m(0x4f8f3a),0,18,0);part(new T.IcosahedronGeometry(5.5,1),m(0x5fa04a),4.5,13.5,2);part(new T.IcosahedronGeometry(5,1),m(0x468636),-4.5,14.5,-2.5);
+  }else if(id==='builtin:tree2'){
+    part(new T.CylinderGeometry(0.6,0.9,6,6),m(0x5a4332),0,3,0);
+    part(new T.ConeGeometry(7.5,14,8),m(0x2f6b3a),0,13,0);part(new T.ConeGeometry(5.8,12,8),m(0x347a41),0,20,0);part(new T.ConeGeometry(4,10,8),m(0x3a8a49),0,27,0);
+  }else if(id==='builtin:shrub'){
+    part(new T.IcosahedronGeometry(2.6,1),m(0x5a9a45),0,2,0,1.2,0.85,1.2);part(new T.IcosahedronGeometry(1.9,1),m(0x4d8a3a),1.8,1.5,1,1,0.8,1);
+  }else{ // car: length along x
+    var body=part(new T.BoxGeometry(15,2.4,6),m(0xb23a3a),0,2.4,0);body.userData.body=true;
+    var glass=m(0x27323a);part(new T.BoxGeometry(7.6,2,5.2),glass,-0.8,4.6,0);
+    var tyre=m(0x15181a),wg=new T.CylinderGeometry(1.25,1.25,0.9,10);
+    [[-4.7,-2.9],[-4.7,2.9],[4.7,-2.9],[4.7,2.9]].forEach(function(p){var w=part(wg,tyre,p[0],1.25,p[1]);w.rotation.x=Math.PI/2;});
+  }
+  return g;
+}
+// A template is a Group that stands on y = 0, centred on x and z, in feet. Instances are clones that share its
+// geometry and materials (flagged userData.shared so rebuilding the scene does not free them).
+function makeTemplate(T,scene,fromMetres){
+  var wrap=new T.Group(),box=new T.Box3().setFromObject(scene),sz=box.getSize(new T.Vector3()),c=box.getCenter(new T.Vector3()),k=fromMetres?M2FT:1;
+  scene.position.set(-c.x,-box.min.y,-c.z);wrap.add(scene);wrap.scale.setScalar(k);
+  scene.traverse(function(o){if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.userData.shared=true;}});
+  if(!(sz.x>0&&sz.y>0&&sz.z>0))throw new Error('the model has no size');
+  return {obj:wrap,w:sz.x*k,d:sz.z*k,h:sz.y*k};
+}
+function tplGet(name){
+  var t=V3.tpl[name];if(t)return t.obj?t:null;
+  var T=window.THREE;V3.tpl[name]={wait:true};
+  if(BUILTIN[name]){
+    var g=builtinModel(T,name);V3.tpl[name]=makeTemplate(T,g,false);return V3.tpl[name];
+  }
+  var it=modelInfo(name);
+  if(!it){V3.tpl[name]={err:'it is not in this browser’s library'};return null;}
+  (T.GLTFLoader?Promise.resolve():loadScript(GLTF_URL)).then(function(){
+    return new Promise(function(res,rej){new T.GLTFLoader().parse(it.buf.slice(0),'',res,rej);});
+  }).then(function(gl){V3.tpl[name]=makeTemplate(T,gl.scene,true);},function(e){V3.tpl[name]={err:(e&&e.message)||'the file could not be read'};}).then(function(){if(V3.on)schedule3D();});
+  return null;
+}
+var CAR_COLORS=[0xb23a3a,0x2f5d9e,0xd9dadc,0x2b2d30,0x8a8f95,0xc9a227,0x3f7a56];
+function instanceOf(tpl,sc){var o=tpl.obj.clone(true);o.scale.multiplyScalar(sc);return o;}
 function pick3D(e){
   var h=hit3D(e);
   if(h)select({k:'b',id:h.object.userData.bid});
@@ -2845,7 +3045,11 @@ function resize3D(){if(!V3.r)return;var el=$('#v3dCanvas'),w=el.clientWidth||800
 function render3D(){if(V3.r&&V3.on)V3.r.render(V3.scene,V3.cam);}
 function rebuildScene(g){
   var T=window.THREE;
-  if(V3.group){V3.scene.remove(V3.group);V3.group.traverse(function(o){if(o.geometry)o.geometry.dispose();[].concat(o.material||[]).forEach(function(m){if(m.map&&!m.map.userData.keep)m.map.dispose();m.dispose();});});}
+  if(V3.group){V3.scene.remove(V3.group);V3.group.traverse(function(o){
+    if(o.geometry&&!o.userData.shared)o.geometry.dispose();
+    if(o.userData.shared&&!o.userData.ownMat)return; // model templates keep their geometry and materials
+    [].concat(o.material||[]).forEach(function(m){if(m.map&&!m.map.userData.keep)m.map.dispose();m.dispose();});
+  });}
   var mode=$('#v3dGround').value;
   if(g&&mode!=='dem'&&!g.img&&!g.imgErr)demImagery(g).then(function(){if(V3.on)build3D();},function(){if(V3.on)build3D();});
   var grp=new T.Group();V3.group=grp;V3.scene.add(grp);
@@ -2880,15 +3084,33 @@ function rebuildScene(g){
   // buildings: modelled by type (see buildingParts) and set on the lowest ground under each one
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id];if(!ring||ring.length<3)return;
-    var tu=g?terrainUnder(g,ring,b.pad):{pad:0,min:0},y0=Y(tu.pad);
-    buildingMeshes(T,b,ring,y0,cx,cy,Math.max(0,tu.pad-tu.min)*exag+1).forEach(function(m){grp.add(m);});
+    var tu=g?terrainUnder(g,ring,b.pad):{pad:0,min:0},y0=Y(tu.pad),bt=b.mod&&!b.pts?tplGet(b.mod):null,sH=S.set.storyH||11;
+    if(bt){ // a model from the library, stretched to the footprint and to stories x story height
+      var h=Math.max(1,b.st||1)*sH,o=bt.obj.clone(true),c=toLocal(b.c);
+      o.scale.set(o.scale.x*(b.w/bt.w),o.scale.y*(h/bt.h),o.scale.z*(b.d/bt.d));
+      o.position.set(c[0]-cx,y0,-(c[1]-cy));o.rotation.y=b.rot*Math.PI/180;o.name=(b.name||'Building')+' (model)';
+      o.userData.bid=b.id;o.traverse(function(m){m.userData.bid=b.id;});grp.add(o);
+    }else buildingMeshes(T,b,ring,y0,cx,cy,Math.max(0,tu.pad-tu.min)*exag+1).forEach(function(m){grp.add(m);});
     if(S.sel&&S.sel.k==='b'&&S.sel.id===b.id){ // selected: yellow outline at the ground and the top of the walls
-      var top=modelDims(b).top,pts=[],nr=ring.length;
+      var top=bt?Math.max(1,b.st||1)*sH:modelDims(b).top,pts=[],nr=ring.length;
       [0.3,top].forEach(function(z){ring.forEach(function(p,i){var q=ring[(i+1)%nr];pts.push(p[0]-cx,y0+z,-(p[1]-cy),q[0]-cx,y0+z,-(q[1]-cy));});});
       ring.forEach(function(p){pts.push(p[0]-cx,y0+0.3,-(p[1]-cy),p[0]-cx,y0+top,-(p[1]-cy));});
       var lg=new T.BufferGeometry();lg.setAttribute('position',new T.Float32BufferAttribute(pts,3));
       var ln=new T.LineSegments(lg,new T.LineBasicMaterial({color:0xffd43b,depthTest:false,transparent:true}));ln.renderOrder=5;ln.userData.bid=b.id;ln.name='selection';grp.add(ln);
     }
+  });
+  // plants on areas and cars in parking stalls (at most 1,200 plants and 400 cars are drawn)
+  var PL=propPlacements();
+  PL.trees.slice(0,1200).forEach(function(p){
+    var t=tplGet(p.m),it=modelInfo(p.m);if(!t||!it)return;
+    var o=instanceOf(t,(it.size/t.h)*p.v);o.rotation.y=p.rot;o.position.set(p.x-cx,Y(ground(p.x,p.y)),-(p.y-cy));o.name='Plant';grp.add(o);
+  });
+  PL.cars.slice(0,400).forEach(function(p,n){
+    var t=tplGet(p.m),it=modelInfo(p.m);if(!t||!it)return;
+    var lng=Math.max(t.w,t.d),o=instanceOf(t,(Math.min(it.size,Math.max(6,p.len-1.5))/lng)*p.v);
+    o.rotation.y=p.ang+(t.d>t.w?Math.PI/2:0);o.position.set(p.x-cx,Y(ground(p.x,p.y)),-(p.y-cy));o.name='Car';
+    o.traverse(function(m){if(m.userData.body){m.material=m.material.clone();m.material.color.set(CAR_COLORS[(n*5+(p.m.length))%CAR_COLORS.length]);m.userData.ownMat=true;}});
+    grp.add(o);
   });
   V3.size=Math.max(box.x1-box.x0,box.y1-box.y0)/2;V3.midY=g?Y((g.min+g.max)/2):0;
 }
@@ -3164,6 +3386,17 @@ function info3D(g){
       h+='</table>';
     }
   }else h+='<div class="flag">Terrain unavailable'+(V3.demErr?': '+esc(V3.demErr.message):'')+'. Showing flat ground.</div>';
+  // plants, cars and building models in use, and any that cannot be shown
+  var PL=propPlacements(),used={},bits=[];
+  S.areas.forEach(function(a){if(a.pm&&a.pm.m)used[a.pm.m]=1;});S.lots.forEach(function(l){if(l.pc&&l.pc.m)used[l.pc.m]=1;});
+  var bm=S.buildings.filter(function(b){return b.mod&&!b.pts;});bm.forEach(function(b){used[b.mod]=1;});
+  if(PL.trees.length)bits.push(n0(PL.trees.length)+(PL.trees.length===1?' plant':' plants')+(PL.trees.length>1200?' (first 1,200 drawn)':''));
+  if(PL.cars.length)bits.push(n0(PL.cars.length)+(PL.cars.length===1?' car':' cars'));
+  if(bm.length)bits.push(bm.length+(bm.length===1?' building model':' building models'));
+  if(bits.length)h+='<div id="v3dProps"><b>3D models:</b> '+bits.join(' · ')+'</div>';
+  var missing=Object.keys(used).filter(function(n){return !modelInfo(n);});
+  if(missing.length)h+='<div class="flag">Not in this browser’s library: '+missing.map(esc).join(', ')+'. Add the files on the Layers tab.</div>';
+  Object.keys(used).forEach(function(n){var t=V3.tpl[n];if(t&&t.err&&modelInfo(n))h+='<div class="flag">Could not load '+esc(n)+': '+esc(t.err)+'.</div>';});
   h+='<div class="note">Click a building to select it, drag it to move it, and use Q / E or the bar below to rotate it. Its facade and pad are on the Build tab. Elevations are NAVD 88 feet. Buildings use '+n1(S.set.storyH||11)+' ft per story (Check tab; storefront ground floors are 4 ft taller) and sit on a level pad cut into the ground (set the pad elevation on the Build tab; left empty, it balances cut and fill). Entrances face the nearest road. Drag to orbit, right-drag to pan, scroll to zoom. Sun times are solar time.</div>';
   var fall=h.match(/<b>([\d.,]+ ft)<\/b> of fall/);
   $('#v3dInfo').innerHTML='<details id="v3dDet"'+(V3.infoShut?'':' open')+'><summary>Terrain and buildings'+(fall?' · '+fall[1]+' of fall across the site':'')+'</summary>'+h+'</details>';
