@@ -144,6 +144,31 @@ ok(/best fit used 60° stalls on a one-way aisle/.test(info()),'the inspector sa
 t.set('#aAng','90','change');F=feat();
 ok(F.ai.length===1&&F.st.length===29&&t.proj().areas[0].pk.ang===90,'held to 90° it is still one aisle: 20 stalls and 9 parallel ('+F.st.length+' stalls, '+F.ai.length+' aisle)');
 t.set('#aAng','auto','change');ok(prov()===34,'Best fit brings the 60° layout back');
+// ---- a strip beside a road: the road is the aisle, when stalls are allowed to open onto it
+// road up the middle at x 0, 24 ft wide (edge at x -12); a strip 23 ft deep and 160 ft long drawn against that edge
+await fresh();t.set('#roadW','24');await t.draw('road',[[0,-210],[0,60]]);
+await t.draw('parkarea',t.rectPts(-35,-150,-12,10));t.set('#aAng','auto','change');
+F=feat();
+ok(F.st.length<=4&&/16 would fit if stalls opened straight onto the road beside it/.test(info()),'on its own a 23 ft strip holds next to nothing (no rows of little pockets), and it says 16 would fit off the road ('+F.st.length+' stalls: '+info().slice(0,140)+')');
+t.click(t.$('#aOnRoad'));F=feat();
+const S7=stalls();
+ok(F.st.length===16&&F.ai.length===0&&F.st.every(f=>f.properties.angleDeg===90),'ticked: 16 stalls at 90° straight off the road, no aisle of their own ('+F.st.length+' stalls, '+F.ai.length+' aisles)');
+ok(S7.every(q=>inBox(q,-35,-150,-12,10))&&S7.every(q=>q.some(p=>near(p[0],-12,0.06)))&&!tooClose(S7,10),'every stall is in the strip, with its open end on the road edge');
+ok(!/no road reaches/.test(info())&&!/would fit if/.test(info()),'and the notes about the road are gone');
+// drawn 2 ft short of the road edge: still counts as beside it
+await fresh();await t.draw('road',[[0,-210],[0,60]]);
+await t.draw('parkarea',t.rectPts(-37,-150,-14,10));
+ok(t.$('#aOnRoad').checked&&prov()===16,'a strip drawn 2 ft short of the road edge still opens onto it ('+prov()+'; the setting carries over to the next area)');
+// a 16 ft drive is too narrow to back out of a 90° stall: best fit turns the stalls to 60°
+await fresh();t.set('#roadW','16');await t.draw('road',[[0,-210],[0,60]]);
+await t.draw('parkarea',t.rectPts(-31,-150,-8,10));F=feat();
+ok(F.st.length===12&&F.st.every(f=>f.properties.angleDeg===60),'beside a 16 ft drive best fit uses 60° stalls: 12 of them ('+F.st.length+' at '+(F.st[0]||{properties:{}}).properties.angleDeg+'°)');
+t.set('#aAng','90','change');ok(prov()<12,'held to 90° they do not fit off that drive ('+prov()+')');
+// 12 ft deep: only parallel stalls fit
+await fresh();t.set('#roadW','24');await t.draw('road',[[0,-210],[0,60]]);
+await t.draw('parkarea',t.rectPts(-24,-150,-12,10));t.set('#aAng','auto','change');F=feat();
+ok(F.st.length===7&&F.st.every(f=>f.properties.angleDeg===0),'a 12 ft deep strip beside the road takes 7 parallel stalls ('+F.st.length+')');
+t.click(t.$('#aOnRoad'));ok(prov()===0&&!t.proj().areas[0].pk.road,'and none once stalls may not open onto the road ('+prov()+', '+JSON.stringify(t.proj().areas[0].pk)+')');
 // ---- unused paving and Trim
 await fresh();await t.draw('parkarea',t.rectPts(-280,-110,-5,-25));              // 275 x 85 ft: only 64 ft of depth is needed
 const before=prov(),impB=t.num(t.stat('Impervious').s),greenB=t.num(t.stat('Green space').v);
