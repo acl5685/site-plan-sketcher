@@ -119,6 +119,12 @@ td:first-child{font-family:var(--font)}
 .leaflet-container{font-family:var(--font)}
 [hidden]{display:none!important}
 .vh{width:12px;height:12px;margin:-6px 0 0 -6px;background:#fff;border:2px solid #0a6e83;border-radius:2px;cursor:move}
+/* where the next drawn point will snap: a square on a corner, a diamond on a crossing, a ring on a line */
+.snapm{pointer-events:none}
+.snapm i{position:absolute;left:-8px;top:-8px;width:16px;height:16px;box-sizing:border-box;border:2.5px solid #22d3ee;background:rgba(0,0,0,.35);box-shadow:0 0 0 1px #06262c}
+.snap-edge i,.snap-square i{border-radius:50%}
+.snap-cross i{transform:rotate(45deg)}
+.snapm span{position:absolute;left:13px;top:-9px;padding:1px 6px;border-radius:3px;background:rgba(6,38,44,.88);color:#e6fbff;font:600 11px/1.5 var(--font);white-space:nowrap}
 .rh{width:26px;height:26px;margin:-13px 0 0 -13px;background:#fff;border:2px solid #0a6e83;border-radius:50%;color:#0a6e83;font:700 16px/22px var(--font);text-align:center;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .rh:active{cursor:grabbing}
 #pbTip{flex-basis:100%;text-align:center}
@@ -411,7 +417,8 @@ td:first-child{font-family:var(--font)}
       </div>
       <div>
         <h3>Snapping</h3>
-        <label class="chk"><input type="checkbox" id="oVsnap" checked> Snap drawn points to parcel corners and edges</label>
+        <label class="chk"><input type="checkbox" id="oVsnap" checked> Snap drawn points to corners, lines and crossings (parcels, lots, roads, buildings, areas, fences)</label>
+        <div class="note" style="margin:2px 0 4px 22px">A blue mark shows where the point will land and the line it is on. With an angle locked, the point slides along that angle onto the line. Hold Shift to place a point freely.</div>
         <label class="chk"><input type="checkbox" id="oAlign" checked> Rotate buildings to match the nearest property or road edge</label>
         <label class="chk"><input type="checkbox" id="oHold" checked> Hold the required setback near an edge (needs the rotation snap above)</label>
         <label class="chk"><input type="checkbox" id="oEdge" checked> Snap to the edges and corners of other buildings, areas and roads (gap is set on the Check tab)</label>
@@ -847,6 +854,19 @@ function newFence(pts,closed){
   return f;
 }
 function isPtsKind(k){return k==='r'||k==='p'||k==='f';} // shapes stored as a line of points
+// Corners and edges of every loaded parcel, for snapping (kept until the parcels change)
+var pSnap={src:null,n:-1,v:[],sg:[]};
+function parcelSnap(){
+  if(!S.parcels||!S.parcels.features)return {v:[],sg:[]};
+  if(pSnap.src===S.parcels&&pSnap.n===S.parcels.features.length)return pSnap;
+  var v=[],sg=[];
+  S.parcels.features.forEach(function(f){
+    if(!f.geometry||!/Polygon$/.test(f.geometry.type))return;
+    polysOf(f).forEach(function(pl){pl.forEach(function(r){for(var i=0;i<r.length-1;i++){v.push(r[i]);if(r[i][0]!==r[i+1][0]||r[i][1]!==r[i+1][1])sg.push([r[i],r[i+1]]);}});});
+  });
+  pSnap={src:S.parcels,n:S.parcels.features.length,v:v,sg:sg};
+  return pSnap;
+}
 function buildCtx(){
   var sitePolys=[],siteRings=[],roadPolys=[];
   // once the site is split, each lot stands in for the site: its lines are the property lines buildings answer to
@@ -881,7 +901,17 @@ function buildCtx(){
   });
   S.parkG={};
   S.areas.forEach(function(a){if(a.kind==='park'&&a.pk)S.parkG[a.id]=parkGeom(a);});
-  S.snapV=v;S.snapSegs=sg;
+  // more lines to snap to: every loaded parcel line (also the ones inside the site), lot lines, road and parking-row
+  // centre lines, and the aisles of laid-out parking areas
+  var ps=parcelSnap();
+  function line(pts,closed){pts.forEach(function(q){v.push(q);});for(var i=0;i<pts.length-1;i++)sg.push([pts[i],pts[i+1]]);if(closed&&pts.length>2)sg.push([pts[pts.length-1],pts[0]]);}
+  S.splits.forEach(function(s){if(s.pts&&s.pts.length>=2)line(s.pts,!!s.shape);});
+  S.roads.forEach(function(r){for(var i=0;i<r.pts.length-1;i++)sg.push([r.pts[i],r.pts[i+1]]);});
+  S.lots.forEach(function(l){for(var i=0;i<l.pts.length-1;i++)sg.push([l.pts[i],l.pts[i+1]]);});
+  S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on)pg.aisles.forEach(function(q){line(q.map(toLL),true);});});
+  S.snapV=v.concat(ps.v);S.snapSegs=sg.concat(ps.sg);
+  // the same in local feet, which is what the snapping measures in
+  S.snapVL=S.snapV.map(toLocal);S.snapSegsL=S.snapSegs.map(function(x){return [toLocal(x[0]),toLocal(x[1])];});
 }
 // Do two convex outlines overlap by more than eps feet? (separating-axis test)
 function quadsOverlap(A,B,eps){
@@ -1656,7 +1686,7 @@ function setTool(t){
   if(t==='building'||t==='road'||t==='lot'||t==='area'||t==='bpoly'||t==='fence')showTab('build');
   updateDrawbar();renderHandles();
 }
-function cancelDraw(){D=null;gDraw.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
+function cancelDraw(){D=null;gDraw.clearLayers();if(typeof gSnap!=='undefined')gSnap.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
 function startDraw(kind){D={kind:kind,pts:[],cursor:null,typed:null,ref:0};}
 // Snap targets for moving a whole shape: corners and edges of everything that is not moving.
 function ftPerPx(){var a=map.containerPointToLatLng([100,100]),b=map.containerPointToLatLng([200,100]),pa=toLocal([a.lng,a.lat]),pb=toLocal([b.lng,b.lat]);return Math.hypot(pb[0]-pa[0],pb[1]-pa[1])/100||1;}
@@ -1669,6 +1699,8 @@ function snapTargets(excl){
   S.lots.forEach(function(l){if(excl['p:'+l.id])return;l.pts.forEach(function(q){v.push(q);});var g=S.lotG[l.id];if(g){if(g.aisle)polysOf(g.aisle).forEach(function(pl){pl.forEach(ring);});g.stalls.forEach(function(r){ring(r.map(toLL));});}});
   S.roads.forEach(function(r){if(excl['r:'+r.id])return;r.pts.forEach(function(q){v.push(q);});var f=roadPoly(r);if(f)polysOf(f).forEach(function(pl){pl.forEach(ring);});});
   S.fences.forEach(function(f){if(excl['f:'+f.id])return;var fp=fencePath(f);fp.forEach(function(q){v.push(q);});for(var i=0;i<fp.length-1;i++)sg.push([fp[i],fp[i+1]]);});
+  S.splits.forEach(function(s){if(!s.pts||s.pts.length<2)return;s.pts.forEach(function(q){v.push(q);});for(var i=0;i<s.pts.length-1;i++)sg.push([s.pts[i],s.pts[i+1]]);if(s.shape)sg.push([s.pts[s.pts.length-1],s.pts[0]]);});
+  var ps=parcelSnap();v=v.concat(ps.v);sg=sg.concat(ps.sg);
   function cp(c){return map.latLngToContainerPoint(L.latLng(c[1],c[0]));}
   return {v:v,vp:v.map(cp),sgl:sg.map(function(x){return [toLocal(x[0]),toLocal(x[1])];})};
 }
@@ -1682,22 +1714,54 @@ function snapShift(pts,T){
   pts.forEach(function(c){var pl=toLocal(c);T.sgl.forEach(function(sg){var r=ptSegDist(pl,sg[0],sg[1]);if(r.d<ed){ed=r.d;var q=toLL(r.pt);best=[q[0]-c[0],q[1]-c[1]];}});});
   return best;
 }
+// Where two segments (local feet) cross, or null
+function segX(p,q){
+  var a=p[0],b=p[1],c=q[0],d=q[1],rx=b[0]-a[0],ry=b[1]-a[1],sx=d[0]-c[0],sy=d[1]-c[1],den=rx*sy-ry*sx;
+  if(Math.abs(den)<1e-9)return null;
+  var t=((c[0]-a[0])*sy-(c[1]-a[1])*sx)/den,u=((c[0]-a[0])*ry-(c[1]-a[1])*rx)/den;
+  return t>=-1e-9&&t<=1+1e-9&&u>=-1e-9&&u<=1+1e-9?[a[0]+t*rx,a[1]+t*ry]:null;
+}
+// What the mouse position snaps to. Everything is measured in local feet, so a snapped point sits exactly on its
+// corner or line; the reach is set in screen pixels. In order: a corner, a crossing of two lines, then a line - and on
+// a line, the spot square across from the last point drawn when that is close by.
+// type: 'vertex' | 'cross' | 'square' | 'edge' | 'none'; seg = the line snapped onto (lng/lat)
 function snapInfo(latlng){
-  var out={pt:[latlng.lng,latlng.lat],type:'none'};
-  if(!S.opt.vsnap||shiftHeld||!S.snapV)return out;
-  var p=map.latLngToContainerPoint(latlng),best=null,bd=14,cands=S.snapV;
-  if(D&&D.kind!=='road'&&D.kind!=='lot'&&D.pts.length>=3)cands=cands.concat([D.pts[0]]);
-  cands.forEach(function(v){var q=map.latLngToContainerPoint(L.latLng(v[1],v[0])),d=p.distanceTo(q);if(d<bd){bd=d;best=v;}});
+  var raw=[latlng.lng,latlng.lat],out={pt:raw,type:'none'};
+  if(!S.opt.vsnap||shiftHeld||!S.snapVL)return out;
+  var pl=toLocal(raw),f=ftPerPx(),rv=14*f,best=null,bd=rv,V=S.snapVL,i,d;
+  for(i=0;i<V.length;i++){d=Math.hypot(V[i][0]-pl[0],V[i][1]-pl[1]);if(d<bd){bd=d;best=S.snapV[i];}}
+  if(D&&D.kind!=='road'&&D.kind!=='lot'&&D.pts.length>=3){var p0=toLocal(D.pts[0]);d=Math.hypot(p0[0]-pl[0],p0[1]-pl[1]);if(d<bd){bd=d;best=D.pts[0];}}
   if(best)return {pt:best,type:'vertex'};
-  // edges are measured in local feet (not screen pixels) so the snapped point sits exactly on the line
-  var be=null,pl=toLocal([latlng.lng,latlng.lat]),ed=10*ftPerPx();
-  S.snapSegs.forEach(function(sg){
-    var r=ptSegDist(pl,toLocal(sg[0]),toLocal(sg[1]));
-    if(r.d<ed){ed=r.d;be=toLL(r.pt);}
-  });
-  return be?{pt:be,type:'edge'}:out;
+  var SG=S.snapSegsL,be=null,ed=12*f,nearS=[],r;
+  for(i=0;i<SG.length;i++){r=ptSegDist(pl,SG[i][0],SG[i][1]);if(r.d<rv)nearS.push(SG[i]);if(r.d<ed){ed=r.d;be={pt:r.pt,sg:SG[i]};}}
+  var bx=null,xd=rv;
+  for(i=0;i<nearS.length&&i<40;i++)for(var j=i+1;j<nearS.length&&j<40;j++){var x=segX(nearS[i],nearS[j]);if(x){d=Math.hypot(x[0]-pl[0],x[1]-pl[1]);if(d<xd){xd=d;bx=x;}}}
+  if(bx)return {pt:toLL(bx),type:'cross'};
+  if(!be)return out;
+  var seg=[toLL(be.sg[0]),toLL(be.sg[1])];
+  if(D&&D.pts.length){
+    var last=toLocal(D.pts[D.pts.length-1]),a=be.sg[0],b=be.sg[1],dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy,t=l2?((last[0]-a[0])*dx+(last[1]-a[1])*dy)/l2:-1;
+    if(t>=0&&t<=1){var ft=[a[0]+t*dx,a[1]+t*dy];if(Math.hypot(ft[0]-be.pt[0],ft[1]-be.pt[1])<7*f&&Math.hypot(ft[0]-last[0],ft[1]-last[1])>2)return {pt:toLL(ft),type:'square',seg:seg};}
+  }
+  return {pt:toLL(be.pt),type:'edge',seg:seg};
 }
 function snapLL(latlng){return snapInfo(latlng).pt;}
+// With the angle locked, a point keeps its direction and slides along it onto a line it meets near the mouse
+function raySnap(lastLL,cpLL){
+  if(!S.snapSegsL)return null;
+  var a=toLocal(lastLL),p=toLocal(cpLL),len=Math.hypot(p[0]-a[0],p[1]-a[1]);if(len<1e-6)return null;
+  var u=[(p[0]-a[0])/len,(p[1]-a[1])/len],tol=12*ftPerPx(),best=null,bd=tol,SG=S.snapSegsL;
+  for(var i=0;i<SG.length;i++){var t=segRay(a,u,SG[i][0],SG[i][1]);if(t!==null&&Math.abs(t-len)<bd){bd=Math.abs(t-len);best={t:t,sg:SG[i]};}}
+  return best?{pt:toLL([a[0]+u[0]*best.t,a[1]+u[1]*best.t]),type:'edge',seg:[toLL(best.sg[0]),toLL(best.sg[1])]}:null;
+}
+// The small mark that shows where the next point will land, and the line it is on
+var gSnap=L.layerGroup().addTo(map),SNAP_TXT={vertex:'corner',cross:'crossing',square:'square to line',edge:'on line'};
+function showSnap(sn){
+  gSnap.clearLayers();
+  if(!sn||!SNAP_TXT[sn.type])return;
+  if(sn.seg)L.polyline(sn.seg.map(ll2),{pane:'pDraw',color:'#22d3ee',weight:3,opacity:.9,interactive:false}).addTo(gSnap);
+  L.marker(ll2(sn.pt),{pane:'pDraw',interactive:false,icon:L.divIcon({className:'snapm snap-'+sn.type,iconSize:[0,0],html:'<i></i><span>'+SNAP_TXT[sn.type]+'</span>'})}).addTo(gSnap);
+}
 function nearestLineAngle(ll){
   if(!S.opt.align||!S.ctx)return 0;
   var p=toLocal(ll),best=null;
@@ -1713,16 +1777,21 @@ function constrainAngle(lastLL,rawLL,mode){
   return toLL([a[0]+u[0]*Lp,a[1]+u[1]*Lp]);
 }
 // The point a drawing tool would place for this mouse position: corners first, then angle snap, then edges.
-function drawPoint(latlng){
+// With the angle locked, the point keeps its angle and slides onto a line it meets near the mouse.
+function drawSnap(latlng){
   var raw=[latlng.lng,latlng.lat];
-  if(shiftHeld)return raw;
+  if(shiftHeld)return {pt:raw,type:'none'};
   var sn=snapInfo(latlng);
-  if(!D)return sn.pt;
+  if(!D)return sn;
   var mode=S.angMode[D.kind]||'free';
-  if(sn.type==='vertex')return sn.pt;
-  if(D.pts.length&&mode!=='free')return constrainAngle(D.pts[D.pts.length-1],raw,mode);
-  return sn.pt;
+  if(sn.type==='vertex')return sn;
+  if(D.pts.length&&mode!=='free'){
+    var last=D.pts[D.pts.length-1],cp=constrainAngle(last,raw,mode);
+    return (S.opt.vsnap&&raySnap(last,cp))||{pt:cp,type:'none'};
+  }
+  return sn;
 }
+function drawPoint(latlng){return drawSnap(latlng).pt;}
 function typedPoint(){
   var last=toLocal(D.pts[D.pts.length-1]),cur=D.cursor?toLocal(D.cursor):last,v=[cur[0]-last[0],cur[1]-last[1]],len=Math.hypot(v[0],v[1]),u;
   if(len<1e-6){var r=(D.ref||0)*Math.PI/180;u=[Math.cos(r),Math.sin(r)];}else u=[v[0]/len,v[1]/len];
@@ -1936,8 +2005,10 @@ map.on('mousemove',function(e){
     return;
   }
   if(S.tool==='building'){updateGhost(e.latlng);}
-  if(D){D.cursor=drawPoint(e.latlng);if(!raf)raf=requestAnimationFrame(function(){raf=0;drawPreview();});}
+  // a drawing tool shows where the next point will snap, before the first click too
+  if(isDrawTool(S.tool)){var sn=drawSnap(e.latlng);showSnap(D&&D.pts.length&&D.typed>0?null:sn);if(D){D.cursor=sn.pt;if(!raf)raf=requestAnimationFrame(function(){raf=0;drawPreview();});}}
 });
+map.on('mouseout',function(){gSnap.clearLayers();});
 function endDrag(){
   if(mq){
     var q=mq;mq=null;map.dragging.enable();if(q.rect)gDraw.removeLayer(q.rect);
@@ -2576,16 +2647,16 @@ function renderHandles(){
   if(b&&b.pts)b.pts.forEach(function(pt,i){
     var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
     m.on('dragstart',function(){pushUndo();S.snapSkip=b.id;buildCtx();});
-    m.on('drag',function(){b.pts[i]=snapLL(m.getLatLng());recenter(b);renderLight();fillInspector();});
-    m.on('dragend',function(){S.snapSkip=null;renderAll();});
+    m.on('drag',function(){var sn=snapInfo(m.getLatLng());b.pts[i]=sn.pt;showSnap(sn);recenter(b);renderLight();fillInspector();});
+    m.on('dragend',function(){S.snapSkip=null;gSnap.clearLayers();renderAll();});
   });
   // a fence: a handle on every corner
   var fn=(S.sel&&S.sel.k==='f'&&S.multi.length<2)?getSel():null;
   if(fn)fn.pts.forEach(function(pt,i){
     var m=L.marker(ll2(pt),{draggable:true,zIndexOffset:1000,icon:L.divIcon({className:'vh',iconSize:[12,12]})}).addTo(gHandles);
     m.on('dragstart',function(){pushUndo();S.snapSkip='f'+fn.id;buildCtx();});
-    m.on('drag',function(){fn.pts[i]=snapLL(m.getLatLng());renderLight();fillInspector();});
-    m.on('dragend',function(){S.snapSkip=null;renderAll();});
+    m.on('drag',function(){var sn=snapInfo(m.getLatLng());fn.pts[i]=sn.pt;showSnap(sn);renderLight();fillInspector();});
+    m.on('dragend',function(){S.snapSkip=null;gSnap.clearLayers();renderAll();});
   });
   rotHandle();
 }

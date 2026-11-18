@@ -25,11 +25,14 @@ t.tool('area');c=px(-180,-75);q=t.M.containerPointToLatLng([c.x+5,c.y-4]);t.M.fi
 t.M.fire('click',{latlng:t.ft(-120,-75)});t.M.fire('click',{latlng:t.ft(-120,-40)});t.key('Enter');
 ar=t.proj().areas[1].ring.map(t.toFt);
 ok(near(ar[0][0],-180,0.01)&&near(ar[0][1],-75,0.01),'a drawn corner snaps to the building corner');
-// snapping to an area edge (new area vertex near area 0's edge x between -180..-150,y=-100)
-t.tool('area');c=px(-165,-60);q=t.M.containerPointToLatLng([c.x,c.y+3]);t.M.fire('mousemove',{latlng:q});t.M.fire('click',{latlng:q});
-ar=null;t.M.fire('click',{latlng:t.ft(-100,-10)});t.M.fire('click',{latlng:t.ft(-130,-10)});t.key('Enter');
-const a3=t.proj().areas[2].ring.map(t.toFt);
-ok(near(a3[0][1],-60,0.02),'corner snaps onto the edge of another area (y='+a3[0][1].toFixed(3)+')');
+// snapping to an area edge: 3 px below the middle of area 0's south edge, which runs (-180,-99.5) to (-150,-100).
+// Zoomed in for this one, so the corners at either end (15 ft away) are out of reach and only the edge can catch it.
+const z0=t.M.getZoom();t.M.setView(t.M.getCenter(),19,{animate:false});
+t.tool('area');c=px(-165,-100);q=t.M.containerPointToLatLng([c.x,c.y+3]);t.M.fire('mousemove',{latlng:q});t.M.fire('click',{latlng:q});
+ar=null;t.M.fire('click',{latlng:t.ft(-165,-140)});t.M.fire('click',{latlng:t.ft(-150,-140)});t.key('Enter');
+const a3=t.proj().areas[2].ring.map(t.toFt),e3=t.proj().areas[0].ring.map(t.toFt),onY=e3[0][1]+(a3[0][0]-e3[0][0])/(e3[1][0]-e3[0][0])*(e3[1][1]-e3[0][1]);
+ok(near(a3[0][1],onY,0.02)&&near(a3[0][0],-165,1),'corner snaps onto the edge of another area ('+a3[0].map(v=>v.toFixed(3))+', edge is at y='+onY.toFixed(3)+')');
+t.M.setView(t.M.getCenter(),z0,{animate:false});
 // --- 2. building placement flush to a building (gap 0) and with a gap
 t.key('Escape');t.tool('select');
 t.set('#sSnapGap','0');
@@ -69,5 +72,50 @@ t.key('Shift');t.M.fire('mousemove',{latlng:t.ft(-85+7.3,-185+3.1)});await sleep
 ok(true,'shift drag ran');
 // --- 4. group drag snaps too
 t.key('z',{ctrlKey:true});t.key('z',{ctrlKey:true});
+// --- 5. more lines to snap to, crossings, locked angles and the snap mark (zoomed in: 14 px is about 10 ft)
+const s=await boot();await s.freshSite(s.row(0,[0,1,2,3]).concat(s.row(1,[0,1,2,3])));
+s.M.setView(s.M.getCenter(),19,{animate:false});s.tab('build');
+const spx=(x,y,dx,dy)=>{const c=s.M.latLngToContainerPoint(s.ft(x,y));return s.M.containerPointToLatLng([c.x+(dx||0),c.y+(dy||0)]);};
+const mark=()=>{const m=s.$('.snapm');return m?m.className.replace(/.*snap-(\w+).*/,'$1')+':'+m.textContent:'';};
+const hover=q=>s.M.fire('mousemove',{latlng:q}),clk=q=>{hover(q);s.M.fire('click',{latlng:q});};
+const lastArea=()=>{const a=s.proj().areas;return a[a.length-1].ring.map(s.toFt);};
+s.set('#areaKind','land','change');
+// a parcel line inside the site (x = -200 between two picked parcels)
+s.tool('area');hover(spx(-200,-30,5,0));
+ok(mark()==='edge:on line','hovering a parcel line inside the site shows the "on line" mark before the first click ('+mark()+')');
+ok(s.layers('pDraw').some(l=>l instanceof s.w.L.Polyline&&!(l instanceof s.w.L.Polygon)&&l.options.color==='#22d3ee'),'and the line itself lights up');
+clk(spx(-200,-30,5,0));clk(s.ft(-170,-30));clk(s.ft(-170,0));s.key('Enter');
+ok(near(lastArea()[0][0],-200,0.01)&&near(lastArea()[0][1],-30,1),'the corner lands exactly on that parcel line (x='+lastArea()[0][0].toFixed(3)+')');
+ok(!s.$('.snapm'),'the mark goes when the shape is finished');
+s.tool('area');hover(spx(-200,-75,6,-5));ok(mark()==='vertex:corner','near a parcel corner the mark says corner ('+mark()+')');
+hover(s.ft(-250,10));ok(mark()==='','on open ground there is no mark');
+// angle locked at 90°: the point keeps its angle and slides onto the line
+s.set('#angMode','ortho','change');clk(s.ft(-260,-20));hover(s.ft(-204,-18));
+ok(mark()==='edge:on line','with the angle locked, a point 4 ft short of a line still snaps to it ('+mark()+')');
+clk(s.ft(-204,-18));clk(s.ft(-230,20));s.key('Enter');
+ok(near(lastArea()[1][0],-200,0.01)&&near(lastArea()[1][1],-20,0.01),'it lands on the line and stays level ('+lastArea()[1].map(v=>v.toFixed(2))+')');
+s.set('#angMode','free','change');
+// where a road edge crosses a parcel line, and the road centre line
+s.set('#roadW','24');await s.draw('road',[[-290,-150],[-110,-150]]);
+s.tool('area');hover(spx(-200,-138,5,5));
+ok(mark()==='cross:crossing','where the road edge crosses a parcel line the mark says crossing ('+mark()+')');
+clk(spx(-200,-138,5,5));
+hover(spx(-150,-150,0,4));ok(mark()==='edge:on line','the road centre line can be snapped to ('+mark()+')');
+clk(spx(-150,-150,0,4));clk(s.ft(-150,-120));s.key('Enter');
+ok(near(lastArea()[0][0],-200,0.01)&&near(lastArea()[0][1],-138,0.3),'the corner lands on the crossing ('+lastArea()[0].map(v=>v.toFixed(2))+')');
+ok(near(lastArea()[1][1],-150,0.01),'and the next one on the centre line (y='+lastArea()[1][1].toFixed(3)+')');
+// square across from the last point
+s.tool('area');clk(s.ft(-260,-195));hover(spx(-200,-195,3,-5));
+ok(mark()==='square:square to line','near the spot square across from the last point, it snaps square ('+mark()+')');
+clk(spx(-200,-195,3,-5));clk(s.ft(-230,-215));s.key('Enter');
+ok(near(lastArea()[1][0],-200,0.01)&&near(lastArea()[1][1],-195,0.01),'giving a side at a right angle to the line ('+lastArea()[1].map(v=>v.toFixed(2))+')');
+// a lot line
+await s.draw('split',[[-250,-240],[-250,-60]]);
+s.tool('area');hover(spx(-250,-100,-4,0));ok(mark()==='edge:on line','a lot line can be snapped to ('+mark()+')');
+// Shift and the option turn it off
+s.key('Shift');hover(spx(-250,-100,-4,0));ok(mark()==='','holding Shift places the point freely');s.keyup('Shift');
+s.click(s.$('#oVsnap'));hover(spx(-250,-100,-4,0));ok(mark()==='','with snapping switched off there is no mark');s.click(s.$('#oVsnap'));
+hover(spx(-250,-100,-4,0));s.tool('select');ok(!s.$('.snapm'),'changing tool clears the mark');
+ok(s.errors.length===0,'no errors: '+s.errors.join('|'));
 ok(t.errors.length===0,'no errors: '+t.errors.join('|'));
 console.log(R.pass+' passed, '+R.fails.length+' failed');R.fails.forEach(f=>console.log(' - '+f));process.exit(R.fails.length?1:0)})();

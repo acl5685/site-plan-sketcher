@@ -33,8 +33,9 @@ t.key('ArrowLeft',{shiftKey:true});let p2=P();
 ok(near(p2.b[0][0]-p1.b[0][0],-5,0.02)&&near(p2.a[2][0]-p1.a[2][0],-5,0.02)&&near(p2.r[0][0]-p1.r[0][0],-5,0.02),'Shift+arrow moves the whole group 5 ft');
 t.key('ArrowUp');let p3=P();ok(near(p3.b[1][1]-p2.b[1][1],1,0.02)&&near(p3.r[0][1]-p2.r[0][1],1,0.02),'arrow moves the group 1 ft');
 // group drag
-bl()[0].fire('mousedown',{latlng:t.ft(-243,-127),originalEvent:{}});
-t.M.fire('mousemove',{latlng:t.ft(-223,-107)});await sleep(40);t.M.fire('mouseup',{});await sleep(20);
+// (Shift held while moving, so the group goes exactly where it is dragged instead of snapping to a nearby parcel line)
+bl()[0].fire('mousedown',{latlng:t.ft(-243,-127),originalEvent:{}});t.key('Shift');
+t.M.fire('mousemove',{latlng:t.ft(-223,-107)});await sleep(40);t.M.fire('mouseup',{});await sleep(20);t.keyup('Shift');
 let p4=P();
 ok(near(p4.b[0][0]-p3.b[0][0],20,0.1)&&near(p4.b[1][0]-p3.b[1][0],20,0.1)&&near(p4.a[0][0]-p3.a[0][0],20,0.1)&&near(p4.r[1][1]-p3.r[1][1],20,0.1),'dragging one member drags the whole group (20 east, 20 north)');
 t.key('z',{ctrlKey:true});let p5=P();ok(near(p5.b[0][0],p3.b[0][0],0.05),'one undo reverses the whole drag');
