@@ -523,6 +523,7 @@ td:first-child{font-family:var(--font)}
         <label><input type="checkbox" id="v3dShadows" checked> Shadows</label>
         <label title="Paint over the existing buildings, parking and trees inside the site so the proposal reads clearly"><input type="checkbox" id="v3dClear"> Clear existing site</label>
         <button class="btn" id="v3dReset">Reset view</button>
+        <button class="btn" id="v3dExport" title="Download this 3D scene as a .glb file for Blender, 3ds Max, Maya or Unity (units: metres)">Export .glb</button>
       </div>
       <div id="v3dInfo"></div>
     </div>
@@ -2743,6 +2744,7 @@ $('#iFacade').addEventListener('click',function(e){var b=e.target.closest('butto
 // ---------- 3D view (Three.js, loaded on first use) ----------
 var THREE_URL='https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js';
 var ORBIT_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js';
+var EXPORT_URL='https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/exporters/GLTFExporter.js';
 var V3={on:false,infoShut:true,lib:null,libErr:null,demErr:null,r:null,scene:null,cam:null,ctl:null,sun:null,group:null,timer:null,size:500,midY:0,fit:true};
 function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error('could not load '+src));};document.head.appendChild(s);});}
 function load3D(){
@@ -2874,7 +2876,7 @@ function rebuildScene(g){
   var cv=drapeCanvas(g,box,mode),mat;
   if(cv){var tex=new T.CanvasTexture(cv);tex.anisotropy=Math.min(8,V3.r.capabilities.getMaxAnisotropy());tex.encoding=T.sRGBEncoding;mat=new T.MeshLambertMaterial({map:tex});}
   else mat=new T.MeshLambertMaterial({color:0xc9d3c3});
-  var terr=new T.Mesh(geo,mat);terr.receiveShadow=true;grp.add(terr);
+  var terr=new T.Mesh(geo,mat);terr.name='Terrain';terr.receiveShadow=true;grp.add(terr);
   // buildings: modelled by type (see buildingParts) and set on the lowest ground under each one
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id];if(!ring||ring.length<3)return;
@@ -2885,7 +2887,7 @@ function rebuildScene(g){
       [0.3,top].forEach(function(z){ring.forEach(function(p,i){var q=ring[(i+1)%nr];pts.push(p[0]-cx,y0+z,-(p[1]-cy),q[0]-cx,y0+z,-(q[1]-cy));});});
       ring.forEach(function(p){pts.push(p[0]-cx,y0+0.3,-(p[1]-cy),p[0]-cx,y0+top,-(p[1]-cy));});
       var lg=new T.BufferGeometry();lg.setAttribute('position',new T.Float32BufferAttribute(pts,3));
-      var ln=new T.LineSegments(lg,new T.LineBasicMaterial({color:0xffd43b,depthTest:false,transparent:true}));ln.renderOrder=5;ln.userData.bid=b.id;grp.add(ln);
+      var ln=new T.LineSegments(lg,new T.LineBasicMaterial({color:0xffd43b,depthTest:false,transparent:true}));ln.renderOrder=5;ln.userData.bid=b.id;ln.name='selection';grp.add(ln);
     }
   });
   V3.size=Math.max(box.x1-box.x0,box.y1-box.y0)/2;V3.midY=g?Y((g.min+g.max)/2):0;
@@ -3067,7 +3069,7 @@ function buildingMeshes(T,b,ring,y0,cx,cy,drop){
     var tex=k[0]==='w'?facadeTex(k[1],k[2],+k[3]):(key==='shingle'?facadeTex('roof','shingle',0):null);
     var mat=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
     if(tex)mat.map=tex;else if(key!=='solid')mat.color.set(key==='shingle'?0x4a4846:bType(b).color);
-    var m=new T.Mesh(geo,mat);m.castShadow=true;m.receiveShadow=true;m.userData.bid=b.id;out.push(m);
+    var m=new T.Mesh(geo,mat);m.name=(b.name||'Building')+(key==='shingle'?' roof':(key==='solid'?' details':' walls'));m.castShadow=true;m.receiveShadow=true;m.userData.bid=b.id;out.push(m);
   });
   return out;
 }
@@ -3174,6 +3176,24 @@ $('#v3dGround').addEventListener('change',function(){if(V3.on)build3D();});
 $('#v3dClear').addEventListener('change',function(){if(V3.on)build3D();});
 $('#v3dSeason').addEventListener('change',setSun);$('#v3dHour').addEventListener('input',setSun);$('#v3dShadows').addEventListener('change',setSun);
 $('#v3dReset').addEventListener('click',function(){if(V3.r){fit3D();render3D();}});
+// Export the 3D scene as a binary glTF (.glb): terrain with the photo/contour texture painted on, and every
+// building with its facade textures. The scene is in feet, glTF is in metres, so the copy is scaled by 0.3048;
+// ground height is measured from the lowest point of the loaded terrain. The yellow selection outline is left out.
+$('#v3dExport').addEventListener('click',function(){
+  var T=window.THREE;
+  if(!V3.group||!T){toast('Open the 3D view and wait for it to draw before exporting.',true);return;}
+  var btn=this;btn.disabled=true;toast('Preparing the 3D file…');
+  (T.GLTFExporter?Promise.resolve():loadScript(EXPORT_URL)).then(function(){
+    var root=new T.Group();root.name='Site plan';root.scale.setScalar(0.3048);
+    var copy=V3.group.clone();root.add(copy);
+    var drop=[];copy.traverse(function(o){if(o.name==='selection')drop.push(o);});drop.forEach(function(o){o.parent.remove(o);});
+    root.updateMatrixWorld(true);
+    return new Promise(function(res,rej){new T.GLTFExporter().parse(root,res,rej,{binary:true,onlyVisible:true,maxTextureSize:2048});});
+  }).then(function(buf){
+    download('site-plan-3d.glb',buf,'model/gltf-binary');
+    toast('Saved site-plan-3d.glb ('+(buf.byteLength/1048576).toFixed(1)+' MB). In Blender: File › Import › glTF 2.0. Units are metres.');
+  }).catch(function(e){toast('Could not export the 3D file: '+(e&&e.message||e),true);}).then(function(){btn.disabled=false;});
+});
 
 // ---------- start ----------
 window.addEventListener('resize',function(){map.invalidateSize();});
