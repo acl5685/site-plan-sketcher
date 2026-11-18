@@ -169,6 +169,28 @@ await fresh();t.set('#roadW','24');await t.draw('road',[[0,-210],[0,60]]);
 await t.draw('parkarea',t.rectPts(-24,-150,-12,10));t.set('#aAng','auto','change');F=feat();
 ok(F.st.length===7&&F.st.every(f=>f.properties.angleDeg===0),'a 12 ft deep strip beside the road takes 7 parallel stalls ('+F.st.length+')');
 t.click(t.$('#aOnRoad'));ok(prov()===0&&!t.proj().areas[0].pk.road,'and none once stalls may not open onto the road ('+prov()+', '+JSON.stringify(t.proj().areas[0].pk)+')');
+// ---- lighting (Brecksville §1183.16): poles at the heads of stalls, every stall within reach of one
+await fresh();await t.draw('parkarea',t.rectPts(-280,-200,-80,-72));               // 200 x 128 ft
+const lights=()=>kinds(geo(),'light_pole').map(f=>t.toFt(f.geometry.coordinates));
+let LP=lights(),SS=stalls();
+ok(t.$('#aLights').checked&&t.$('#aLH').value==='25'&&t.$('#aLM').value==='20000'&&LP.length>=3&&LP.length<=8,'a new parking area gets light poles: 25 ft, 20,000 lumens each ('+LP.length+' poles for 200 x 128 ft)');
+ok(SS.every(q=>LP.some(p=>Math.hypot(mid(q)[0]-p[0],mid(q)[1]-p[1])<=60.01)),'every stall is within 60 ft of a pole (2.4 times its height)');
+ok(LP.every(p=>SS.some(q=>q.some(c=>Math.hypot(c[0]-p[0],c[1]-p[1])<0.1))),'every pole stands at the head of a stall, not in an aisle');
+const lum=LP.length*20000/25600;
+const shown=+(info().match(/light poles at 25 ft: ([\d.]+) lumens per sf \(minimum ¼, §1183\.16\(a\)\)/)||[])[1];
+ok(near(shown,lum,0.02),'the inspector gives lumens per square foot against the ¼ minimum ('+(info().match(/\d+ light poles[^·]*/)||[''])[0]+')');
+ok(t.layers('pFence').filter(l=>/light-pole/.test((l.options||{}).className||'')).length===LP.length&&t.layers('pFence').filter(l=>/light-pool/.test((l.options||{}).className||'')).length===LP.length,'each pole is drawn with the ground it lights');
+const ga=kinds(geo(),'area')[0].properties;ok(ga.lightPoles===LP.length&&ga.poleHeightFt===25&&near(ga.lumensPerSf,lum,0.01),'GeoJSON carries the poles and the light level');
+t.click(t.$('#xCsv'));ok(new RegExp('"Parking 1 light poles \\(25 ft, 20000 lumens each\\)","'+LP.length+'"').test(t.dl['building-schedule.csv']),'CSV lists the poles');
+t.set('#aLH','40');const LP40=lights();ok(LP40.length<LP.length&&t.proj().areas[0].pk.lh===40,'taller poles reach further, so fewer are needed ('+LP.length+' → '+LP40.length+')');
+t.set('#aLH','25');t.set('#aLM','1000');
+ok(/lumens per sf, under the ¼ lumen minimum \(§1183\.16\(a\)\)/.test(info()),'dim fixtures are called out as under the minimum ('+(info().match(/\d+ light poles[^·]*/)||[''])[0]+')');
+t.set('#aLM','20000');
+t.click(t.$('#aLights'));ok(lights().length===0&&t.proj().areas[0].pk.lt===false&&!/light pole/.test(info())&&t.$$('#aPark .a-lt').every(e=>e.hidden),'unticked: no poles');
+t.click(t.$('#aLights'));ok(lights().length===LP.length,'and back');
+// near the property line (the site's south edge is y -225)
+await fresh();await t.draw('parkarea',t.rectPts(-280,-222,-80,-178));   // one row and its aisle, 3 ft off the south line
+ok(/\d+ of them within 25 ft of the property line: shield those so no light falls beyond it \(§1183\.16\(b\)\)/.test(info()),'poles beside the property line get the shielding note ('+(info().match(/\d+ of them within[^·]*/)||[''])[0]+')');
 // ---- unused paving and Trim
 await fresh();await t.draw('parkarea',t.rectPts(-280,-110,-5,-25));              // 275 x 85 ft: only 64 ft of depth is needed
 const before=prov(),impB=t.num(t.stat('Impervious').s),greenB=t.num(t.stat('Green space').v);
