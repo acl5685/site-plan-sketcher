@@ -571,6 +571,7 @@ td:first-child{font-family:var(--font)}
       <b id="selName"></b>
       <button class="btn small" id="sbRotL" title="Rotate left one step (Q)">⟲ Rotate</button>
       <button class="btn small" id="sbRotR" title="Rotate right one step (E)">Rotate ⟳</button>
+      <button class="btn small" id="sbCopy" title="Copy (Ctrl+C), then move the mouse and press Ctrl+V to paste. Ctrl+X cuts.">Copy</button>
       <button class="btn small" id="sbDup" title="Make a copy next to it">Duplicate</button>
       <button class="btn small danger" id="sbDel" title="Delete (Del)">Delete</button>
       <button class="btn small" id="sbDone" title="Deselect (Esc)">Done</button>
@@ -1651,7 +1652,7 @@ function deleteSel(){
 
 // ---------- tools ----------
 var HINTS={
-  select:'Click a building, road, fence or area to select it. Shift+click or Shift+drag a box to select several, then drag or use the arrow keys to move them together.',
+  select:'Click a building, road, fence or area to select it. Shift+click or Shift+drag a box to select several, then drag or use the arrow keys to move them together. Ctrl+C copies the selection; Ctrl+V pastes it at the mouse.',
   parcels:'Click the parcels you plan to develop. Click again to remove one.',
   carve:'Click parcels to carve them out of the project site. Click again to restore.',
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
@@ -2032,6 +2033,14 @@ document.addEventListener('keydown',function(e){
   var tag=(e.target&&e.target.tagName)||'',typing=/INPUT|TEXTAREA|SELECT/.test(tag);
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing){e.preventDefault();undo();return;}
   if(typing)return;
+  // copy, cut and paste shapes (text selected on the page is left to the browser)
+  var ck=(e.ctrlKey||e.metaKey)&&!e.altKey?(e.key||'').toLowerCase():'';
+  if((ck==='c'||ck==='x')&&!D){
+    if(window.getSelection&&String(window.getSelection()))return;
+    if(doCopy(ck==='x'))e.preventDefault();
+    return;
+  }
+  if(ck==='v'&&!D){if(doPaste())e.preventDefault();return;}
   if(D&&D.pts.length&&/^[0-9.]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     var lb=$('#lenBox');lb.focus();lb.value=e.key;var tv=parseFloat(e.key);D.typed=tv>0?tv:null;e.preventDefault();drawPreview();return;
   }
@@ -2064,7 +2073,67 @@ document.addEventListener('keydown',function(e){
   }
 });
 document.addEventListener('keyup',function(e){if(e.key==='Shift')shiftHeld=false;});
-var lastMouse=null;map.on('mousemove',function(e){lastMouse=e.latlng;});
+var lastMouse=null,mouseIn=false;map.on('mousemove',function(e){lastMouse=e.latlng;mouseIn=true;});map.on('mouseout',function(){mouseIn=false;});
+
+// ---------- copy, cut, paste and duplicate ----------
+// Ctrl+C copies what is selected (one shape or several), Ctrl+X cuts it, Ctrl+V pastes the copies centred on the mouse,
+// or beside the originals when the mouse is not over the map. The copy is also kept in this browser, so it can be
+// pasted into another project or layout.
+var CLIP_KEY='sitePlanSketcher.clip.v1',clip=null,pasteAt=null;
+function selItems(){return S.multi.length>=2?multiObjs():selObjs();}
+function clipOf(items){return {items:items.map(function(m){return {k:m.k,o:JSON.parse(JSON.stringify(m.o))};})};}
+function copySel(){
+  var items=selItems();if(!items.length)return 0;
+  clip=clipOf(items);pasteAt=null;
+  try{localStorage.setItem(CLIP_KEY,JSON.stringify(clip));}catch(e){}
+  return items.length;
+}
+function copyName(k,o){
+  function next(key,label){S.counters[key]=(S.counters[key]||0)+1;return label+S.counters[key];}
+  if(k==='b')return next(o.type,(TYPES[o.type]||TYPES.sf).code+'-');
+  var std=k==='r'?['road','Road ']:(k==='p'?['lot','Parking row ']:(k==='f'?['fence','Fence ']:(o.kind==='park'?['park','Parking ']:null)));
+  if(!std)return o.name; // landscaping, open space and the like keep their name
+  return !o.name||/^(Road|Parking row|Parking lot|Fence|Parking)( \d+)?$/.test(o.name)?next(std[0],std[1]):o.name+' copy';
+}
+// where: the point (local feet) to centre the copies on; null = set them just beside where they were copied from
+function pasteItems(c,where){
+  if(!c||!c.items||!c.items.length)return 0;
+  var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  c.items.forEach(function(it){(it.k==='b'?bldgRingLocal(it.o):(isPtsKind(it.k)?it.o.pts:it.o.ring).map(toLocal)).forEach(function(p){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});});
+  var ctr=[(x0+x1)/2,(y0+y1)/2],dx,dy;
+  // copied somewhere that is not on screen (another project, say): bring it to the middle of the view
+  if(!where){var cl=toLL(ctr);if(!map.getBounds().contains(L.latLng(cl[1],cl[0]))){var mc=map.getCenter();where=toLocal([mc.lng,mc.lat]);}}
+  // pasting again on the same spot steps each copy 10 ft down and to the right, so none hides another
+  var key=where?Math.round(where[0])+','+Math.round(where[1]):'beside';
+  if(pasteAt&&pasteAt.key===key)pasteAt.n++;else pasteAt={key:key,n:0};
+  if(where){dx=where[0]-ctr[0]+10*pasteAt.n;dy=where[1]-ctr[1]-10*pasteAt.n;if(Math.hypot(dx,dy)<5){dx+=15;dy-=15;}}
+  else{dx=15*(pasteAt.n+1);dy=-15*(pasteAt.n+1);}
+  pushUndo();
+  var made=c.items.map(function(it){
+    var o=JSON.parse(JSON.stringify(it.o));o.id=S.nextId++;o.name=copyName(it.k,o);
+    nudgeAny(it.k,o,dx,dy);arrOf(it.k).push(o);
+    return {k:it.k,id:o.id};
+  });
+  S.plotSel=null;setMulti(made); // the copies are selected, ready to drag, nudge or rotate
+  return made.length;
+}
+function pasteClip(where){
+  var c=clip;if(!c){try{c=JSON.parse(localStorage.getItem(CLIP_KEY)||'null');}catch(e){c=null;}}
+  return pasteItems(c,where);
+}
+function countTxt(n){return n===1?'1 shape':n+' shapes';}
+function doCopy(cut){
+  var n=copySel();if(!n)return 0;
+  if(cut){if(S.multi.length>=2)deleteGroup();else deleteSel();}
+  toast((cut?'Cut ':'Copied ')+countTxt(n)+'. Move the mouse to where it should go and press Ctrl+V.');
+  return n;
+}
+function doPaste(){
+  if(S.tool!=='select')setTool('select');
+  var here=mouseIn&&lastMouse&&!(V3&&V3.on)?toLocal([lastMouse.lng,lastMouse.lat]):null,n=pasteClip(here);
+  if(n)toast('Pasted '+countTxt(n)+(here?' at the mouse':' beside the original')+'. Drag or use the arrow keys to place '+(n===1?'it':'them')+'.');
+  return n;
+}
 
 // ---------- sidebar wiring ----------
 function showTab(t){
@@ -2801,12 +2870,16 @@ function renderSelBar(){
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
   $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking row',f:'Fence'}[S.sel.k]);
-  $('#sbDup').hidden=many||S.sel.k!=='b';
-  $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft';
+  $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft · Ctrl+C / Ctrl+V copy and paste';
 }
+$('#sbCopy').addEventListener('click',function(){doCopy(false);});
 $('#sbRotL').addEventListener('click',function(){rotateSelBy(S.set.rotStep||15);});
 $('#sbRotR').addEventListener('click',function(){rotateSelBy(-(S.set.rotStep||15));});
-$('#sbDup').addEventListener('click',function(){$('#iDup').click();});
+// Duplicate: a building keeps its own spacing rule; anything else, or several shapes, is copied just beside the original
+$('#sbDup').addEventListener('click',function(){
+  if(S.multi.length<2&&S.sel&&S.sel.k==='b'){$('#iDup').click();return;}
+  var items=selItems();if(!items.length)return;pasteAt=null;pasteItems(clipOf(items),null);
+});
 $('#sbDel').addEventListener('click',function(){if(S.multi.length>=2)deleteGroup();else deleteSel();});
 $('#sbDone').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
 map.on('zoomend',function(){if(S.ctx&&!S.snapSkip)renderHandles();});

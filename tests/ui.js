@@ -35,7 +35,7 @@ await selectFirst('pBldg');t.click(t.$('#sbDone'));
 ok(t.$('#selBar').hidden&&!handle(),'Done deselects and hides the bar and the handle');
 // areas rotate with the handle too, keeping their size
 await t.draw('area',t.rectPts(-80,-200,-20,-120));t.tool('select');await selectFirst('pAreas');
-ok(!t.$('#selBar').hidden&&t.$('#sbDup').hidden,'an area gets the bar without Duplicate');
+ok(!t.$('#selBar').hidden&&!t.$('#sbDup').hidden&&!t.$('#sbCopy').hidden,'an area gets the bar, with Copy and Duplicate');
 const a0=t.proj().areas[0].ring.map(p=>t.toFt(p));h=handle();ok(!!h,'an area gets a rotate handle');
 h.fire('dragstart');h.setLatLng(t.ft(-50+150,-160));h.fire('drag');h.fire('dragend');
 const a1=t.proj().areas[0].ring.map(p=>t.toFt(p)),ar=r=>Math.abs(r.reduce((s,p,i)=>{const q=r[(i+1)%r.length];return s+p[0]*q[1]-q[0]*p[1];},0)/2);
