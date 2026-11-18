@@ -19,13 +19,13 @@ const tooClose=(S,w)=>{for(let i=0;i<S.length;i++)for(let j=i+1;j<S.length;j++){
 ok(!!t.$('[data-tool="parkarea"]')&&t.$('[data-tool="lot"]').textContent==='Parking row','toolbar has Parking area, and the line tool is now called Parking row');
 t.tool('parkarea');
 ok(lit()==='parkarea'&&t.$('#areaKind').value==='park'&&!t.$('#drawbar').hidden&&/corners of the parking area/.test(t.$('#hint').textContent),'Parking area starts an area drawn as parking, with its own hint ('+lit()+')');
-t.tab('build');t.set('#areaKind','land','change');ok(lit()==='area','changing Draw as to landscaping lights the Area button instead');
+t.tab('build');t.set('#areaKind','open','change');ok(lit()==='area','changing what the Area tool draws to open space lights the Area button instead');
 t.tool('select');
 
 // ---- a plain rectangle, no road: 200 x 128 ft holds two full modules (4 rows of 20), joined by one cross aisle
 await t.draw('parkarea',t.rectPts(-250,-200,-50,-72));
 let a=t.proj().areas[0];
-ok(a.kind==='park'&&a.name==='Parking 1'&&a.pk&&a.pk.w===10&&a.pk.d===20&&a.pk.aisle===24&&a.pk.ang===90,'the area is saved with its stall settings ('+JSON.stringify(a.pk)+')');
+ok(a.kind==='park'&&a.name==='Parking 1'&&a.pk&&a.pk.w===10&&a.pk.d===20&&a.pk.aisle===24&&a.pk.ang==='auto'&&t.$('#aAng').value==='auto'&&t.$('#aPar').checked,'the area is saved with its stall settings: best-fit angle, parallel fill on ('+JSON.stringify(a.pk)+')');
 ok(!t.$('#insA').hidden&&!t.$('#aPark').hidden&&t.$('#aLay').value==='lay','it is selected, with the parking settings showing');
 let S1=stalls();
 ok(S1.length===prov()&&prov()>=70&&prov()<=80,'two aisles of 10 x 20 stalls: 80 less the cross aisle that joins them ('+prov()+')');
@@ -123,6 +123,37 @@ await t.draw('parkarea',t.rectPts(-290,20,-260,50));
 ok(/0 stalls/.test(info())&&/nothing fits yet: one row of stalls with its aisle needs 44 ft/.test(info()),'a 30 ft square says why nothing fits ('+info()+')');
 t.key('Delete');
 
+// ---- narrow strips: one clean aisle, not a comb of stub aisles
+const fresh=async()=>{t.click(t.$('#newBtn'));await t.freshSite(t.row(0,[0,1,2,3]).concat(t.row(1,[0,1,2,3])));};
+const feat=()=>{const g=geo();return {st:kinds(g,'parking_stall'),ai:kinds(g,'parking_aisle'),area:kinds(g,'area')[0].properties};};
+await fresh();await t.draw('parkarea',t.rectPts(-280,-60,-72,-8));            // 208 x 52 ft
+let F=feat();
+ok(F.ai.length===1&&F.st.length===29&&F.area.parallelStalls===9,'a 52 ft deep strip: one aisle, 20 stalls on one side and 9 parallel ones on the other ('+F.st.length+' stalls, '+F.ai.length+' aisle, '+F.area.parallelStalls+' parallel)');
+ok(F.st.filter(f=>f.properties.angleDeg===0).length===9&&F.st.filter(f=>f.properties.angleDeg===0).every(f=>f.properties.widthFt===8&&f.properties.depthFt===22),'the parallel stalls are listed as 8 x 22 ft at 0°');
+ok(/9 of them parallel/.test(info()),'the inspector says so ('+info().slice(0,90)+')');
+ok(stalls().every(q=>inBox(q,-280,-60,-72,-8)),'all inside the outline');
+t.click(t.$('#aPar'));F=feat();
+ok(t.proj().areas[0].pk.par===false&&F.area.parallelStalls===0&&F.ai.length===1&&F.st.length===20,'with parallel fill off it is the single row of 20 ('+F.st.length+')');
+t.click(t.$('#aPar'));ok(prov()===29&&t.proj().areas[0].pk.par===undefined,'and back on');
+// 59 ft deep: two rows of 90° stalls need 64 ft, so the old answer was three stub aisles off a cross aisle (22 stalls)
+await fresh();await t.draw('parkarea',t.rectPts(-280,-60,-72,-1));
+t.set('#aAng','auto','change'); // new areas start with the settings last used, which the checks above left at 90°
+F=feat();
+ok(F.ai.length===1&&F.st.length===34&&F.area.stallAngleBestFit===true&&F.st.every(f=>f.properties.angleDeg===60),'a 59 ft deep strip: best fit uses 60° stalls both sides of one aisle, 34 stalls ('+F.st.length+' stalls, '+F.ai.length+' aisle)');
+ok(/best fit used 60° stalls on a one-way aisle/.test(info()),'the inspector says which angle it used');
+t.set('#aAng','90','change');F=feat();
+ok(F.ai.length===1&&F.st.length===29&&t.proj().areas[0].pk.ang===90,'held to 90° it is still one aisle: 20 stalls and 9 parallel ('+F.st.length+' stalls, '+F.ai.length+' aisle)');
+t.set('#aAng','auto','change');ok(prov()===34,'Best fit brings the 60° layout back');
+// ---- unused paving and Trim
+await fresh();await t.draw('parkarea',t.rectPts(-280,-110,-5,-25));              // 275 x 85 ft: only 64 ft of depth is needed
+const before=prov(),impB=t.num(t.stat('Impervious').s),greenB=t.num(t.stat('Green space').v);
+ok(before===54&&/[56],\d\d\d sf \(2[4-7]%\) of the outline is not used/.test(info())&&!t.$('#aTrimRow').hidden,'an 85 ft deep lot holds 54 stalls and says a quarter of it is unused ('+info().slice(0,120)+')');
+t.click(t.$('#aTrim'));
+const ring2=t.proj().areas[0].ring.map(t.toFt),ys2=ring2.map(p=>p[1]),dep=Math.max(...ys2)-Math.min(...ys2);
+ok(prov()===54&&near(dep,64,0.2),'Trim unused paving pulls it in to 64 ft deep with the same 54 stalls ('+prov()+' stalls, '+dep.toFixed(1)+' ft)');
+ok(near(impB-t.num(t.stat('Impervious').s),275*21,400)&&t.num(t.stat('Green space').v)>greenB&&t.$('#aTrimRow').hidden,'the paving given up comes off impervious and adds to green space, and the button goes ('+t.stat('Impervious').s+')');
+ok(/Trimmed [56],\d\d\d sf/.test(t.$('#toast').textContent),'it says what it did ('+t.$('#toast').textContent+')');
+t.key('z',{ctrlKey:true});ok(near(t.num(t.stat('Impervious').s),impB,5),'undo puts the outline back');
 // ---- the sample project shows it off
 const s=await boot();
 const sp=+s.stat('Parking').v.split(' / ')[0],sa=s.proj().areas[0];
