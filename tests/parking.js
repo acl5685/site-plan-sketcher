@@ -119,8 +119,8 @@ await t.draw('parkarea',t.rectPts(10,-220,94,48));
 const g7=geo(),of7=k=>kinds(g7,k).filter(f=>f.properties.area==='Parking 2').length;
 ok(of7('parking_stall')===52&&of7('parking_aisle')===1,'an 84 x 268 ft strip: one aisle with two rows of 26 ('+of7('parking_stall')+' stalls, '+of7('parking_aisle')+' aisle)');
 // too small for anything
-await t.draw('parkarea',t.rectPts(-290,20,-260,50));
-ok(/0 stalls/.test(info())&&/nothing fits yet: one row of stalls with its aisle needs 44 ft/.test(info()),'a 30 ft square says why nothing fits ('+info()+')');
+await t.draw('parkarea',t.rectPts(-290,20,-260,36));
+ok(/0 stalls/.test(info())&&/nothing fits yet: a row of stalls needs 20 ft of depth, and 44 ft with its aisle/.test(info()),'a 30 x 16 ft patch says why nothing fits ('+info()+')');
 t.key('Delete');
 
 // ---- narrow strips: one clean aisle, not a comb of stub aisles
@@ -169,6 +169,27 @@ await fresh();t.set('#roadW','24');await t.draw('road',[[0,-210],[0,60]]);
 await t.draw('parkarea',t.rectPts(-24,-150,-12,10));t.set('#aAng','auto','change');F=feat();
 ok(F.st.length===7&&F.st.every(f=>f.properties.angleDeg===0),'a 12 ft deep strip beside the road takes 7 parallel stalls ('+F.st.length+')');
 t.click(t.$('#aOnRoad'));ok(prov()===0&&!t.proj().areas[0].pk.road,'and none once stalls may not open onto the road ('+prov()+', '+JSON.stringify(t.proj().areas[0].pk)+')');
+// ---- a strip only as deep as a stall: one pull-in row, backed onto the planting, with the drive it needs marked
+await fresh();t.set('#areaKind','land','change');await t.draw('area',t.rectPts(-250,-150,-50,-110));if(!t.$('#lsAsk').hidden)t.click(t.$('#lsSkip'));
+await t.draw('parkarea',t.rectPts(-250,-110,-50,-90));t.set('#aAng','auto','change');
+if(t.$('#aOnRoad').checked)t.click(t.$('#aOnRoad'));
+let PR=stalls();
+const frontY=q=>(q[0][1]+q[1][1])/2,backY=q=>(q[2][1]+q[3][1])/2,needL=()=>t.layers('pLots').filter(l=>/drive-need/.test((l.options||{}).className||''));
+ok(PR.length===20&&prov()===20&&kinds(geo(),'parking_aisle').length===0,'a 200 x 20 ft strip with no room for an aisle still gets its row of 20 stalls ('+PR.length+')');
+ok(PR.every(q=>near(backY(q),-110,0.06)&&near(frontY(q),-90,0.06))&&PR.every(q=>inBox(q,-250,-110,-50,-90))&&!tooClose(PR,10),'they back onto the green space and open to the clear side');
+ok(/one pull-in row: this outline is too shallow for an aisle of its own, so the row needs a 24 ft drive along its open side/.test(info()),'the inspector says it is a pull-in row that still needs its drive ('+info().slice(0,200)+')');
+ok(needL().length===1,'the drive it needs is drawn dashed on the map');
+t.tab('check');ok(/Parking 1: 20 pull-in stalls have no drive yet\. Draw a 24 ft drive along their open side/.test(t.$('#checks').textContent),'and the Check tab flags it');t.tab('build');
+// green on the other side: the row turns round
+await fresh();t.set('#areaKind','land','change');await t.draw('area',t.rectPts(-250,-90,-50,-50));if(!t.$('#lsAsk').hidden)t.click(t.$('#lsSkip'));
+await t.draw('parkarea',t.rectPts(-250,-110,-50,-90));PR=stalls();
+ok(PR.length===20&&PR.every(q=>near(backY(q),-90,0.06)&&near(frontY(q),-110,0.06)),'with the planting on the other side the stalls face the other way');
+// against the lot line (south edge of the site, y -225): they back onto it and open into the site
+await fresh();await t.draw('parkarea',t.rectPts(-250,-225,-50,-205));PR=stalls();
+ok(PR.length===20&&PR.every(q=>near(backY(q),-225,0.06)&&near(frontY(q),-205,0.06)),'a strip along the lot line backs onto the line and opens into the site ('+PR.length+')');
+// once the outline has room for the aisle, it is an ordinary layout again
+await fresh();await t.draw('parkarea',t.rectPts(-250,-110,-50,-66));t.set('#aAng','90','change');
+ok(prov()===20&&kinds(geo(),'parking_aisle').length===1&&!/pull-in row/.test(info())&&needL().length===0,'44 ft deep: the same 20 stalls with their own aisle, and no note ('+prov()+')');
 // ---- lighting (Brecksville §1183.16): poles at the heads of stalls, every stall within reach of one
 await fresh();await t.draw('parkarea',t.rectPts(-280,-200,-80,-72));               // 200 x 128 ft
 const lights=()=>kinds(geo(),'light_pole').map(f=>t.toFt(f.geometry.coordinates));
