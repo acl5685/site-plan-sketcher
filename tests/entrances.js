@@ -51,10 +51,36 @@ t.set('#tHome','duplex','change');t.placeAt(-60,20);n=t.proj().buildings.length;
 ok(B(n-1).type==='th'&&B(n-1).name==='Duplex 1'&&gb()[n-1].units===2&&gb()[n-1].homeStyle==='Duplex','a Duplex is a row of two homes ('+gb()[n-1].units+' units)');
 t.click(t.$('.typebtn[data-type="sf"]'));ok(t.$('#tHome').value==='','choosing a plain building type clears the home style');
 t.placeAt(-120,40);n=t.proj().buildings.length;ok(/^SF-/.test(B(n-1).name)&&!B(n-1).home,'and the next one is a plain single-family building again ('+B(n-1).name+')');
+// ---- the front entrance picked on the map: a round marker on each wall of the selected building
+await pick(n-1);
+const picks=()=>Object.values(t.M._layers).filter(l=>l.options&&l.options.icon&&/^dp/.test(l.options.icon.options.className||'')).map(m=>({m,on:/ on$/.test(m.options.icon.options.className),p:t.toFt([m.getLatLng().lng,m.getLatLng().lat])}));
+const H=()=>B(n-1),hc=()=>t.toFt(H().c),myDoor=()=>doors().find(d=>Math.hypot((d[0][0]+d[1][0])/2-hc()[0],(d[0][1]+d[1][1])/2-hc()[1])<45);
+ok(picks().length===4&&picks().every(q=>!q.on)&&!myDoor(),'a selected house has a round marker on each of its four walls, and no entrance chosen yet');
+ok(/round orange markers/.test(t.$('#iEntTip').textContent),'the settings say the wall can be picked on the map');
+picks().sort((a,b)=>a.p[0]-b.p[0])[0].m.fire('click');                       // the westernmost wall
+let md=myDoor();
+ok(/^k\d$/.test(H().ent)&&t.$('#iEnt').value==='wall'&&picks().filter(q=>q.on).length===1,'clicking the marker on the west wall puts the front entrance there ('+H().ent+')');
+ok(md&&md[2][0]<Math.min(md[0][0],md[1][0])-2,'the door marker is on the west wall, pointing west');
+const entWas=H().ent;
+for(let i=0;i<6;i++)t.key('e');                                              // turn the house 90° clockwise
+md=myDoor();
+ok(H().ent===entWas&&md&&md[2][1]>Math.max(md[0][1],md[1][1])+2,'turn the house a quarter turn and the entrance turns with it: that wall now faces north');
+ok(gb()[n-1].entrancesFace===entWas,'GeoJSON records the wall');
+t.set('#iEnt','','change');ok(H().ent===undefined&&!myDoor(),'Nearest road (automatic) clears the pick');
+t.set('#iEnt','wall','change');ok(/^k\d$/.test(H().ent)&&!!myDoor(),'choosing "The wall picked on the map" starts from the wall the entrance is on now ('+H().ent+')');
+// ---- the style of a home that is already placed
+ok(!t.$('#iHomeF').hidden&&t.$('#iHome').value===''&&t.$$('#iHome option').length===13,'a selected house has a Home style menu');
+t.set('#iHome','ranch','change');
+ok(H().home==='ranch'&&H().type==='sf'&&H().w===62&&H().d===32&&H().st===1&&H().roof==='hip'&&/^Ranch \d+$/.test(H().name),'changing it to Ranch gives the house the Ranch size, one story, a hip roof and name ('+H().name+', '+H().w+' x '+H().d+')');
+t.set('#iName','Model home');
+t.set('#iHome','duplex','change');
+ok(H().type==='th'&&H().w===44&&H().st===2&&!H().roof&&H().name==='Model home'&&gb()[n-1].units===2,'changed again to Duplex: two homes, and a name given by hand is kept ('+H().name+')');
+t.set('#iHome','','change');ok(!H().home&&H().type==='th'&&H().w===44,'Plain building drops the style and leaves the building as it is');
+await pick(0);ok(t.$('#iHomeF').hidden,'a store has no Home style menu');
 // ---- saved and opened again
 const g=geo();t.click(t.$('#newBtn'));await openVia(t,file('plan.geojson',g));
 const bs=t.proj().buildings,rb=bs.filter(b=>b.name==='Ranch 1')[0];
-ok(bs.length===n&&bs[0].ent==='s'&&bs[2].ent==='e'&&rb&&rb.home==='ranch'&&rb.roof==='hip','entrance sides and home styles come back when the GeoJSON is opened ('+bs.length+' buildings)');
+ok(bs.length===n&&bs[0].ent==='s'&&bs[2].ent==='e'&&/^k\d$/.test(bs[n-1].ent)&&rb&&rb.home==='ranch'&&rb.roof==='hip','entrance sides, picked walls and home styles come back when the GeoJSON is opened ('+bs.length+' buildings)');
 ok(t.errors.length===0,'no page errors ('+t.errors.join('; ')+')');
 console.log('\n'+R.pass+' passed, '+R.fails.length+' failed');R.fails.forEach(f=>console.log(' - '+f));process.exit(R.fails.length?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
