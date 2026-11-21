@@ -9,6 +9,15 @@ ok(t.$('#selBar').hidden,'no action bar before anything is selected');
 ok(!handle(),'no rotate handle before anything is selected');
 await selectFirst('pBldg');
 ok(!t.$('#selBar').hidden&&t.$('#selName').textContent===b0().name,'selecting a building shows the action bar with its name');
+// the side panel narrows to the selected item
+const focus=()=>t.$('#side').classList.contains('focus');
+ok(focus()&&!t.$('#focusBar').hidden&&t.$('#focusName').textContent===b0().name&&!t.$('#insB').hidden&&t.$('#insR').hidden&&t.$('#insA').hidden,'the side panel shows only the selected building, under a bar with its name ('+t.$('#focusName').textContent+')');
+const css=t.w.document.querySelector('style').textContent;
+ok(/#side\.focus \.tabs,#side\.focus \.pane\{display:none\}/.test(css)&&/#side\.focus #pane-build>div:not\(\[id\^="ins"\]\)\{display:none\}/.test(css),'while it does, the tabs and every other section are hidden');
+t.click(t.$('#focusBack'));
+ok(!focus()&&t.$('#focusBar').hidden&&t.$('#selBar').hidden&&t.$('#insB').hidden,'All settings drops the selection and brings the tabs back');
+await selectFirst('pBldg');t.key('Escape');ok(!focus()&&t.$('#focusBar').hidden,'so does Escape');
+await selectFirst('pBldg');
 ok(!t.$('#sbDup').hidden,'Duplicate is offered for a building');
 // rotate buttons
 const r0=b0().rot;
@@ -36,12 +45,24 @@ ok(t.$('#selBar').hidden&&!handle(),'Done deselects and hides the bar and the ha
 // areas rotate with the handle too, keeping their size
 await t.draw('area',t.rectPts(-80,-200,-20,-120));t.tool('select');await selectFirst('pAreas');
 ok(!t.$('#selBar').hidden&&!t.$('#sbDup').hidden&&!t.$('#sbCopy').hidden,'an area gets the bar, with Copy and Duplicate');
+ok(focus()&&t.$('#focusName').textContent===t.proj().areas[0].name&&!t.$('#insA').hidden&&t.$('#insB').hidden,'selecting an area shows only the area settings ('+t.$('#focusName').textContent+')');
 const a0=t.proj().areas[0].ring.map(p=>t.toFt(p));h=handle();ok(!!h,'an area gets a rotate handle');
 h.fire('dragstart');h.setLatLng(t.ft(-50+150,-160));h.fire('drag');h.fire('dragend');
 const a1=t.proj().areas[0].ring.map(p=>t.toFt(p)),ar=r=>Math.abs(r.reduce((s,p,i)=>{const q=r[(i+1)%r.length];return s+p[0]*q[1]-q[0]*p[1];},0)/2);
 ok(near(ar(a0),ar(a1),1)&&near(a1[0][0],-90,0.6)&&near(a1[0][1],-130,0.6),'area turned -90° about its centre, same size ('+a1[0].map(v=>v.toFixed(1))+')');
 // drawing tools hide the bar
 t.tool('road');ok(t.$('#selBar').hidden,'switching to a drawing tool hides the bar');
+ok(!focus()&&t.$('#focusBar').hidden,'and the side panel goes back to all its tabs');
+// a road, then two things at once
+t.set('#roadW','24');await t.draw('road',[[-280,-190],[-100,-190]]);
+t.tool('select');t.layers('pRoads').find(l=>l instanceof t.w.L.Polygon).fire('click',{latlng:t.c});
+ok(focus()&&/\S/.test(t.$('#focusName').textContent)&&!t.$('#insR').hidden&&t.$('#insB').hidden&&t.$('#insA').hidden,'clicking a road shows only the road settings ('+t.$('#focusName').textContent+')');
+t.key('Escape');
+const shift={originalEvent:{shiftKey:true}};
+t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon).fire('mousedown',Object.assign({latlng:t.c},shift));
+t.layers('pAreas').find(l=>l instanceof t.w.L.Polygon).fire('click',Object.assign({latlng:t.c},shift));
+ok(focus()&&t.$('#focusName').textContent==='2 shapes selected'&&!t.$('#insM').hidden&&t.$('#insB').hidden&&t.$('#insA').hidden,'with two shapes selected only the group settings show ('+t.$('#focusName').textContent+')');
+t.key('Escape');ok(!focus(),'Escape clears the group and the panel opens up again');
 ok(t.errors.length===0,'no page errors ('+t.errors.join('; ')+')');
 console.log('\n'+R.pass+' passed, '+R.fails.length+' failed');
 process.exit(R.fails.length?1:0);

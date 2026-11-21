@@ -35,7 +35,10 @@ button,input,select{font:inherit;color:inherit}
 #top{grid-column:1/3;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
 .brand{font-weight:600;font-size:14px;letter-spacing:.02em;white-space:nowrap}
 .brand small{font-weight:400;color:var(--muted);margin-left:8px}
-#tools{display:flex;flex-wrap:wrap;gap:4px}
+#tools{display:flex;flex-wrap:wrap;gap:6px 12px}
+.tgrp{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tgrp+.tgrp{padding-left:12px;border-left:1px solid var(--line)}
+.tlab{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-right:3px;white-space:nowrap}
 .tool,.btn{border:1px solid var(--line);background:var(--field);border-radius:4px;padding:5px 10px;cursor:pointer}
 .tool:hover,.btn:hover{border-color:var(--accent)}
 .tool.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -43,7 +46,8 @@ button,input,select{font:inherit;color:inherit}
 .btn.danger{color:var(--warn)}
 .btn.small{padding:3px 8px;font-size:12px}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.top-actions{margin-left:auto;display:flex;gap:6px}
+.top-actions{margin-left:auto;display:flex;gap:6px;order:1}
+#tools{order:2;flex:1 1 100%}
 #side{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;min-width:0}
 .card{padding:12px;border-bottom:1px solid var(--line)}
 #summary{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
@@ -57,6 +61,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 .pane{padding:12px;display:none;gap:14px;flex-direction:column}
 .pane.on{display:flex}
+/* something is selected: the panel shows that item's settings and nothing else */
+#focusBar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
+#focusBar[hidden]{display:none}
+#focusName{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#side.focus .tabs,#side.focus .pane{display:none}
+#side.focus #pane-build{display:flex}
+#side.focus #pane-build>div:not([id^="ins"]){display:none}
 h3{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 label{display:block;font-size:12px;color:var(--muted)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
@@ -115,7 +126,7 @@ td:first-child{font-family:var(--font)}
 #hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(18,24,27,.88);color:#fff;padding:6px 12px;border-radius:4px;font-size:12px;z-index:900;pointer-events:none;max-width:90%;text-align:center}
 #drawbar{position:absolute;right:12px;top:12px;z-index:900;display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:calc(100% - 24px)}
 #drawbar select{width:auto}
-#banner{position:absolute;left:12px;top:12px;z-index:900;max-width:min(420px,60%);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);padding:6px 10px;border-radius:4px;font-size:12px}
+#banner{position:absolute;left:56px;top:12px;z-index:900;max-width:min(420px,calc(100% - 68px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);padding:6px 10px;border-radius:4px;font-size:12px}
 .leaflet-container{font-family:var(--font)}
 [hidden]{display:none!important}
 .vh{width:12px;height:12px;margin:-6px 0 0 -6px;background:#fff;border:2px solid #0a6e83;border-radius:2px;cursor:move}
@@ -153,22 +164,31 @@ td:first-child{font-family:var(--font)}
   <header id="top">
     <div class="brand">Site Plan Sketcher<small id="projName"></small></div>
     <div id="tools" role="toolbar" aria-label="Drawing tools">
-      <button class="tool on" data-tool="select" title="Select, move and rotate objects">Select</button>
+      <div class="tgrp"><button class="tool on" data-tool="select" title="Select, move and rotate objects">Select</button>
+</div>
+      <div class="tgrp"><span class="tlab">Site</span>
       <button class="tool" data-tool="parcels" title="Click parcels to add them to the project site">Pick parcels</button>
       <button class="tool" data-tool="carve" title="Click parcels to carve them out of the site">Carve parcel</button>
       <button class="tool" data-tool="carvepoly" title="Draw a shape to remove from the site altogether (to make a lot inside the site, use Cut out lot)">Carve shape</button>
       <button class="tool" data-tool="split" title="Draw a line across the site to split it into separate lots">Split lots</button>
       <button class="tool" data-tool="cutlot" title="Draw a shape on the site to cut it out as its own lot (the land stays in the site)">Cut out lot</button>
+</div>
+      <div class="tgrp"><span class="tlab">Roads &amp; parking</span>
       <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
       <button class="tool" data-tool="walk" title="Draw a sidewalk or path along its centre line (to put sidewalks along a road, select the road instead)">Sidewalk</button>
       <button class="tool" data-tool="parkarea" title="Draw the outline of a parking area; stalls and aisles are laid out to fit the most cars, around any road drawn through it">Parking area</button>
       <button class="tool" data-tool="lot" title="Draw one row of stalls or one aisle by hand, along a line">Parking row</button>
+</div>
+      <div class="tgrp"><span class="tlab">Buildings</span>
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
       <button class="tool" data-tool="bpoly" title="Draw any building shape corner by corner">Draw building</button>
       <button class="tool" data-tool="loadzone" title="Draw a loading zone; truck bays are set out in it, side by side or along a kerb">Loading zone</button>
+</div>
+      <div class="tgrp"><span class="tlab">Outdoors</span>
       <button class="tool" data-tool="green" title="Draw green space: a landscaped area. Everything on the site that is not paved or built on already counts as green; drawing it shows it on the plan and lets you plant it in 3D.">Green space</button>
       <button class="tool" data-tool="area" title="Draw open space, a sidewalk or plaza, or a stormwater pond">Area</button>
       <button class="tool" data-tool="fence" title="Draw a fence line; click the first corner again to close it into a loop">Fence</button>
+      </div>
     </div>
     <div class="top-actions">
       <button class="btn" id="view3dBtn" title="See the plan in 3D on lidar terrain (USGS 3DEP)">3D view</button>
@@ -179,6 +199,7 @@ td:first-child{font-family:var(--font)}
 
   <aside id="side">
     <div class="card" id="summary"></div>
+    <div id="focusBar" hidden><button class="btn" id="focusBack" title="Stop editing this and show every tab again (Esc)">&larr; All settings</button><span id="focusName"></span></div>
     <nav class="tabs" role="tablist">
       <button class="on" data-tab="site">Site</button>
       <button data-tab="build">Build</button>
@@ -648,7 +669,7 @@ td:first-child{font-family:var(--font)}
         <input type="range" id="v3dHour" min="5" max="20" step="0.25" value="15" aria-label="Solar time of day"><span id="v3dTime"></span>
         <label><input type="checkbox" id="v3dShadows" checked> Shadows</label>
         <label title="Paint over the existing buildings, parking and trees inside the site so the proposal reads clearly"><input type="checkbox" id="v3dClear"> Clear existing site</label>
-        <button class="btn" id="v3dPlay" title="Circle the camera round the site, with cars on the roads and people on the sidewalks and plazas">Play scene</button>
+        <button class="btn" id="v3dPlay" title="Circle the camera round the site, with cars on the roads, people walking, eating in the courtyard and on the lawns, and children playing">Play scene</button>
         <button class="btn" id="v3dReset">Reset view</button>
         <button class="btn" id="v3dExport" title="Download this 3D scene as a .glb file for Blender, 3ds Max, Maya or Unity (units: metres)">Export .glb</button>
       </div>
@@ -2006,7 +2027,18 @@ function getSel(){
   var arr=arrOf(S.sel.k);
   return arr.filter(function(x){return x.id===S.sel.id;})[0]||null;
 }
+// While something is selected the side panel shows only that item: its own settings, under a bar with its name and a
+// way back. The tabs, and where the panel was scrolled to, come back when the selection is dropped.
+var focusWas=null;
+function focusSide(){
+  var o=getSel(),many=S.multi.length>=2,on=!!o||many,side=$('#side');
+  if(on&&focusWas===null){focusWas=side.scrollTop;side.scrollTop=0;}
+  side.classList.toggle('focus',on);$('#focusBar').hidden=!on;
+  if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence'})[S.sel.k]||'Selection');
+  else if(focusWas!==null){side.scrollTop=focusWas;focusWas=null;}
+}
 function fillInspector(){
+  focusSide();
   $('#insM').hidden=S.multi.length<2;if(S.multi.length>=2)$('#mCount').textContent=S.multi.length;
   var o=getSel();
   $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');$('#insF').hidden=!(o&&S.sel.k==='f');
@@ -2112,6 +2144,8 @@ function setTool(t){
   if(t==='green'){S.areaKind='land';$('#areaKind').value='land';t='area';}
   if(t==='loadzone'){S.areaKind='load';$('#areaKind').value='load';t='area';} // and Loading zone is the Area tool drawing a loading zone // and Green space is the Area tool drawing landscaping
   cancelDraw();S.tool=t;
+  // picking up a drawing tool lets go of what was selected, so the side panel shows that tool's settings again
+  if(t!=='select'&&(S.sel||S.multi.length)){S.sel=null;S.multi=[];renderAll();}
   markTools();
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
   $('#hint').textContent=hintFor(t);gGhost.clearLayers();ghostLL=null;
@@ -3437,6 +3471,7 @@ $('#sbDup').addEventListener('click',function(){
 });
 $('#sbDel').addEventListener('click',function(){if(S.multi.length>=2)deleteGroup();else deleteSel();});
 $('#sbDone').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
+$('#focusBack').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
 map.on('zoomend',function(){if(S.ctx&&!S.snapSkip)renderHandles();});
 $('#drawBtn').addEventListener('click',function(){setTool('bpoly');});
 $('#iFreeform').addEventListener('click',function(){
@@ -4357,35 +4392,29 @@ function rebuildScene(g){
 }
 // ---------- the animated scene ----------
 // Play scene: the camera circles the site once a minute, cars drive the roads (keeping right, turning round at each
-// end) and people walk the sidewalks and round the plazas. The cars and people are only in the scene while it plays,
-// so a still view and the .glb export are the plan alone.
+// end), people walk the sidewalks and round the plazas, eat at café tables on the plazas and at picnics on the lawns,
+// and children play. They are only in the scene while it plays, so a still view and the .glb export are the plan alone.
 var MOVE_COLS=['#c92a2a','#1c7ed6','#f8f9fa','#343a40','#868e96','#e8590c','#2b8a3e','#fcc419'];
-function buildMovers(T,grp,cx,cy,gy){
-  V3.movers=[];
-  var mg=new T.Group();mg.visible=!!V3.play;V3.movGrp=mg;grp.add(mg);
-  function mat(c){return new T.MeshLambertMaterial({color:new T.Color(c)});}
+var WEAR=['#c92a2a','#1c7ed6','#f1f3f5','#e8590c','#2b8a3e','#fcc419','#9c36b5','#0c8599','#f783ac','#495057'],LEGS=['#343a40','#1b2a49','#5c4a3a','#868e96','#3b5b92'];
+var SKINS=['#f1c9a5','#e0b089','#c68e63','#a16b45','#7a4e2d'],HAIRS=['#2b2118','#4a3728','#8a6a3b','#c9b28b','#1a1a1a','#8d8d8d'],SHADES=['#c92a2a','#1c7ed6','#2b8a3e','#f08c00','#f8f9fa'];
+// Who is where while the scene plays, worked out from the plan alone (local feet), the same every time:
+//   cars: on the roads · walkers: on sidewalks and round each plaza · tables: café tables with people eating, on plazas
+//   (the courtyard) · picnics: on lawns and open space · plays: children playing tag and kicking a ball where there is
+//   room · chats: a couple standing talking. Lawns are open space, and landscaping left as lawn or with no planting.
+function scenePlan(){
+  var seed=7;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+  var out={cars:[],walkers:[],tables:[],picnics:[],plays:[],chats:[]},ctx=S.ctx||{};
   function path(pts,loop){
     var P=pts.slice();if(loop)P.push(P[0]);
     var cum=[0];for(var i=1;i<P.length;i++)cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]));
     return {P:P,cum:cum,len:cum[cum.length-1],loop:!!loop};
   }
-  function car(col){
-    var o=new T.Group(),b=new T.Mesh(new T.BoxGeometry(15,2.6,6),mat(col)),c=new T.Mesh(new T.BoxGeometry(8,2.2,5.4),mat('#22282c'));
-    b.position.y=2.1;c.position.set(-0.6,4.4,0);b.castShadow=c.castShadow=true;o.add(b);o.add(c);return o;
-  }
-  function person(col){
-    var o=new T.Group(),b=new T.Mesh(new T.CylinderGeometry(0.75,0.9,4.2,8),mat(col)),h=new T.Mesh(new T.SphereGeometry(0.72,8,6),mat('#e0b089'));
-    b.position.y=2.1;h.position.y=4.95;b.castShadow=true;o.add(b);o.add(h);return o;
-  }
-  function add(obj,pa,speed,off,s0,dir){mg.add(obj);V3.movers.push({o:obj,pa:pa,v:speed,off:off,s:s0,dir:dir,cx:cx,cy:cy,gy:gy});}
-  var seed=7;function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
   // cars: one for about every 250 ft of road, in the right-hand lane
   streets().forEach(function(r){
     var pa=path(r.pts.map(toLocal));if(pa.len<60)return;
     var n=Math.max(1,Math.min(4,Math.round(pa.len/250)));
-    for(var i=0;i<n;i++)add(car(MOVE_COLS[Math.floor(rnd()*MOVE_COLS.length)]),pa,18+rnd()*10,Math.min(r.width/4,6),rnd()*pa.len,i%2?-1:1);
+    for(var i=0;i<n&&out.cars.length<16;i++)out.cars.push({pa:pa,v:18+rnd()*10,off:Math.min(r.width/4,6),s:rnd()*pa.len,dir:i%2?-1:1});
   });
-  // people: on drawn sidewalks, on the sidewalks along roads, and round each plaza
   var ways=[];
   walks().forEach(function(r){ways.push(path(r.pts.map(toLocal)));});
   streets().forEach(function(r){
@@ -4393,30 +4422,199 @@ function buildMovers(T,grp,cx,cy,gy){
     if(r.sw.side!=='right')ways.push(path(offsetLine(P,d)));
     if(r.sw.side!=='left')ways.push(path(offsetLine(P,-d)));
   });
+  // places to sit or play: inside the outline, a given distance from its edge, and clear of buildings, roads and walks
+  var solid=[];S.buildings.forEach(function(b){var r=ctx.rings&&ctx.rings[b.id];if(r&&r.length>=3)solid.push([r]);});
+  solid=solid.concat(ctx.roadPolys||[],ctx.walkPolys||[]);
+  function edgeDist(p,r){var d=Infinity;for(var i=0;i<r.length;i++){var q=ptSegDist(p,r[i],r[(i+1)%r.length]);if(q.d<d)d=q.d;}return d;}
+  function clear(p,m){return [[0,0],[m,0],[-m,0],[0,m],[0,-m]].every(function(o){return !pointInAny([p[0]+o[0],p[1]+o[1]],solid);});}
+  function spots(r,step,minEdge){
+    var b=ringBB(r),o=[];
+    for(var x=b[0]+step/2;x<b[2];x+=step)for(var y=b[1]+step/2;y<b[3];y+=step){
+      var p=[x,y];if(!pointInRing(p,r))continue;var d=edgeDist(p,r);if(d>=minEdge&&clear(p,5))o.push({p:p,d:d});
+    }
+    return o;
+  }
   S.areas.forEach(function(a){
-    if(a.kind!=='hard'||!a.ring||a.ring.length<3)return;
+    if(!a.ring||a.ring.length<3)return;
+    var plaza=a.kind==='hard',lawn=a.kind==='open'||(a.kind==='land'&&!(a.pm&&a.pm.m)&&(!a.ls||!a.ls.use||a.ls.use==='lawn'));
+    if(!plaza&&!lawn)return;
     var r=a.ring.map(toLocal);if(polyAreaSigned(r)<0)r.reverse();
-    if(Math.abs(polyAreaSigned(r))<900)return;
-    var inn=offsetRing(r,-6);if(inn&&inn.length>=3&&polyAreaSigned(inn)>100)ways.push(path(inn,true));
+    var sf=Math.abs(polyAreaSigned(r));if(sf<400)return;
+    if(plaza&&sf>=900){var inn=offsetRing(r,-4);if(inn&&inn.length>=3&&polyAreaSigned(inn)>100)ways.push(path(inn,true));}
+    var sp=spots(r,13,plaza?10:12);
+    if(!sp.length&&plaza){var c=polyCentroid(r);if(pointInRing(c,r)&&edgeDist(c,r)>=6&&clear(c,4))sp=[{p:c,d:edgeDist(c,r)}];}
+    if(!sp.length)return;
+    // children take the roomiest spot: on any lawn that has one, and on a plaza of 3,000 sf or more
+    var play=null,big=sp.slice().sort(function(p,q){return q.d-p.d;})[0];
+    // (a smaller ring on a plaza, so the tables keep the edges of the courtyard)
+    if(big.d>=16&&(lawn||sf>=3000)&&out.plays.length<4){play={x:big.p[0],y:big.p[1],r:Math.min(plaza?11:16,big.d-5),kids:3+Math.floor(rnd()*2),rot:rnd()*Math.PI};out.plays.push(play);}
+    var free=sp.filter(function(q){return !play||Math.hypot(q.p[0]-play.x,q.p[1]-play.y)>play.r+(plaza?7:12);});
+    for(var i=free.length-1;i>0;i--){var j=Math.floor(rnd()*(i+1)),tmp=free[i];free[i]=free[j];free[j]=tmp;}
+    var n=plaza?Math.max(1,Math.min(6,Math.round(sf/600))):Math.min(3,Math.round(sf/2500)),list=plaza?out.tables:out.picnics,cap=plaza?12:6;
+    if(plaza&&free.length>=3)n=Math.min(n,free.length-1); // one spot kept for people standing about
+    free.slice(0,n).forEach(function(q){if(list.length<cap)list.push({x:q.p[0],y:q.p[1],n:2+Math.floor(rnd()*3),rot:rnd()*Math.PI*2});});
+    if(plaza&&free.length>n&&out.chats.length<4)out.chats.push({x:free[n].p[0],y:free[n].p[1],rot:rnd()*Math.PI*2});
   });
   ways.forEach(function(pa){
     if(pa.len<30)return;
     var n=Math.max(1,Math.min(5,Math.round(pa.len/110)));
-    for(var i=0;i<n;i++)add(person(MOVE_COLS[Math.floor(rnd()*MOVE_COLS.length)]),pa,3.2+rnd()*1.6,(rnd()-0.5)*2.4,rnd()*pa.len,rnd()<0.5?-1:1);
+    for(var i=0;i<n&&out.walkers.length<40;i++)out.walkers.push({pa:pa,v:3.2+rnd()*1.6,off:(rnd()-0.5)*2.4,s:rnd()*pa.len,dir:rnd()<0.5?-1:1,kid:rnd()<0.15});
+  });
+  return out;
+}
+// what the scene will show, in words
+function sceneText(){
+  var p;try{p=scenePlan();}catch(e){return '';}
+  function sum(l,k){return l.reduce(function(s,q){return s+q[k];},0);}
+  var eat=sum(p.tables,'n')+sum(p.picnics,'n'),kids=sum(p.plays,'kids'),b=[];
+  if(p.cars.length)b.push(p.cars.length+(p.cars.length===1?' car':' cars'));
+  if(p.walkers.length)b.push(p.walkers.length+' walking');
+  if(eat)b.push(eat+' eating'+(p.tables.length?' at '+p.tables.length+(p.tables.length===1?' table':' tables'):'')+(p.picnics.length?(p.tables.length?' and ':' at ')+p.picnics.length+(p.picnics.length===1?' picnic':' picnics'):''));
+  if(kids)b.push(kids+' children playing');
+  if(p.chats.length)b.push(p.chats.length*2+' talking');
+  return b.length?b.join(' · '):'nothing to animate yet: draw a road, a sidewalk, a plaza or a lawn';
+}
+function buildMovers(T,grp,cx,cy,gy){
+  V3.movers=[];V3.clock=0;
+  var mg=new T.Group();mg.visible=!!V3.play;V3.movGrp=mg;grp.add(mg);
+  var plan=scenePlan(),seed=11,C=V3.movCache||(V3.movCache={g:{},m:{}}),TAU=Math.PI*2,HIP=2.75;
+  function rnd(){seed=(seed*16807)%2147483647;return seed/2147483647;}
+  function pick(a){return a[Math.floor(rnd()*a.length)];}
+  // shapes and colours are made once and shared, so a hundred people cost little (and are kept between rebuilds)
+  function mat(c){return C.m[c]||(C.m[c]=new T.MeshLambertMaterial({color:new T.Color(c).convertSRGBToLinear()}));}
+  function geo(k,f){return C.g[k]||(C.g[k]=f());}
+  function mesh(g,m,shadow){var o=new T.Mesh(g,m);o.userData.shared=true;o.castShadow=shadow!==false;return o;}
+  function box(k,x,y,z){return geo('b'+k,function(){return new T.BoxGeometry(x,y,z);});}
+  function cyl(k,r0,r1,h,n){return geo('c'+k,function(){return new T.CylinderGeometry(r0,r1,h,n||10);});}
+  function at(o,x,y,z){o.position.set(x,y,z);return o;}
+  function put(o,x,y,head){o.position.set(x-cx,gy(x,y),-(y-cy));o.rotation.y=head;mg.add(o);return o;} // head: the way it faces on the plan
+  function add(f){V3.movers.push(f);}
+  // ---- a person: hinged legs and arms, so they can walk, run, sit and eat. Faces +x; about 5.9 ft tall at scale 1.
+  function limb(k,l1,l2,r,m1,m2){
+    var g=new T.Group(),kn=new T.Group();
+    g.add(mesh(geo('l'+k+'a',function(){var q=new T.CylinderGeometry(r,r,l1,6);q.translate(0,-l1/2,0);return q;}),m1));
+    kn.position.y=-l1;kn.add(mesh(geo('l'+k+'b',function(){var q=new T.CylinderGeometry(r*0.9,r*0.8,l2,6);q.translate(0,-l2/2,0);return q;}),m2));
+    g.add(kn);return {g:g,k:kn};
+  }
+  function figure(kid){
+    var s=kid?0.52+rnd()*0.16:0.92+rnd()*0.16,o=new T.Group(),body=new T.Group(),top=mat(pick(WEAR)),leg=mat(pick(LEGS)),skin=mat(pick(SKINS));
+    var P={body:body,legs:[],arms:[],s:s};
+    [-1,1].forEach(function(sd){
+      var L=limb('leg',1.4,1.35,0.24,leg,leg);L.g.position.set(0,HIP,sd*0.3);body.add(L.g);P.legs.push(L);
+      var A=limb('arm',1.05,1.0,0.17,top,skin);A.g.position.set(0,4.75,sd*0.74);body.add(A.g);P.arms.push(A);
+    });
+    body.add(at(mesh(box('torso',0.75,2.1,1.2),top),0,3.8,0));
+    P.head=at(mesh(geo('head',function(){return new T.SphereGeometry(0.45,10,8);}),skin),0,5.4,0);body.add(P.head);
+    body.add(at(mesh(geo('hair',function(){return new T.SphereGeometry(0.48,10,6,0,TAU,0,Math.PI*0.55);}),mat(pick(HAIRS)),false),-0.06,5.44,0));
+    o.add(body);o.scale.set(s,s,s);o.userData.P=P;return o;
+  }
+  // a turn of a hinge forward is positive; a knee bends back, an elbow forward
+  function stride(P,ph,amp){
+    for(var i=0;i<2;i++){
+      var f=ph+i*Math.PI;
+      P.legs[i].g.rotation.z=Math.sin(f)*amp;P.legs[i].k.rotation.z=-(0.08+Math.max(0,Math.cos(f))*amp*1.2);
+      P.arms[i].g.rotation.z=-Math.sin(f)*amp*0.8;P.arms[i].k.rotation.z=0.25+amp*0.5;
+    }
+    P.body.position.y=Math.abs(Math.cos(ph))*0.1*amp;
+  }
+  function sit(P,hip,ground){ // hip: how high the seat is, in feet
+    P.body.position.y=hip/P.s-HIP;
+    P.legs.forEach(function(L,i){
+      L.g.rotation.z=ground?1.3:1.5;L.k.rotation.z=ground?-0.5:-1.5;L.g.rotation.y=(i?-1:1)*(ground?0.45:0.08);
+    });
+    P.arms[0].g.rotation.z=0.5;P.arms[0].k.rotation.z=1.0;
+  }
+  function eat(P,ph,rate){ // the right hand goes from the plate to the mouth and back, and the body sways as they talk
+    add(function(dt,t){
+      var k=Math.max(0,Math.sin(t*rate+ph));k=k*k*k;
+      P.arms[1].g.rotation.z=0.5+0.45*k;P.arms[1].k.rotation.z=1.0+1.15*k;
+      P.body.rotation.y=Math.sin(t*0.6+ph*2)*0.12;P.head.rotation.z=-0.18*k;
+    });
+  }
+  function follow(o,w,each){
+    var pa=w.pa,s=w.s,dir=w.dir;
+    add(function(dt,t){
+      s+=w.v*dt*dir;
+      if(pa.loop)s=((s%pa.len)+pa.len)%pa.len;else if(s>pa.len){s=pa.len;dir=-1;}else if(s<0){s=0;dir=1;}
+      var i=1;while(i<pa.cum.length-1&&pa.cum[i]<s)i++;
+      var a=pa.P[i-1],b=pa.P[i],sl=pa.cum[i]-pa.cum[i-1]||1,u=(s-pa.cum[i-1])/sl,ex=(b[0]-a[0])/sl*dir,ey=(b[1]-a[1])/sl*dir;
+      var x=a[0]+(b[0]-a[0])*u+ey*w.off,y=a[1]+(b[1]-a[1])*u-ex*w.off; // off: to the right of the way it is heading
+      o.position.set(x-cx,gy(x,y),-(y-cy));o.rotation.y=Math.atan2(ey,ex);
+      if(each)each(dt,t);
+    });
+  }
+  // ---- cars
+  plan.cars.forEach(function(c){
+    var o=new T.Group();
+    o.add(at(mesh(box('car',15,2.6,6),mat(pick(MOVE_COLS))),0,2.3,0));o.add(at(mesh(box('cab',8,2.2,5.4),mat('#22282c')),-0.6,4.6,0));
+    [[-4.8,-3],[-4.8,3],[4.8,-3],[4.8,3]].forEach(function(q){var w=mesh(cyl('wheel',1.15,1.15,0.8,12),mat('#16191c'));w.rotation.x=Math.PI/2;o.add(at(w,q[0],1.15,q[1]));});
+    mg.add(o);follow(o,c);
+  });
+  // ---- people walking
+  plan.walkers.forEach(function(w){
+    var o=figure(w.kid),P=o.userData.P,ph=rnd()*TAU;
+    mg.add(o);follow(o,w,function(dt){ph+=w.v*dt*TAU/(5*P.s);stride(P,ph,0.5);});
+  });
+  // ---- café tables: a sunshade, chairs, plates, and people eating
+  function diners(c,n,rot,dist,hip,ground,seat){
+    for(var i=0;i<n;i++){
+      var a=rot+i*TAU/n,px=c.x+Math.cos(a)*dist,py=c.y+Math.sin(a)*dist,o=figure(rnd()<0.2),P=o.userData.P;
+      if(seat)put(seat(),px,py,a+Math.PI);
+      put(o,px,py,a+Math.PI);sit(P,hip,ground);eat(P,rnd()*TAU,0.9+rnd()*0.8);
+    }
+  }
+  plan.tables.forEach(function(tb){
+    var g=new T.Group(),wood=mat('#8a6a48');
+    g.add(at(mesh(cyl('ttop',1.7,1.7,0.12,16),mat('#e9ecef')),0,2.5,0));g.add(at(mesh(cyl('tleg',0.14,0.3,2.5,8),mat('#495057')),0,1.25,0));
+    g.add(at(mesh(cyl('pole',0.07,0.07,5.4,6),mat('#ced4da')),0,5.2,0));g.add(at(mesh(cyl('shade',0.1,4.2,1.3,8),mat(pick(SHADES))),0,7.7,0));
+    for(var i=0;i<tb.n;i++){var a=tb.rot+i*TAU/tb.n;g.add(at(mesh(cyl('plate',0.42,0.42,0.05,10),mat('#ffffff'),false),Math.cos(a)*1.1,2.59,-Math.sin(a)*1.1));}
+    put(g,tb.x,tb.y,0);
+    diners(tb,tb.n,tb.rot,2.75,1.5,false,function(){var ch=new T.Group();ch.add(at(mesh(box('seat',1.3,0.14,1.3),wood),0,1.4,0));ch.add(at(mesh(box('back',0.12,1.5,1.3),wood),-0.62,2.2,0));ch.add(at(mesh(cyl('cleg',0.09,0.09,1.4,6),mat('#495057')),0,0.7,0));return ch;});
+  });
+  // ---- picnics on the grass: a blanket, a basket, people sitting round it
+  plan.picnics.forEach(function(pc){
+    var g=new T.Group();
+    g.add(at(mesh(box('rug',7,0.08,6),mat(pick(['#c92a2a','#1c7ed6','#f08c00'])),false),0,0.06,0));g.add(at(mesh(box('basket',1.3,0.8,0.9),mat('#a9844f')),0,0.45,0));
+    put(g,pc.x,pc.y,pc.rot);
+    diners(pc,pc.n,pc.rot,2.7,0.35,true,null);
+  });
+  // ---- a couple standing talking
+  plan.chats.forEach(function(ch){
+    [0,1].forEach(function(i){
+      var a=ch.rot+i*Math.PI,o=figure(false),P=o.userData.P,ph=rnd()*TAU;
+      put(o,ch.x+Math.cos(a)*1.4,ch.y+Math.sin(a)*1.4,a+Math.PI);
+      add(function(dt,t){var k=Math.sin(t*1.7+ph);P.arms[i].g.rotation.z=0.35+0.3*k;P.arms[i].k.rotation.z=1.1+0.4*k;P.arms[1-i].k.rotation.z=0.2;P.body.rotation.y=Math.sin(t*0.5+ph)*0.15;});
+    });
+  });
+  // ---- children: two kick a ball to each other, the rest chase round them
+  plan.plays.forEach(function(pl){
+    var ph0=rnd()*TAU,runners=Math.max(1,pl.kids-2),co=Math.cos(pl.rot),si=Math.sin(pl.rot),d=pl.r*0.42;
+    function loop(th){var rr=pl.r*(0.74+0.22*Math.sin(3*th+ph0));return [pl.x+Math.cos(th)*rr,pl.y+Math.sin(th)*rr];}
+    for(var i=0;i<runners;i++)(function(i){
+      var o=figure(true),P=o.userData.P,th=ph0+i*TAU/runners*0.35,ph=rnd()*TAU,v=7+rnd()*2;
+      mg.add(o);P.body.rotation.z=-0.14; // leaning into the run
+      add(function(dt,t){
+        th+=dt*v/(pl.r*0.8)*(1+0.3*Math.sin(t*0.9+i));
+        var p=loop(th),q=loop(th+0.03);
+        o.position.set(p[0]-cx,gy(p[0],p[1]),-(p[1]-cy));o.rotation.y=Math.atan2(q[1]-p[1],q[0]-p[0]);
+        ph+=v*dt*TAU/(5*P.s);stride(P,ph,0.95);
+      });
+    })(i);
+    var ends=[[pl.x-co*d,pl.y-si*d],[pl.x+co*d,pl.y+si*d]],kick=[];
+    ends.forEach(function(e,i){var o=figure(true);put(o,e[0],e[1],pl.rot+(i?Math.PI:0));kick.push(o.userData.P);});
+    var ball=mesh(geo('ball',function(){return new T.SphereGeometry(0.42,10,8);}),mat('#f8f9fa'));mg.add(ball);
+    add(function(dt,t){
+      var c=(t*0.45+ph0)%2,u=c<1?c:2-c,e=0.1+u*0.8,x=ends[0][0]+(ends[1][0]-ends[0][0])*e,y=ends[0][1]+(ends[1][1]-ends[0][1])*e;
+      ball.position.set(x-cx,gy(x,y)+0.42+Math.abs(Math.sin(u*Math.PI*3))*0.9,-(y-cy));
+      kick[0].legs[1].g.rotation.z=u<0.15?1.1*(1-u/0.15):0;kick[1].legs[1].g.rotation.z=u>0.85?1.1*((u-0.85)/0.15):0;
+      kick.forEach(function(P,i){P.arms[0].g.rotation.z=0.25*Math.sin(t*2+i);P.arms[1].g.rotation.z=-0.25*Math.sin(t*2+i);});
+    });
   });
   stepMovers(0);
 }
 function stepMovers(dt){
-  (V3.movers||[]).forEach(function(m){
-    var pa=m.pa;m.s+=m.v*dt*m.dir;
-    if(pa.loop)m.s=((m.s%pa.len)+pa.len)%pa.len;
-    else if(m.s>pa.len){m.s=pa.len;m.dir=-1;}else if(m.s<0){m.s=0;m.dir=1;}
-    var i=1;while(i<pa.cum.length-1&&pa.cum[i]<m.s)i++;
-    var a=pa.P[i-1],b=pa.P[i],sl=pa.cum[i]-pa.cum[i-1]||1,t=(m.s-pa.cum[i-1])/sl,ex=(b[0]-a[0])/sl*m.dir,ey=(b[1]-a[1])/sl*m.dir;
-    // the right of the way it is heading
-    var x=a[0]+(b[0]-a[0])*t+ey*m.off,y=a[1]+(b[1]-a[1])*t-ex*m.off;
-    m.o.position.set(x-m.cx,m.gy(x,y),-(y-m.cy));m.o.rotation.y=Math.atan2(ey,ex);
-  });
+  V3.clock=(V3.clock||0)+dt;
+  (V3.movers||[]).forEach(function(f){f(dt,V3.clock);});
 }
 function play3D(on){
   V3.play=!!on;$('#v3dPlay').textContent=on?'Stop':'Play scene';$('#v3dPlay').classList.toggle('on',!!on);
@@ -4823,6 +5021,7 @@ function info3D(g){
   if(PL.cars.length)bits.push(n0(PL.cars.length)+(PL.cars.length===1?' car':' cars'));
   if(bm.length)bits.push(bm.length+(bm.length===1?' building model':' building models'));
   if(bits.length)h+='<div id="v3dProps"><b>3D models:</b> '+bits.join(' · ')+'</div>';
+  var scn=sceneText();if(scn)h+='<div id="v3dScene"><b>Play scene:</b> '+esc(scn)+'</div>';
   if(S.fences.length)h+='<div id="v3dFences"><b>Fences:</b> '+S.fences.length+' · '+n0(fenceTotal())+' ft</div>';
   var missing=Object.keys(used).filter(function(n){return !modelInfo(n);});
   if(missing.length)h+='<div class="flag">Not in this browser’s library: '+missing.map(esc).join(', ')+'. Add the files on the Layers tab.</div>';
