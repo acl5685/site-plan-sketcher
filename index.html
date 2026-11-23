@@ -184,6 +184,7 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="walk" title="Draw a sidewalk or path along its centre line (to put sidewalks along a road, select the road instead)">Sidewalk</button>
       <button class="tool" data-tool="parkarea" title="Draw the outline of a parking area; stalls and aisles are laid out to fit the most cars, around any road drawn through it">Parking area</button>
       <button class="tool" data-tool="lot" title="Draw one row of stalls or one aisle by hand, along a line">Parking row</button>
+      <button class="tool" data-tool="apron" title="Place a driveway apron where a drive meets the street: full access, right-in / right-out, one-way, divided, three-lane or truck, with an optional right-turn lane">Apron</button>
 </div>
       <div class="tgrp"><span class="tlab">Buildings</span>
       <button class="tool" data-tool="building" title="Place a rectangular building">Building</button>
@@ -288,6 +289,10 @@ td:first-child{font-family:var(--font)}
         </div>
         <div class="field" style="margin-top:6px"><label id="iFacadeLbl">Facade (shown in 3D view)</label>
           <div id="iFacade" class="facades" role="radiogroup" aria-labelledby="iFacadeLbl"></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field rect-only" style="flex:2 1 150px"><label for="iRoof" title="Shown in the 3D view. A hand-drawn outline always has a flat roof.">Roof</label><select id="iRoof"><option value="">Automatic (by type and facade)</option></select></div>
+          <div class="field" style="align-self:end"><button class="btn" id="iLookAll" title="Give every commercial and mixed-use building this facade and roof">Use this look for all stores</button></div>
         </div>
         <div class="field" style="margin-top:6px"><label for="iEnt" title="Which wall the doors are on. Stores get their shopfronts on this side only. Shown as markers on the plan and built in the 3D view.">Entrances face</label>
           <select id="iEnt"><option value="">Nearest road (automatic)</option><option value="court">Courtyard: nearest plaza or open space</option><option value="n">North</option><option value="e">East</option><option value="s">South</option><option value="w">West</option><option value="wall">The wall picked on the map</option></select>
@@ -421,6 +426,28 @@ td:first-child{font-family:var(--font)}
         <div class="note shape-tip" style="margin-top:4px">On the map: drag it to move it. Drag a square handle to move a corner, a round one to add a corner, and double-click a square one to remove it.</div>
       </div>
 
+      <div id="insX" hidden>
+        <h3>Selected apron</h3>
+        <div class="field"><label for="xName">Name</label><input type="text" id="xName"></div>
+        <div class="field" style="margin-top:6px"><label for="xType">Type</label><select id="xType"></select></div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="xW">Throat ft</label><input type="number" id="xW" min="8" step="1"></div>
+          <div class="field"><label for="xR" title="The curb return each side of the throat">Corner radius ft</label><input type="number" id="xR" min="0" step="1"></div>
+          <div class="field"><label for="xDepth" title="From the property line to the edge of the street">Depth ft</label><input type="number" id="xDepth" min="4" step="1"></div>
+          <div class="field"><label for="xDir" title="The way out to the street: degrees from east, counter-clockwise (90 is north)">Faces °</label><input type="number" id="xDir" step="1"></div>
+        </div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="xRt"> Dedicated right-turn lane on the street leading in</label>
+        <div class="row x-rt">
+          <div class="field"><label for="xRtLen" title="Full-width length where cars slow and wait to turn">Storage ft</label><input type="number" id="xRtLen" min="20" step="10"></div>
+          <div class="field"><label for="xRtTaper" title="Length over which the lane widens out from the street">Taper ft</label><input type="number" id="xRtTaper" min="10" step="10"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="xWalk"> Sidewalk carries across it</label>
+        <label class="chk"><input type="checkbox" id="xMarks"> Stop bar and lane arrows</label>
+        <div class="field" style="margin-top:6px"><label for="xSd" title="How far along the street a waiting driver must see. About 280 ft suits 25 mph, 390 ft suits 35 mph.">Sight distance ft</label><input type="number" id="xSd" min="50" step="10"></div>
+        <div class="note" id="xInfo" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px"><button class="btn small" id="xSnap" title="Put it back on the nearest edge of the site, facing out to the street">Snap to site edge</button><button class="btn small" id="xFlip" title="Turn it to face the opposite way">Flip</button><button class="btn small danger" id="xDel">Delete apron</button></div>
+        <div class="note" style="margin-top:4px">On the map: drag it to slide it along the site edge (hold Shift to place it freely). Q / E turn it, arrow keys nudge it. The dashed blue triangles are what a driver pulling out must be able to see across.</div>
+      </div>
       <div id="insC" hidden>
         <h3>Selected carve-out</h3>
         <div class="note">This shape is taken out of the site. On the map, drag a square handle to move a corner or the round ✥ handle to slide the whole shape; its side lengths are shown. Delete puts the land back in the site.</div>
@@ -480,6 +507,11 @@ td:first-child{font-family:var(--font)}
         <h3>Green space and other areas</h3>
         <div class="note">The Green space figure at the top is the share of the site that is not built on or paved (ponds are left out). Choose Green space and click the corners to draw a landscaped area; select it to plant trees for the 3D view. Set a minimum on the Check tab to be warned when the plan falls short.</div>
         <div class="field" style="margin-top:6px"><label for="areaKind">The Area tool draws</label><select id="areaKind"></select></div>
+      </div>
+      <div>
+        <h3>Aprons</h3>
+        <div class="field"><label for="apronType">The Apron tool places</label><select id="apronType"></select></div>
+        <div class="note" style="margin-top:4px">Choose Apron, then click where a drive meets the street on an edge of the site. Select an apron to change its type, throat width, corner radius and depth, add a dedicated right-turn lane, or see its sight triangles. Sizes are typical ones: the city engineer, the county or ODOT sets the real ones for their road.</div>
       </div>
       <div>
         <h3>Fences</h3>
@@ -845,6 +877,22 @@ var LOAD_DEF={w:10,l:25},LOAD_PRESETS={small:{w:10,l:25},large:{w:14,l:50}};
 // Loading spaces a building needs, by its floor area (§1183.20(f)). Under 5,000 sf it needs a receiving platform, not a
 // space. 'retail' is the schedule for stores; 'other' the one for warehouses, printing, servicing and manufacturing.
 // Each further 100,000 sf adds one (the schedule lists that line last; it is applied to both here).
+// Driveway aprons. w: throat width, r: corner radius (both ft, typical values, there to be edited). isl: what stands in
+// the mouth ('tri' a raised triangle that allows right turns only, 'median' a planted divider). way: 'two', or one
+// lane 'in' or 'out'. out: lanes out. res: a house driveway (concrete, no markings).
+var APRONS={
+  full:{name:'Full access, two-way',w:26,r:20,isl:'none',way:'two',out:1},
+  res:{name:'Residential driveway',w:12,r:4,isl:'none',way:'two',out:1,res:true},
+  riro:{name:'Right-in / right-out',w:44,r:25,isl:'tri',way:'two',out:1},
+  rin:{name:'Right-in only',w:16,r:25,isl:'none',way:'in',out:0},
+  rout:{name:'Right-out only',w:16,r:25,isl:'none',way:'out',out:1},
+  blvd:{name:'Divided (boulevard) entrance',w:40,r:25,isl:'median',way:'two',out:1},
+  three:{name:'Three-lane: left-out and right-out',w:38,r:25,isl:'none',way:'two',out:2},
+  truck:{name:'Truck / service entrance',w:38,r:40,isl:'none',way:'two',out:1}
+};
+// depth: property line to the edge of the street. lane: width of an added right-turn lane. sd: sight distance along
+// the street (280 ft suits about 25 mph). throat: clear length a store entrance usually needs before the first stall.
+var APRON_DEF={depth:12,rtLen:100,rtTaper:60,lane:12,sd:280,throat:40};
 function loadNeed(sf,rule){
   if(rule==='off'||!(sf>=5000))return 0;
   var base=rule==='other'?(sf<=40000?1:2):(sf<=10000?1:(sf<=40000?2:3));
@@ -894,7 +942,7 @@ function closeRing(r){var a=r.slice();if(a.length&&(a[0][0]!==a[a.length-1][0]||
 // ---------- state ----------
 var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
-  roads:[],buildings:[],areas:[],fences:[],fenceCfg:{style:'privacy',h:6},sel:null,
+  roads:[],buildings:[],areas:[],fences:[],aprons:[],apronType:'full',fenceCfg:{style:'privacy',h:6},sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
   set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0,greenMin:0,loadRule:'retail'},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
@@ -924,12 +972,12 @@ function setBase(k){
 }
 
 // ---------- undo / persistence ----------
-function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,fences:S.fences,nextId:S.nextId,counters:S.counters});}
+function snapshot(){return JSON.stringify({selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,lots:S.lots,buildings:S.buildings,areas:S.areas,fences:S.fences,aprons:S.aprons,nextId:S.nextId,counters:S.counters});}
 function pushUndo(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();}
 function restore(str){
   var o=JSON.parse(str);
   S.selected=new Set(o.selected);S.carved=new Set(o.carved);S.carveShapes=o.carveShapes;S.splits=o.splits||[];S.roads=o.roads;
-  S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.fences=o.fences||[];S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
+  S.lots=o.lots||[];S.buildings=o.buildings;S.areas=o.areas;S.fences=o.fences||[];S.aprons=o.aprons||[];S.nextId=o.nextId;S.counters=o.counters||{};S.sel=null;S.multi=[];
   siteChanged();
 }
 function undo(){if(D){D.pts.pop();drawPreview();return;}if(!undoStack.length)return;restore(undoStack.pop());}
@@ -938,7 +986,7 @@ function projectJSON(){
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.push(f);});
   return {v:1,org:[ORG.lng,ORG.lat],labelField:S.labelField,parcels:{type:'FeatureCollection',features:keep},
     selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,buildings:S.buildings,
-    areas:S.areas,lots:S.lots,fences:S.fences,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
+    areas:S.areas,lots:S.lots,fences:S.fences,aprons:S.aprons,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
     overlays:S.overlays.filter(function(o){return o.url;}).map(function(o){return {name:o.name,url:o.url,tiled:o.tiled,opacity:o.opacity};})};
 }
 function saveLocal(){try{localStorage.setItem('sitePlanSketcher.v1',JSON.stringify(projectJSON()));}catch(e){}if(typeof renderLayouts==='function'&&$('#pane-layouts').classList.contains('on'))renderLayouts();}
@@ -946,7 +994,7 @@ function loadProject(o){
   if(o.org)setOrg(o.org[0],o.org[1]);
   S.parcels=o.parcels||null;S.labelField=o.labelField||null;
   S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
-  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];S.fences=o.fences||[];
+  S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];S.fences=o.fences||[];S.aprons=o.aprons||[];
   if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
   S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
   fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
@@ -1860,6 +1908,22 @@ function renderMap(){
     hit.on('mousedown',function(e){groupDown('f',f.id,e);});
     hit.bindTooltip(esc((f.name||'Fence')+' · '+k.name+' · '+n1(+f.h||k.h)+' ft high · '+n0(fenceLen(f))+' ft long'),{sticky:true});
   });
+  // aprons: the paving and its curb returns, islands, markings, and (for the selected one) its sight triangles
+  S.aprons.forEach(function(a){
+    var g=apronGeom(a),sel=selIs('x',a.id),res=g.cfg.t.res,LLr=function(r){return r.map(toLL).map(ll2);},none={pane:'pRoads',interactive:false};
+    if(g.rt)L.polygon(LLr(g.rt),Object.assign({className:'apron-rt',stroke:false,fillColor:'#4a4f55',fillOpacity:.92},none)).addTo(gRoads);
+    var poly=L.polygon(LLr(g.ring),{pane:'pRoads',className:'obj-path apron-path',color:sel?'#ffffff':'#1a2225',weight:sel?3:1,fillColor:res?'#c9c5bc':'#4a4f55',fillOpacity:.95}).addTo(gRoads);
+    poly.on('click',function(e){if(S.tool!=='select'&&S.tool!=='apron')return;if(Date.now()-apronDragAt>=300){if(S.tool==='apron')setTool('select');select({k:'x',id:a.id});}L.DomEvent.stopPropagation(e);});
+    poly.on('mousedown',function(e){apronDown(a,e);});
+    poly.bindTooltip(esc((a.name||'Apron')+' · '+g.cfg.t.name),{sticky:true});
+    if(g.walk)L.polygon(LLr(g.walk),Object.assign({className:'apron-walk',stroke:false,fillColor:'#dee2e6',fillOpacity:.75},none)).addTo(gRoads);
+    g.islands.forEach(function(r){L.polygon(LLr(r),Object.assign({className:'apron-island',color:'#f1f3f5',weight:1.5,fillColor:'#b9b4a8',fillOpacity:1},none)).addTo(gRoads);});
+    g.green.forEach(function(r){L.polygon(LLr(r),Object.assign({className:'apron-island apron-median',color:'#f1f3f5',weight:1.5,fillColor:'#51cf66',fillOpacity:1},none)).addTo(gRoads);});
+    g.lines.forEach(function(l){L.polyline(LLr(l.pts),Object.assign({className:'apron-line',color:l.col,weight:1.5,dashArray:l.dash?'5 5':null},none)).addTo(gRoads);});
+    g.bars.forEach(function(b){L.polyline(LLr(b),Object.assign({className:'apron-bar',color:'#ffffff',weight:3},none)).addTo(gRoads);});
+    if(g.arrows.length)L.polygon(g.arrows.map(LLr),Object.assign({className:'apron-arrow',stroke:false,fillColor:'#f8f9fa',fillOpacity:.95},none)).addTo(gRoads);
+    if(sel)g.sight.forEach(function(r){L.polygon(LLr(r),Object.assign({className:'apron-sight',color:'#4dabf7',weight:1.5,dashArray:'6 5',fillColor:'#4dabf7',fillOpacity:.08},none)).addTo(gRoads);});
+  });
   // buildings
   S.buildings.forEach(function(b){
     var t=bType(b),ring=S.ctx.rings[b.id].map(toLL).map(ll2),sel=selIs('b',b.id);
@@ -1929,6 +1993,10 @@ function renderPanels(){
   if(st.reqStalls&&st.units&&st.comm)pn.push('Mixed residential and commercial use: required spaces are added together unless the Commission approves shared parking (up to 50%, §1183.06(b)).');
   if((st.loadBays||st.loadReq)&&!st.loadShort)pn.push('Loading: '+st.loadBays+(st.loadBays===1?' space':' spaces')+' drawn, '+st.loadReq+' required (§1183.20(f)). Each needs 14 ft of clear height and room to manoeuvre off the street, and may not sit in a required front yard (§1183.20(b), (e)).');
   if(st.loadPlat.length)pn.push(st.loadPlat.join(', ')+': under 5,000 sf of commercial floor area, so a receiving platform is asked for rather than a loading space (§1183.20(f)).');
+  S.aprons.forEach(function(a){var is=apronIssues(a),nm=a.name||'Apron';
+    if(is.sight.length)pn.push(nm+': '+is.sight.join(', ')+(is.sight.length>1?' stand':' stands')+' in its sight triangle. Keep that ground clear between 2.5 and 10 ft above the drive.');
+    if(is.throatShort)pn.push(nm+': only '+n0(is.throat)+' ft from the property line to the nearest parking stall. Allow about '+APRON_DEF.throat+' ft so cars coming in do not back up into the street.');
+  });
   S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on&&pg.need&&pg.need.length)pn.push((a.name||'Parking')+': '+pg.row+' pull-in stalls have no drive yet. Draw a '+n0(parkCfg(a).aisle)+' ft drive along their open side.');});
   S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on&&pg.count&&pg.noRoad)pn.push((a.name||'Parking')+': no road reaches '+(pg.parts>1?'part of it':'it')+'. Draw a road to its edge, or through it, so cars can get in.');});
   pn.forEach(function(m){html+='<div class="note" style="margin-top:4px">'+esc(m)+'</div>';});
@@ -2023,7 +2091,7 @@ function renderLight(){ // during drags: no stats recompute beyond checks
 // ---------- selection and inspector ----------
 function select(sel){S.sel=sel;if(sel)S.plotSel=null;renderAll();if(sel){showTab('build');}}
 // ---------- multi-select ----------
-function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:(k==='f'?S.fences:S.areas)));}
+function arrOf(k){return k==='b'?S.buildings:(k==='r'?S.roads:(k==='p'?S.lots:(k==='f'?S.fences:(k==='x'?S.aprons:S.areas))));}
 function multiObjs(){return S.multi.map(function(m){return {k:m.k,id:m.id,o:arrOf(m.k).filter(function(x){return x.id===m.id;})[0]};}).filter(function(m){return m.o;});}
 function setMulti(list){S.multi=list.length>=2?list:[];S.sel=list.length===1?list[0]:null;renderAll();if(list.length)showTab('build');}
 function toggleMulti(k,id){
@@ -2082,18 +2150,18 @@ function focusSide(){
   var o=getSel(),many=S.multi.length>=2,cv=!o&&!many&&S.tool==='select'?selCarve():null,on=!!o||many||!!cv,side=$('#side');
   if(on&&focusWas===null){focusWas=side.scrollTop;side.scrollTop=0;}
   side.classList.toggle('focus',on);$('#focusBar').hidden=!on;$('#insC').hidden=!cv;
-  if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(cv?'Carved-out shape':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence'})[S.sel.k]||'Selection'));
+  if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(cv?'Carved-out shape':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence',x:'Apron'})[S.sel.k]||'Selection'));
   else if(focusWas!==null){
     side.scrollTop=focusWas;focusWas=null;
     // the settings that had the keyboard are gone from view: give the keys back to the plan
-    var ae=document.activeElement;if(ae&&ae.blur&&ae.closest&&ae.closest('#insB,#insR,#insA,#insP,#insF,#insM'))ae.blur();
+    var ae=document.activeElement;if(ae&&ae.blur&&ae.closest&&ae.closest('#insB,#insR,#insA,#insP,#insF,#insM,#insX'))ae.blur();
   }
 }
 function fillInspector(){
   focusSide();
   $('#insM').hidden=S.multi.length<2;if(S.multi.length>=2)$('#mCount').textContent=S.multi.length;
   var o=getSel();
-  $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');$('#insF').hidden=!(o&&S.sel.k==='f');
+  $('#insB').hidden=!(o&&S.sel.k==='b');$('#insR').hidden=!(o&&S.sel.k==='r');$('#insA').hidden=!(o&&S.sel.k==='a');$('#insP').hidden=!(o&&S.sel.k==='p');$('#insF').hidden=!(o&&S.sel.k==='f');$('#insX').hidden=!(o&&S.sel.k==='x');
   $('#fenceInfo').textContent=S.fences.length?S.fences.length+(S.fences.length===1?' fence':' fences')+' on the plan · '+n0(fenceTotal())+' ft in all':'';
   if(!o)return;
   var ae=document.activeElement;
@@ -2102,6 +2170,7 @@ function fillInspector(){
     var cust=!!o.pts;
     $$('.rect-only').forEach(function(e){e.hidden=cust;});$('#iFree').hidden=!cust;
     setv('#iName',o.name);setv('#iType',o.type);setv('#iSt',o.st);setv('#iHome',o.home||'');$('#iHomeF').hidden=!(o.type==='sf'||o.type==='th');
+    setv('#iRoof',ROOFS[o.roof]?o.roof:'');$('#iLookAll').hidden=!(o.type==='mu'||o.type==='com');
     var onWall=/^k\d+$/.test(o.ent||'');setv('#iEnt',onWall?'wall':(o.ent||''));$('#iEntAll').hidden=onWall||!(o.type==='mu'||o.type==='com');markFacade(o);fillModelSelect($('#iModel'),'building',o.mod,'Generated (by building type)');
     var tc=(S.checks||[]).filter(function(q){return q.b.id===o.id;})[0],tu=tc&&tc.terr;
     setv('#iPad',o.pad==null?'':o.pad);$('#iPad').placeholder=tu&&o.pad==null?n1(tu.pad)+' (auto)':'auto';
@@ -2119,6 +2188,7 @@ function fillInspector(){
     $('#rInfo').textContent=n0(rl)+' ft long · '+n0(rl*o.width)+' sf'+(sw?' · '+n0(walkLenOf(o))+' ft of sidewalk, '+n0(walkLenOf(o)*(+sw.w||5))+' sf'+(+sw.gap?' · '+n0(walkLenOf(o)*sw.gap)+' sf of tree lawn':''):'');
   }
   else if(S.sel.k==='p'){fillLot(o);}
+  else if(S.sel.k==='x'){fillApron(o);}
   else if(S.sel.k==='f'){
     setv('#fName',o.name||'');setv('#fStyle',fenceKind(o));setv('#fH',o.h);$('#fClosed').checked=!!o.closed;$('#fClosed').disabled=o.pts.length<3;
     var fl=fenceLen(o);$('#fInfo').textContent=n0(fl)+' ft long · '+(o.closed?o.pts.length:o.pts.length-1)+(((o.closed?o.pts.length:o.pts.length-1)===1)?' run':' runs')+' · about '+(Math.max(1,Math.round(fl/8))+(o.closed?0:1))+' posts at 8 ft';
@@ -2188,6 +2258,7 @@ var HINTS={
   loadzone:'Click the corners of the loading zone, then double-click or press Enter. Truck bays are set out along its longest side; the rest is room to manoeuvre.',
   green:'Click the corners of the green space, then double-click or press Enter. Select it afterwards to plant trees for the 3D view.',
   parkarea:'Click the corners of the parking area, then double-click or press Enter. Stalls and aisles are laid out to fit the most cars; a road drawn through it is kept clear.',
+  apron:'Click where a drive meets the street, on an edge of the site. The apron turns to face out of the site, and where a drawn road crosses the edge it centres on that road. Pick the type on the Build tab, or change it after placing.',
   fence:'Click along the fence line. Click the first corner again to close it into a loop, or double-click / press Enter to finish.',
   bpoly:'Click each corner of the building. Type a length and press Enter for an exact side. Click the first corner or press Enter to finish.'
 };
@@ -2213,7 +2284,7 @@ function setTool(t){
   markTools();
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
   $('#hint').textContent=hintFor(t);gGhost.clearLayers();ghostLL=null;
-  if(t==='building'||t==='road'||t==='walk'||t==='lot'||t==='area'||t==='bpoly'||t==='fence')showTab('build');
+  if(t==='building'||t==='road'||t==='walk'||t==='lot'||t==='area'||t==='bpoly'||t==='fence'||t==='apron')showTab('build');
   updateDrawbar();renderHandles();
 }
 function cancelDraw(){D=null;gDraw.clearLayers();if(typeof gSnap!=='undefined')gSnap.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
@@ -2486,6 +2557,10 @@ map.on('click',function(e){
     var sp=ghostLL||snapPlacement([e.latlng.lng,e.latlng.lat],S.tpl.w,S.tpl.d,S.tpl.rot);
     pushUndo();var b=applyHome(newBuilding(S.tpl.type,S.tpl.w,S.tpl.d,S.tpl.st,sp.rot,sp.c));
     S.buildings.push(b);S.sel={k:'b',id:b.id};renderAll();
+  }else if(t==='apron'){
+    pushUndo();var na=newApron(S.apronType,e.latlng),onEdge=apronSnap(e.latlng).on;
+    S.aprons.push(na);S.sel={k:'x',id:na.id};S.multi=[];renderAll();
+    if(!onEdge)toast('That spot is not on an edge of the site, so the apron stays where you clicked. Drag it to a site edge, or set the way it faces.');
   }else if(t==='select'){
     if(Date.now()-bldgDownAt<500||Date.now()-marqueeAt<300)return;
     // open ground: deselect; inside a lot: pick the lot, which shows what fits on it
@@ -2596,6 +2671,16 @@ document.addEventListener('keydown',function(e){
     if(rk0==='q'||rk0==='e'){rotateGroup((rk0==='e'?-1:1)*rotStepFor(e));return;}
     if(/^Arrow/.test(e.key)){var am0=e.shiftKey?5:1,gx=0,gy=0;if(e.key==='ArrowLeft')gx=-am0;if(e.key==='ArrowRight')gx=am0;if(e.key==='ArrowUp')gy=am0;if(e.key==='ArrowDown')gy=-am0;moveGroup(gx,gy);e.preventDefault();return;}
   }
+  if(S.sel&&S.sel.k==='x'&&S.multi.length<2){ // an apron: Q / E turn it, the arrow keys nudge it
+    var ax=getSel(),akr=rotKey(e);
+    if(ax&&(akr==='q'||akr==='e')){pushUndo();ax.dir=normAngle((+ax.dir||0)+(akr==='e'?-1:1)*rotStepFor(e));renderAll();return;}
+    if(ax&&/^Arrow/.test(e.key)){
+      var as=e.shiftKey?5:1,ap=toLocal(ax.pt);pushUndo();
+      if(e.key==='ArrowLeft')ap[0]-=as;if(e.key==='ArrowRight')ap[0]+=as;if(e.key==='ArrowUp')ap[1]+=as;if(e.key==='ArrowDown')ap[1]-=as;
+      ax.pt=toLL(ap);renderAll();e.preventDefault();return;
+    }
+    if(akr==='q'||akr==='e'||/^Arrow/.test(e.key))return;
+  }
   var rk=rotKey(e);
   if(rk==='q'||rk==='e'){
     var dir=rk==='e'?1:-1,step=rotStepFor(e);
@@ -2618,6 +2703,176 @@ document.addEventListener('keydown',function(e){
 document.addEventListener('keyup',function(e){if(e.key==='Shift')shiftHeld=false;});
 var lastMouse=null,mouseIn=false;map.on('mousemove',function(e){lastMouse=e.latlng;mouseIn=true;});map.on('mouseout',function(){mouseIn=false;});
 
+// ---------- aprons: where a drive meets the street ----------
+// a = {id, name, type (a key of APRONS), pt [lng,lat] (the middle of the throat, on the property line), dir (degrees
+// from east, counter-clockwise: the way out to the street), w (throat ft), r (corner radius ft), depth (property line
+// to the edge of the street, ft), rt (a right-turn lane on the street leading in) with rtLen and rtTaper, walk (the
+// sidewalk carries across), marks (stop bar and arrows), sd (sight distance ft)}.
+// Looking out from the site, traffic on the near side of the street runs left to right, so cars come in on the left
+// half of the apron and go out on the right.
+function apronCfg(a){
+  var t=APRONS[a.type]||APRONS.full,num=function(v,d){v=parseFloat(v);return isFinite(v)?v:d;};
+  return {t:t,w:Math.max(8,num(a.w,t.w)),r:Math.max(0,num(a.r,t.r)),depth:Math.max(4,num(a.depth,APRON_DEF.depth)),
+    rt:!!a.rt&&t.way!=='out',rtLen:Math.max(20,num(a.rtLen,APRON_DEF.rtLen)),rtTaper:Math.max(10,num(a.rtTaper,APRON_DEF.rtTaper)),
+    walk:a.walk!==false,marks:a.marks!==false&&!t.res,sd:Math.max(50,num(a.sd,APRON_DEF.sd))};
+}
+var apronCache=new Map();
+// Everything drawn for one apron, in local feet: ring (the paving), islands (raised concrete), green (planted
+// median), rt (right-turn lane), walk, lines [{pts,col,dash}], bars (stop bars), arrows (outlines), sight (triangles)
+function apronGeom(a){
+  var c=apronCfg(a),t=c.t,key=JSON.stringify([a.pt,a.dir,a.type,c.w,c.r,c.depth,c.rt,c.rtLen,c.rtTaper,c.walk,c.marks,c.sd,ORG.lng,ORG.lat]);
+  if(apronCache.has(key))return apronCache.get(key);
+  if(apronCache.size>80)apronCache.clear();
+  var p0=toLocal(a.pt),d=(+a.dir||0)*Math.PI/180,n=[Math.cos(d),Math.sin(d)],u=[n[1],-n[0]];
+  function P(x,y){return [p0[0]+u[0]*x+n[0]*y,p0[1]+u[1]*x+n[1]*y];}
+  var w=c.w,dp=c.depth,r=Math.min(c.r,dp),h=w/2,i,an,ring=[],one=t.way!=='two',sk=one?(t.way==='in'?-1:1)*dp*0.9:0;
+  var g={ring:null,islands:[],green:[],rt:null,walk:null,lines:[],bars:[],arrows:[],sight:[],cfg:c,p0:p0,lanesIn:t.way==='out'?0:1,lanesOut:t.way==='in'?0:(t.out||1)};
+  if(one){ // a single angled lane: its mouth on the street is shifted toward the traffic it serves
+    var fl=r*0.5;
+    ring=[P(-h,-2),P(-h,0),P(-h+sk-(t.way==='in'?fl:0),dp),P(h+sk+(t.way==='out'?fl:0),dp),P(h,0),P(h,-2)];
+  }else{ // a throat with a quarter-circle curb return each side
+    ring.push(P(-h,-2),P(-h,dp-r));
+    for(i=1;i<=6;i++){an=i/6*Math.PI/2;ring.push(P(-h-r+r*Math.cos(an),dp-r+r*Math.sin(an)));}
+    for(i=0;i<=6;i++){an=Math.PI/2+i/6*Math.PI/2;ring.push(P(h+r+r*Math.cos(an),dp-r+r*Math.sin(an)));}
+    ring.push(P(h,-2));
+  }
+  g.ring=ring;
+  // where the in and out lanes divide (cu), and what stands between them
+  var cu=0,gapL=0,gapR=0;
+  if(t.out===2)cu=-h+w*0.36;
+  if(t.isl==='tri'){var b=Math.max(3,Math.min(w*0.3,h+r-14));g.islands.push([P(-b,dp-0.5),P(b,dp-0.5),P(0,Math.max(1,dp*0.2))]);gapL=-b*0.5;gapR=b*0.5;}
+  if(t.isl==='median'){var mh=Math.max(2,Math.min(4,(w-28)/2));g.green.push([P(-mh,-20),P(-mh,dp-4),P(0,dp-1.5),P(mh,dp-4),P(mh,-20),P(0,-22.5)]);gapL=-mh;gapR=mh;}
+  var uIn=one?0:(-h+(cu+gapL))/2,outL=cu+gapR,um=(outL+h)/2;
+  if(c.marks){
+    var top=Math.max(2,dp-Math.max(2,r*0.4)),sb=Math.max(1.5,dp*0.5);
+    function arrow(x,y,turn){ // an arrow 6 ft long with its tail at (x, y); turn: radians to the left of straight out
+      var co=Math.cos(turn),si=Math.sin(turn);
+      return [[-0.28,0],[0.28,0],[0.28,3.6],[1.05,3.6],[0,6],[-1.05,3.6],[-0.28,3.6]].map(function(q){return P(x+q[0]*co-q[1]*si,y+q[0]*si+q[1]*co);});
+    }
+    if(!one&&t.isl==='none')g.lines.push({pts:[P(cu,0),P(cu,top)],col:'#ffd43b'});
+    if(t.out===2)g.lines.push({pts:[P(um,0),P(um,top)],col:'#f8f9fa',dash:true});
+    if(t.way!=='in')g.bars.push([P(one?-h+sk*sb/dp:outL,sb),P(one?h+sk*sb/dp:h,sb)]);
+    if(t.way!=='out')g.arrows.push(arrow(uIn+(one?sk*0.75:(t.isl==='tri'?-2:0)),Math.min(dp-0.5,dp*0.2+6.4),Math.PI+(one||t.isl==='tri'?0.55:0)));
+    if(t.way!=='in'){
+      if(t.out===2){g.arrows.push(arrow((outL+um)/2,sb*0.15,0.6));g.arrows.push(arrow((um+h)/2,sb*0.15,-0.6));}
+      else g.arrows.push(arrow(one?sk*0.1:(outL+h)/2,Math.max(0.3,sb-6.6),one||t.isl==='tri'?-0.55:0));
+    }
+  }
+  if(c.walk&&dp>=7)g.walk=[P(-h-0.5,1),P(h+0.5,1),P(h+0.5+sk*0.42,6),P(-h-0.5+sk*0.42,6)];
+  if(c.rt){ // a lane added on the near side of the street, upstream (to the left), with its taper
+    var xe=one?h-sk+r*0.5:h+r,ln=APRON_DEF.lane;
+    g.rt=[P(-xe-c.rtLen-c.rtTaper,dp),P(-xe-c.rtLen,dp-ln),P(-xe+r,dp-ln),P(-xe+r,dp)];
+    g.lines.push({pts:[P(-xe-c.rtLen,dp),P(-xe,dp)],col:'#f8f9fa',dash:true});
+    if(c.marks)g.arrows.push([[-0.28,0],[0.28,0],[0.28,3.6],[1.05,3.6],[0,6],[-1.05,3.6],[-0.28,3.6]].map(function(q){return P(-xe-c.rtLen*0.5+q[1],dp-ln/2-q[0]);}));
+  }
+  // sight triangles for a driver waiting to pull out, 14.5 ft back from the edge of the street: to the left along
+  // the near lane, and (where left turns out are allowed) to the right along the far lane
+  if(t.way!=='in'){
+    var uo=one?sk*0.4:(outL+h)/2,E=P(uo,dp-14.5);
+    g.sight.push([E,P(uo-c.sd,dp+6),P(uo,dp+6)]);
+    if(t.way==='two'&&t.isl!=='tri')g.sight.push([E,P(uo,dp+18),P(uo+c.sd,dp+18)]);
+  }
+  apronCache.set(key,g);return g;
+}
+function apronSf(g){var s=Math.abs(polyAreaSigned(g.ring));if(g.rt)s+=Math.abs(polyAreaSigned(g.rt));return s;}
+// What is wrong at an apron: {sight: names of what stands in a sight triangle, throat: feet from the property line to
+// the nearest parking stall (null when there is none within 200 ft), throatShort}
+function apronIssues(a){
+  var g=apronGeom(a),ctx=S.ctx||{},hits=[],th=null;
+  function add(nm){if(hits.indexOf(nm)<0)hits.push(nm);}
+  function crosses(tri,pts,closed){
+    if(pts.some(function(p){return pointInRing(p,tri);}))return true;
+    if(closed&&tri.some(function(p){return pointInRing(p,pts);}))return true;
+    for(var i=0;i<pts.length-(closed?0:1);i++)for(var j=0;j<3;j++)if(segX([pts[i],pts[(i+1)%pts.length]],[tri[j],tri[(j+1)%3]]))return true;
+    return false;
+  }
+  g.sight.forEach(function(tri){
+    S.buildings.forEach(function(b){var r=ctx.rings&&ctx.rings[b.id];if(r&&r.length>=3&&crosses(tri,r,true))add(b.name||'A building');});
+    S.fences.forEach(function(f){if(f.pts&&f.pts.length>=2&&crosses(tri,fencePath(f).map(toLocal),false))add(f.name||'A fence');});
+    S.areas.forEach(function(ar){var lp=lsPlan(ar);if(lp&&lp.pts.some(function(p){return p.t!=='shr'&&pointInRing([p.x,p.y],tri);}))add((ar.name||'Planting')+' (planting)');});
+  });
+  if(!g.cfg.t.res){
+    var near=function(q){q.forEach(function(p){var dd=Math.hypot(p[0]-g.p0[0],p[1]-g.p0[1]);if(dd<200&&(th===null||dd<th))th=dd;});};
+    S.areas.forEach(function(ar){var pg=S.parkG&&S.parkG[ar.id];if(pg&&pg.on)pg.stalls.forEach(near);});
+    S.lots.forEach(function(l){var gl=S.lotG&&S.lotG[l.id];if(gl)gl.stalls.forEach(near);});
+  }
+  return {sight:hits,throat:th,throatShort:th!==null&&th<APRON_DEF.throat-0.05};
+}
+// Where an apron belongs for a point on the map: on the nearest edge of the site within 60 ft, facing out of it; where
+// a road crosses that edge nearby, centred on the road. Off the site it stays where it is put, facing as before.
+function apronSnap(ll,dir0){
+  var p=toLocal([ll.lng,ll.lat]),outer=(S.ctx&&S.ctx.siteOuter)||[],best=null;
+  function inSite(q){return outer.some(function(r){return pointInRing(q,r);});}
+  outer.forEach(function(r){for(var i=0;i<r.length-1;i++){
+    var a=r[i],b=r[i+1],len=Math.hypot(b[0]-a[0],b[1]-a[1]);if(len<0.5)continue;
+    var q=ptSegDist(p,a,b);if(!best||q.d<best.d)best={d:q.d,pt:q.pt,a:a,b:b,len:len};
+    streets().forEach(function(s){var R=s.pts.map(toLocal);for(var j=0;j<R.length-1;j++){
+      var x=segX([a,b],[R[j],R[j+1]]);if(!x)continue;var dx=Math.hypot(x[0]-p[0],x[1]-p[1]);
+      if(dx<40&&(!best||!best.road||dx<best.d))best={d:dx,pt:x,a:a,b:b,len:len,road:s};
+    }});
+  }});
+  if(!best||best.d>60)return {pt:[ll.lng,ll.lat],dir:dir0==null?90:dir0,on:false,road:null};
+  var e=[(best.b[0]-best.a[0])/best.len,(best.b[1]-best.a[1])/best.len],nn=[e[1],-e[0]];
+  if(inSite([best.pt[0]+nn[0]*3,best.pt[1]+nn[1]*3]))nn=[-nn[0],-nn[1]];
+  return {pt:toLL(best.pt),dir:Math.round(Math.atan2(nn[1],nn[0])*1800/Math.PI)/10,on:true,road:best.road||null};
+}
+function newApron(type,ll){
+  var t=APRONS[type]?type:'full',pr=APRONS[t],s=apronSnap(ll,S.apronDir);
+  S.counters.apron=(S.counters.apron||0)+1;S.apronDir=s.dir;
+  var a={id:S.nextId++,name:'Apron '+S.counters.apron,type:t,pt:s.pt,dir:s.dir,w:pr.w,r:pr.r,depth:APRON_DEF.depth};
+  // on a drawn road that is wider than the preset, the throat takes the road's width
+  if(s.road&&pr.way==='two'&&pr.isl==='none'&&pr.out!==2&&!pr.res&&s.road.width>a.w)a.w=s.road.width;
+  return a;
+}
+// what the settings panel says about an apron
+function apronText(a){
+  var g=apronGeom(a),c=g.cfg,t=c.t,is=apronIssues(a);
+  var s=t.name+' · '+(g.lanesIn?g.lanesIn+' in':'no entry')+', '+(g.lanesOut?g.lanesOut+' out':'no exit')+' · '+n0(apronSf(g))+' sf of paving';
+  if(c.rt)s+=' · right-turn lane: '+n0(c.rtLen)+' ft of storage and a '+n0(c.rtTaper)+' ft taper, '+APRON_DEF.lane+' ft wide';
+  if(c.r>c.depth)s+=' · the corner radius is held to the '+n0(c.depth)+' ft depth';
+  if(is.throat!==null)s+=' · '+n0(is.throat)+' ft from the property line to the nearest parking stall'+(is.throatShort?': short of the '+APRON_DEF.throat+' ft a store entrance usually needs, so cars coming in may back up into the street':'');
+  if(g.sight.length)s+=is.sight.length?' · in the sight triangle: '+is.sight.join(', ')+'. Keep it clear between 2.5 and 10 ft above the drive':' · sight triangles clear for '+n0(c.sd)+' ft';
+  return s;
+}
+function fillApron(o){
+  var c=apronCfg(o),ae=document.activeElement;
+  function setv(id,v){var e=$(id);if(e!==ae)e.value=v;}
+  setv('#xName',o.name||'');setv('#xType',APRONS[o.type]?o.type:'full');setv('#xW',c.w);setv('#xR',c.r);setv('#xDepth',c.depth);setv('#xDir',Math.round(normAngle(+o.dir||0)));
+  $('#xRt').checked=c.rt;$('#xRt').disabled=c.t.way==='out';$$('#insX .x-rt').forEach(function(e){e.hidden=!c.rt;});setv('#xRtLen',c.rtLen);setv('#xRtTaper',c.rtTaper);
+  $('#xWalk').checked=c.walk;$('#xMarks').checked=c.marks;$('#xMarks').disabled=!!c.t.res;setv('#xSd',c.sd);$('#xSd').closest('.field').hidden=c.t.way==='in';
+  $('#xInfo').textContent=apronText(o);
+}
+// pressing on the selected apron picks it up: it slides along the site edge and turns to face the street (Shift: freely)
+var adrag=null,apronDragAt=0;
+function apronDown(a,e){
+  if(S.tool!=='select'||!selIs('x',a.id)||S.multi.length>=2||(e.originalEvent&&e.originalEvent.shiftKey))return;
+  adrag={a:a,start:[e.latlng.lng,e.latlng.lat],moved:false,snap:snapshot()};map.dragging.disable();L.DomEvent.stopPropagation(e);
+}
+map.on('mousemove',function(e){
+  if(!adrag)return;
+  if(!adrag.moved){if(!dragFar(adrag.start,e))return;adrag.moved=true;undoStack.push(adrag.snap);}
+  var s=shiftHeld?{pt:[e.latlng.lng,e.latlng.lat],dir:adrag.a.dir}:apronSnap(e.latlng,adrag.a.dir);
+  adrag.a.pt=s.pt;adrag.a.dir=s.dir;renderLight();
+});
+function apronUp(){if(!adrag)return;map.dragging.enable();var m=adrag.moved;adrag=null;if(m){apronDragAt=Date.now();renderAll();}}
+map.on('mouseup',apronUp);document.addEventListener('mouseup',apronUp);
+// the settings panel
+Object.keys(APRONS).forEach(function(k){[$('#xType'),$('#apronType')].forEach(function(sel){var o=document.createElement('option');o.value=k;o.textContent=APRONS[k].name;sel.appendChild(o);});});
+$('#apronType').value=S.apronType;
+$('#apronType').addEventListener('change',function(){S.apronType=this.value;setTool('apron');});
+$('#xName').addEventListener('input',function(){var v=this.value;inspUpdate(function(o){o.name=v;});});
+$('#xType').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){var p=APRONS[v];if(!p)return;o.type=v;o.w=p.w;o.r=p.r;S.apronType=v;$('#apronType').value=v;});});
+[['#xW','w',8],['#xR','r',0],['#xDepth','depth',4],['#xRtLen','rtLen',20],['#xRtTaper','rtTaper',10],['#xSd','sd',50]].forEach(function(f){
+  $(f[0]).addEventListener('input',function(){var v=parseFloat(this.value);if(!(v>=f[2]))return;inspUpdate(function(o){o[f[1]]=v;});});
+});
+$('#xDir').addEventListener('input',function(){var v=parseFloat(this.value);if(!isFinite(v))return;inspUpdate(function(o){o.dir=normAngle(v);});});
+$('#xRt').addEventListener('change',function(){var on=this.checked;inspUpdate(function(o){if(on)o.rt=true;else delete o.rt;});});
+$('#xWalk').addEventListener('change',function(){var on=this.checked;inspUpdate(function(o){if(on)delete o.walk;else o.walk=false;});});
+$('#xMarks').addEventListener('change',function(){var on=this.checked;inspUpdate(function(o){if(on)delete o.marks;else o.marks=false;});});
+$('#xFlip').addEventListener('click',function(){inspUpdate(function(o){o.dir=normAngle((+o.dir||0)+180);});});
+$('#xSnap').addEventListener('click',function(){inspUpdate(function(o){var s=apronSnap({lng:o.pt[0],lat:o.pt[1]},o.dir);o.pt=s.pt;o.dir=s.dir;});});
+$('#xDel').addEventListener('click',deleteSel);
+
 // ---------- copy, cut, paste and duplicate ----------
 // Ctrl+C copies what is selected (one shape or several), Ctrl+X cuts it, Ctrl+V pastes the copies centred on the mouse,
 // or beside the originals when the mouse is not over the map. The copy is also kept in this browser, so it can be
@@ -2626,6 +2881,7 @@ var CLIP_KEY='sitePlanSketcher.clip.v1',clip=null,pasteAt=null;
 function selItems(){return S.multi.length>=2?multiObjs():selObjs();}
 function clipOf(items){return {items:items.map(function(m){return {k:m.k,o:JSON.parse(JSON.stringify(m.o))};})};}
 function copySel(){
+  if(S.sel&&S.sel.k==='x'&&S.multi.length<2)return 0; // an apron is placed where it belongs, not copied
   var items=selItems();if(!items.length)return 0;
   clip=clipOf(items);pasteAt=null;
   try{localStorage.setItem(CLIP_KEY,JSON.stringify(clip));}catch(e){}
@@ -2691,7 +2947,7 @@ $('#finishBtn').addEventListener('click',finishDraw);
 $('#cancelBtn').addEventListener('click',cancelDraw);
 $('#newBtn').addEventListener('click',function(){
   if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.fences.length&&!S.selected.size&&!S.demo){return;}
-  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.sel=null;S.multi=[];S.counters={};
+  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.aprons=[];S.sel=null;S.multi=[];S.counters={};
   if(!S.parcels)gParcels.clearLayers();siteChanged();
 });
 $('#clearPicks').addEventListener('click',function(){pushUndo();S.selected.clear();S.carved.clear();S.carveShapes=[];siteChanged();});
@@ -2899,7 +3155,7 @@ $('#labelField').addEventListener('change',function(){S.labelField=$('#labelFiel
 function ingestParcels(gj){
   var feats=(gj.features||[]).filter(function(f){return f.geometry&&/Polygon/.test(f.geometry.type);});
   var idF=detectIdField((feats[0]&&feats[0].properties)||{}),keep=new Map();
-  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
+  if(S.demo){pushUndo();S.parcels=null;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.aprons=[];S.sel=null;S.multi=[];S.counters={};S.demo=false;gParcels.clearLayers();siteChanged();}
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.set(id,f);});
   feats.forEach(function(f,i){
     var p=f.properties||(f.properties={});
@@ -3062,7 +3318,7 @@ function exportFeatures(){
   });
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
-    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),homeStyle:b.home?homeOf(b.home).name:null,entrancesFace:b.ent||'road',padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),roof:ROOFS[b.roof]?b.roof:null,homeStyle:b.home?homeOf(b.home).name:null,entrancesFace:b.ent||'road',padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
   S.areas.forEach(function(a){
     var p={kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))},pg=S.parkG[a.id];
@@ -3086,6 +3342,13 @@ function exportFeatures(){
       pg.stalls.forEach(function(r,i){var par=r.a===0;feats.push(turf.polygon([closeRing(r.map(toLL))],{kind:'parking_stall',area:a.name,stall:i+1,widthFt:par?PARK_PAR.w:p.stallWidthFt,depthFt:par?PARK_PAR.l:p.stallDepthFt,angleDeg:r.a==null?p.stallAngleDeg:r.a}));});
     }
   });
+  S.aprons.forEach(function(a){
+    var g=apronGeom(a),c=g.cfg,cl=function(r){return [closeRing(r.map(toLL))];};
+    feats.push(turf.polygon(cl(g.ring),{kind:'apron',name:a.name,apronType:APRONS[a.type]?a.type:'full',typeName:c.t.name,throatFt:c.w,cornerRadiusFt:c.r,depthFt:c.depth,facesDeg:+(+a.dir||0).toFixed(1),at:a.pt,lanesIn:g.lanesIn,lanesOut:g.lanesOut,rightTurnLane:c.rt,storageFt:c.rt?c.rtLen:null,taperFt:c.rt?c.rtTaper:null,sidewalkAcross:c.walk,markings:c.marks,sightDistanceFt:c.sd,pavingSf:Math.round(apronSf(g))}));
+    g.islands.concat(g.green).forEach(function(r,i){feats.push(turf.polygon(cl(r),{kind:'apron_island',apron:a.name,planted:i>=g.islands.length}));});
+    if(g.rt)feats.push(turf.polygon(cl(g.rt),{kind:'right_turn_lane',apron:a.name,storageFt:c.rtLen,taperFt:c.rtTaper,widthFt:APRON_DEF.lane}));
+    g.sight.forEach(function(r,i){feats.push(turf.polygon(cl(r),{kind:'sight_triangle',apron:a.name,looking:i?'right':'left',distanceFt:c.sd}));});
+  });
   S.fences.forEach(function(f){if(f.pts.length>=2)feats.push(turf.lineString(fencePath(f),{kind:'fence',name:f.name,fenceStyle:fenceKind(f),styleName:FENCES[fenceKind(f)].name,heightFt:+f.h||FENCES[fenceKind(f)].h,lengthFt:Math.round(fenceLen(f)),closed:!!f.closed}));});
   return feats;
 }
@@ -3106,6 +3369,8 @@ $('#xCsv').addEventListener('click',function(){
   S.areas.forEach(function(a){var pg=S.parkG[a.id];if(pg&&pg.on&&pg.lights&&pg.lights.length)rows.push([(a.name||'Parking')+' light poles ('+parkCfg(a).lh+' ft, '+parkCfg(a).lm+' lumens each)',pg.lights.length,(Math.round(pg.lum*100)/100).toFixed(2)+' lumens per sf']);});
   if(S.fences.length){S.fences.forEach(function(f){rows.push([(f.name||'Fence')+' ('+FENCES[fenceKind(f)].name+', '+(+f.h||0)+' ft high) length ft',Math.round(fenceLen(f))]);});rows.push(['Fence length ft',Math.round(fenceTotal())]);}
   if(S.terr){rows.push(['Building pad cut cy',Math.round(S.terr.cut)]);rows.push(['Building pad fill cy',Math.round(S.terr.fill)]);}
+  if(S.aprons.length){rows.push([]);rows.push(['Apron','Type','Throat ft','Corner radius ft','Depth ft','Lanes in','Lanes out','Right-turn lane','Paving sf']);
+    S.aprons.forEach(function(a){var g=apronGeom(a),c=g.cfg;rows.push([a.name,c.t.name,c.w,c.r,c.depth,g.lanesIn,g.lanesOut,c.rt?c.rtLen+' ft storage, '+c.rtTaper+' ft taper':'none',Math.round(apronSf(g))]);});}
   download('building-schedule.csv',rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n'),'text/csv');
 });
 function dxfText(){
@@ -3139,6 +3404,9 @@ function dxfText(){
     var lg=S.loadG[a.id];if(lg)lg.bays.forEach(function(r){ents.push(poly('STRIPING',r.map(toLL),true));});
   });
   S.fences.forEach(function(f){if(f.pts.length>=2)ents.push(poly('FENCES',f.pts,!!f.closed&&f.pts.length>=3));});
+  S.aprons.forEach(function(a){var g=apronGeom(a),LLs=function(r){return r.map(toLL);};
+    ents.push(poly('HARDSCAPE',LLs(g.ring),true));if(g.rt)ents.push(poly('HARDSCAPE',LLs(g.rt),true));
+    g.islands.concat(g.green).forEach(function(r){ents.push(poly('HARDSCAPE',LLs(r),true));});g.arrows.forEach(function(r){ents.push(poly('STRIPING',LLs(r),true));});});
   var s='0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n70\n1\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n';
   s+='0\nTABLE\n2\nLAYER\n70\n'+Object.keys(layers).length+'\n';
   Object.keys(layers).forEach(function(k){s+='0\nLAYER\n2\n'+k+'\n70\n0\n62\n'+layers[k]+'\n6\nCONTINUOUS\n';});
@@ -3159,7 +3427,7 @@ function projectFromGeoJSON(gj){
   var feats=(gj.features||[]).filter(function(f){return f&&f.geometry&&f.properties;});
   function by(k){return feats.filter(function(f){return f.properties.kind===k;});}
   function ringOf(f){return f.geometry.coordinates[0].slice(0,-1);}
-  var o={v:1,selected:[],carved:[],carveShapes:[],roads:[],lots:[],buildings:[],areas:[],fences:[],counters:{},nextId:1,demo:false};
+  var o={v:1,selected:[],carved:[],carveShapes:[],roads:[],lots:[],buildings:[],areas:[],fences:[],aprons:[],counters:{},nextId:1,demo:false};
   var site=by('site_boundary')[0],pfeats=[],seen={};
   var ref=site||feats.filter(function(f){return /Polygon|LineString/.test(f.geometry.type);})[0];
   var c0=turf.centroid(ref).geometry.coordinates;o.org=c0;setOrg(c0[0],c0[1]);
@@ -3197,9 +3465,17 @@ function projectFromGeoJSON(gj){
     if(typeof p.padFt==='number')b.pad=p.padFt;
     if(/^(court|n|e|s|w|k\d+)$/.test(p.entrancesFace))b.ent=p.entrancesFace;
     HOMES.forEach(function(h){if(h.name===p.homeStyle&&h.type===b.type){b.home=h.k;if(h.roof)b.roof=h.roof;}});
+    if(ROOFS[p.roof])b.roof=p.roof;
     if(typeof p.model==='string'&&p.model)b.mod=p.model;
     var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
     o.buildings.push(b);
+  });
+  by('apron').forEach(function(f){
+    var p=f.properties;if(!APRONS[p.apronType]||!Array.isArray(p.at))return;
+    var a={id:o.nextId++,name:p.name||'Apron',type:p.apronType,pt:p.at.slice(0,2),dir:+p.facesDeg||0,w:+p.throatFt||APRONS[p.apronType].w,r:p.cornerRadiusFt==null?APRONS[p.apronType].r:+p.cornerRadiusFt,depth:+p.depthFt||APRON_DEF.depth};
+    if(p.rightTurnLane){a.rt=true;if(p.storageFt)a.rtLen=+p.storageFt;if(p.taperFt)a.rtTaper=+p.taperFt;}
+    if(p.sidewalkAcross===false)a.walk=false;if(p.markings===false&&!APRONS[a.type].res)a.marks=false;if(p.sightDistanceFt)a.sd=+p.sightDistanceFt;
+    var am=/(\d+)$/.exec(a.name);o.counters.apron=Math.max((o.counters.apron||0)+1,am?+am[1]:0);o.aprons.push(a);
   });
   var lots={};
   by('parking_aisle_centerline').forEach(function(f){var n=f.properties.name;
@@ -3484,7 +3760,7 @@ function shapeHandles(o,k){
 }
 // A round handle just past the selected object: drag it around the object to rotate. Hold Shift to snap to the rotation step.
 function rotHandle(){
-  var o=getSel();if(!o||S.multi.length>=2||!S.ctx)return;
+  var o=getSel();if(!o||S.multi.length>=2||!S.ctx||S.sel.k==='x')return;
   var k=S.sel.k,rect=k==='b'&&!o.pts,ring=k==='b'?S.ctx.rings[o.id]:(o.ring||o.pts).map(toLocal);
   if(!ring||ring.length<2)return;
   var c=rect?toLocal(o.c):[0,0],R=0;
@@ -3513,6 +3789,7 @@ function rotateSelBy(deg){ // positive turns left (counter-clockwise)
   if(S.multi.length>=2){rotateGroup(deg);return;}
   var o=getSel();if(!o||!deg)return;
   pushUndo();
+  if(S.sel.k==='x'){o.dir=normAngle((+o.dir||0)+deg);renderAll();return;}
   if(S.sel.k==='b'){if(o.pts)rotatePts(o,deg);else o.rot=Math.round(normAngle(o.rot+deg)*1000)/1000;}
   else rotateShape(o,deg);
   renderAll();
@@ -3634,7 +3911,8 @@ function renderSelBars(){
   var o=getSel(),many=S.multi.length>=2,show=S.tool==='select'&&!D&&(many||!!o);
   $('#selBar').hidden=!show;if(!show)return;
   $('#selName').textContent=many?S.multi.length+' objects':(o.name||{b:'Building',r:'Road',a:'Area',p:'Parking row',f:'Fence'}[S.sel.k]);
-  $('#selTip').textContent=V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft · Ctrl+C / Ctrl+V copy and paste';
+  var isX=!many&&!!S.sel&&S.sel.k==='x';$('#sbCopy').hidden=$('#sbDup').hidden=isX;
+  $('#selTip').textContent=isX?'Drag to slide it along the site edge (Shift: freely) · Q / E turn it · arrow keys nudge 1 ft':V3&&V3.on?'Drag the building to move it · Q / E rotate · arrow keys nudge 1 ft':'Drag to move · drag the round ⟳ handle to rotate (Shift snaps) · Q / E rotate · arrow keys nudge 1 ft · Ctrl+C / Ctrl+V copy and paste';
 }
 $('#sbCopy').addEventListener('click',function(){doCopy(false);});
 $('#sbRotL').addEventListener('click',function(){rotateSelBy(S.set.rotStep||15);});
@@ -4036,8 +4314,14 @@ var FACADES={
   limestone:{name:'Limestone',bay:12,desc:'Cut limestone with a cornice line and tall bronze-framed windows',lux:true,base:true},
   charcoal:{name:'Charcoal brick',bay:12,desc:'Dark brick with large black-framed windows',lux:true},
   modern:{name:'Stucco & wood',bay:12,desc:'Smooth light stucco with warm wood panels around large windows',lux:true},
-  craftsman:{name:'Wood & stone',bay:10,desc:'Stained wood cladding over a stacked-stone base, white trim',lux:true,base:true}
+  craftsman:{name:'Wood & stone',bay:10,desc:'Stained wood cladding over a stacked-stone base, white trim',lux:true,base:true},
+  // Western Reserve: the look of the old town centres of north-east Ohio. pitched: a building with this facade gets a
+  // pitched roof (and a store a cupola) unless its own Roof setting says otherwise.
+  reserve:{name:'Western Reserve',bay:12,desc:'Red brick with white trim and cornice, six-over-six windows with shutters, white shopfronts; pitched roof unless you choose another',lux:true,pitched:true},
+  reservew:{name:'Painted brick',bay:12,desc:'White-painted brick with black shutters, in the Western Reserve manner; pitched roof unless you choose another',lux:true,pitched:true}
 };
+// Roofs a building can be given by hand (b.roof); without one it follows the building type and facade.
+var ROOFS={gable:'Gable (pitched, two slopes)',hip:'Hip (pitched, four slopes)',flat:'Flat, behind a parapet'};
 // Material photos for those: seamless textures from Poly Haven (polyhaven.com), licence CC0, shrunk to 512 px and kept
 // in the textures folder beside this page. ft: how much wall one tile covers. rgb: the colour used until the photo has
 // loaded, or where it cannot be used (a page opened straight from disk, or a browser with no canvas).
@@ -4131,9 +4415,27 @@ function paintFacade(kind,storyH,size,open,bayW){
     for(var i=1;i<(o.lites||2);i++)box(x0+w*i/(o.lites||2)-0.07,sill,0.14,ht,fcol);
     if(o.transom)box(x0,sill+ht*0.74-0.07,w,0.14,fcol);
   }
-  var STONE='#d8d1bf';
+  // a double-hung window of small panes, six over six, with louvred shutters and a painted lintel and sill
+  function paneWin(w,ht,sill,o){
+    ht=Math.max(2,Math.min(ht,storyH-sill-1.7));var x0=(bay-w)/2,sw=w/2-0.08;
+    [x0-sw-0.14,x0+w+0.14].forEach(function(s0){
+      box(s0,sill,sw,ht,o.shut);box(s0+0.1,sill+ht/2-0.06,sw-0.2,0.12,'rgba(0,0,0,0.25)');
+      for(var y=sill+0.22;y<sill+ht-0.12;y+=0.3)box(s0+0.12,y,sw-0.24,0.05,'rgba(255,255,255,0.14)');
+    });
+    box(x0-0.32,sill+ht,w+0.64,0.6,o.trim);box(x0-0.32,sill+ht-0.05,w+0.64,0.05,'rgba(0,0,0,0.28)');
+    box(x0-0.32,sill-0.3,w+0.64,0.3,o.trim);box(x0-0.32,sill-0.36,w+0.64,0.06,'rgba(0,0,0,0.3)');
+    glassRect(x0,sill,w,ht);frame(x0,sill,w,ht,o.trim,0.2);
+    [1,2].forEach(function(i){box(x0+w*i/3-0.045,sill,0.09,ht,o.trim);});
+    [0.25,0.75].forEach(function(q){box(x0,sill+ht*q-0.045,w,0.09,o.trim);});
+    box(x0,sill+ht/2-0.09,w,0.18,o.trim);
+  }
+  var STONE='#d8d1bf',WHITE='#f4f1ea';
   // wall material
-  if(kind==='brickstone'){
+  if(kind==='reserve'||kind==='reservew'){
+    mat('brick',0,0,bay,storyH,kind==='reservew'?{lift:0.8}:null);
+    // a white frieze and cornice at the head of each story
+    box(0,storyH-0.85,bay,0.85,WHITE);box(0,storyH-0.92,bay,0.07,'rgba(0,0,0,0.3)');box(0,storyH-0.3,bay,0.05,'rgba(0,0,0,0.16)');
+  }else if(kind==='brickstone'){
     mat('brick',0,0,bay,storyH);
     if(gnd){mat('lime',0,0,bay,2.4);course(2.4,0.3,STONE);}
     course(storyH-0.8,0.5,STONE);
@@ -4178,9 +4480,10 @@ function paintFacade(kind,storyH,size,open,bayW){
   }
   // what sits in the bay
   var WIN={brick:[4,5,2.8,'#ece9e2',null],siding:[3,5,2.8,'#f4f4f1','#fbfbf8'],stone:[4,6.5,2.2,'#5b6166',null],stucco:[4,5,2.8,'#f5f1e8','#efe6d3']}[kind];
-  var TRIM={brick:'#d8d0c2',siding:'#fbfbf8',stone:'#8f8672',stucco:'#efe6d3',glass:'#c9cfd4',brickstone:STONE,limestone:'#bdb5a1',charcoal:'#1f2326',modern:'#15181b',craftsman:'#f3efe6'}[kind];
-  var DOOR={brick:'#26402f',siding:'#7a2e2a',stone:'#2f3338',stucco:'#5a3d2b',glass:'#2e3a43',brickstone:'#1d2b24',limestone:'#3b3026',charcoal:'#b5532a',modern:'#24282c',craftsman:'#34503f'}[kind];
-  if(open==='win'&&f.lux){
+  var TRIM={brick:'#d8d0c2',siding:'#fbfbf8',stone:'#8f8672',stucco:'#efe6d3',glass:'#c9cfd4',brickstone:STONE,limestone:'#bdb5a1',charcoal:'#1f2326',modern:'#15181b',craftsman:'#f3efe6',reserve:WHITE,reservew:WHITE}[kind];
+  var DOOR={brick:'#26402f',siding:'#7a2e2a',stone:'#2f3338',stucco:'#5a3d2b',glass:'#2e3a43',brickstone:'#1d2b24',limestone:'#3b3026',charcoal:'#b5532a',modern:'#24282c',craftsman:'#34503f',reserve:'#1f3a2d',reservew:'#1c1f22'}[kind];
+  if(open==='win'&&f.pitched)paneWin(3.5,5.6,2.9,{trim:WHITE,shut:kind==='reservew'?'#1c1f22':'#1f3a2d'});
+  else if(open==='win'&&f.lux){
     if(kind==='brickstone')luxWin(4.4,6.2,2.75,'#1d2124',{lintel:STONE,sill:STONE,lites:2,transom:true});
     else if(kind==='limestone')luxWin(4,7,2.4,'#3b3026',{sill:'#cbc4b2',lites:2,transom:true});
     else if(kind==='charcoal')luxWin(5.4,6.4,2.4,'#101316',{sill:'#2a2e33',lites:3});
@@ -4191,6 +4494,10 @@ function paintFacade(kind,storyH,size,open,bayW){
     windowAt.apply(null,WIN);
   }else if(open==='door'){
     var dw=3,dh=Math.min(6.8,storyH-1.6),dx=(bay-dw)/2;
+    if(f.pitched){
+      box(dx-0.75,0,dw+1.5,dh+0.55,WHITE);box(dx-0.75,dh+0.5,dw+1.5,0.06,'rgba(0,0,0,0.25)');
+      c.fillStyle=WHITE;c.beginPath();c.moveTo(X(dx-0.95),Y(dh+0.55));c.lineTo(X(dx+dw+0.95),Y(dh+0.55));c.lineTo(X(dx+dw/2),Y(Math.min(storyH-1.1,dh+1.75)));c.fill();
+    }
     box(dx-0.4,0,dw+0.8,dh+0.45,TRIM);box(dx,0,dw,dh,DOOR);
     c.strokeStyle='rgba(0,0,0,0.4)';c.lineWidth=Math.max(1,X(0.06));c.strokeRect(X(dx+0.35),Y(dh*0.42),X(dw-0.7),dh*0.34*sy);
     glassRect(dx+0.6,dh*0.58,dw-1.2,dh*0.3);
@@ -4208,17 +4515,17 @@ function paintFacade(kind,storyH,size,open,bayW){
     for(var q4=0;q4<4;q4++)glassRect(gx+gw*(q4+0.15)/4,gh*0.78,gw*0.7/4,gh*0.16);
   }else if(open==='shop'){
     // storefront between two piers of the wall material: bulkhead, display glass, centre door, transom, sign band, cornice
-    var k=storyH/15,px=1.3,sw=bay-2*px,dk='#1f2326';
-    box(px,0,sw,10.4*k,dk);box(px+0.15,0,sw-0.3,1.5*k,'#2e3338');
+    var k=storyH/15,px=1.3,sw=bay-2*px,dk=f.pitched?'#f1eee6':'#1f2326';
+    box(px,0,sw,10.4*k,dk);box(px+0.15,0,sw-0.3,1.5*k,f.pitched?'#dcd8ce':'#2e3338');
     glassRect(px+0.2,1.6*k,sw-0.4,7.7*k);glassRect(px+0.2,9.5*k,sw-0.4,0.75*k);box(px,9.3*k,sw,0.2*k,dk);
     var dwS=3.6,dxS=px+sw/2-dwS/2,dH=Math.min(7.4,9.3*k-0.4);
     box(dxS-0.25,0,dwS+0.5,9.3*k,dk);glassRect(dxS,0.3,dwS,dH-0.3);
     if(9.3*k-dH>0.8)glassRect(dxS,dH+0.2,dwS,9.3*k-dH-0.35);
     box(dxS+dwS-0.55,3,0.12,1.3,'#c9cfd4');
     [[px+0.2,dxS-0.25],[dxS+dwS+0.25,px+sw-0.2]].forEach(function(rg){var rw=rg[1]-rg[0],mN=Math.max(1,Math.round(rw/4.5));for(var i=1;i<mN;i++)box(rg[0]+rw*i/mN-0.08,1.5*k,0.16,7.8*k,dk);});
-    box(px,10.4*k,sw,3.2*k,'#22272b');box(px+sw*0.18,11.1*k,sw*0.64,1.8*k,'#e9e2d0');
+    box(px,10.4*k,sw,3.2*k,f.pitched?(kind==='reservew'?'#1c1f22':'#1f3a2d'):'#22272b');box(px+sw*0.18,11.1*k,sw*0.64,1.8*k,f.pitched?'#f1e7c4':'#e9e2d0');
     for(var li=0;li<8;li++)box(px+sw*0.25+li*sw*0.065,11.6*k,sw*0.04,0.8*k,'#3a3f44');
-    box(0,13.9*k,bay,0.2*k,'rgba(0,0,0,0.3)');box(0,14.1*k,bay,0.9*k,'#d8d0c2');
+    box(0,13.9*k,bay,0.2*k,'rgba(0,0,0,0.3)');box(0,14.1*k,bay,0.9*k,f.pitched?WHITE:'#d8d0c2');
   }
   return cv;
 }
@@ -4322,6 +4629,14 @@ $('#iEnt').addEventListener('change',function(){var v=this.value;inspUpdate(func
   if(v==='wall'){var w=entranceWall(o);v=w?'k'+w.i:'';} // start from the wall the entrance is on now
   if(v)o.ent=v;else delete o.ent;
 });});
+Object.keys(ROOFS).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=ROOFS[k];$('#iRoof').appendChild(o);});
+$('#iRoof').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(ROOFS[v])o.roof=v;else delete o.roof;});});
+// the selected store's facade and roof on every store at once
+$('#iLookAll').addEventListener('click',function(){
+  var o=getSel();if(!o)return;var fa=facadeOf(o),rf=ROOFS[o.roof]?o.roof:null;pushUndo();
+  S.buildings.forEach(function(b){if(b.type==='mu'||b.type==='com'){b.fa=fa;if(rf)b.roof=rf;else delete b.roof;}});
+  renderAll();
+});
 // the same entrance side on every store (commercial and mixed-use) at once
 $('#iEntAll').addEventListener('click',function(){var v=$('#iEnt').value;pushUndo();S.buildings.forEach(function(b){if(b.type==='mu'||b.type==='com'){if(v)b.ent=v;else delete b.ent;}});renderAll();});
 $('#aPlant').addEventListener('change',function(){var v=this.value;inspUpdate(function(o){if(v)o.pm={m:v,d:(o.pm&&o.pm.d)||6};else delete o.pm;});});
@@ -5090,13 +5405,23 @@ function pBox(P,c,z0,z1,ax,la,lb,col){ // box centred on c, la feet along ax and
   for(var i=0;i<4;i++){var p=h[i],q=h[(i+1)%4];pQuad(P,'solid',[p[0],p[1],z0],[q[0],q[1],z0],[q[0],q[1],z1],[p[0],p[1],z1],null,col);}
   [z1,z0].forEach(function(z){if(z>0.5)pQuad(P,'solid',[h[0][0],h[0][1],z],[h[1][0],h[1][1],z],[h[2][0],h[2][1],z],[h[3][0],h[3][1],z],null,col);});
 }
+// The roof a building gets: flat on any outline that is not a rectangle; otherwise the one chosen for it (b.roof), or
+// by type: houses, townhome rows and garages a gable, small apartment blocks a hip, and stores and mixed-use a flat
+// roof unless their facade is a pitched-roof one (Western Reserve).
+function roofOf(b,rect,type,st,fk){
+  if(!rect)return 'flat';
+  if(ROOFS[b.roof])return b.roof;
+  if(type==='sf'||type==='th'||type==='acc')return 'gable';
+  if(type==='apt'&&st<=3)return 'hip';
+  return FACADES[fk]&&FACADES[fk].pitched?'gable':'flat';
+}
 function buildingParts(T,b,ring,P){
   var D=modelDims(b),sH=D.sH,st=D.st,gH=D.gH,top=D.top,fk=facadeOf(b),fbay=FACADES[fk].bay,type=TYPES[b.type]?b.type:'sf';
   if(polyAreaSigned(ring)<0)ring=ring.slice().reverse();
   var n=ring.length,rect=isRect(ring),area=Math.abs(polyAreaSigned(ring)),cen=polyCentroid(ring);
   var E=ring.map(function(p,i){var q=ring[(i+1)%n],dx=q[0]-p[0],dy=q[1]-p[1],len=Math.hypot(dx,dy)||1e-6;return {p:p,len:len,e:[dx/len,dy/len],n:[dy/len,-dx/len]};});
   var longI=rect&&E[1].len>E[0].len?1:0; // in a rectangle, walls longI and longI+2 are the long ones
-  var roof=!rect?'flat':(type==='sf'||type==='th'||type==='acc'?(b.roof==='hip'&&type==='sf'?'hip':'gable'):(type==='apt'&&st<=3?'hip':'flat'));
+  var roof=roofOf(b,rect,type,st,fk);
   var par=roof==='flat'?(D.shop||type==='apt'?3:1.5):0;
   var front=frontEdge(E,cen,type==='th'&&rect?[longI,longI+2]:null,b);
   function wk(open,H){return 'w|'+fk+'|'+open+'|'+(+H.toFixed(2));}
@@ -5180,6 +5505,7 @@ function buildingParts(T,b,ring,P){
     var av=E[longI].e,bd=E[longI].n,ha=E[longI].len/2,hb=E[(longI+1)%4].len/2,C=[(ring[0][0]+ring[2][0])/2,(ring[0][1]+ring[2][1])/2];
     var rp=function(sa,sb,z){return [C[0]+av[0]*sa+bd[0]*sb,C[1]+av[1]*sa+bd[1]*sb,z];};
     var hip=roof==='hip',o=type==='acc'?1:1.5,pitch=hip?0.5:(type==='sf'?0.67:(type==='th'?0.6:0.42));
+    if(type==='com'||type==='mu')pitch=Math.max(0.22,Math.min(0.5,13/hb)); // a deep store keeps its roof to about 13 ft of rise
     var zr=top+hb*pitch,ze=top-o*pitch,sl=Math.hypot(hb+o,zr-ze),hr=hip?Math.max(0,ha-hb):ha+o,L=2*(ha+o);
     [1,-1].forEach(function(s){
       pQuad(P,'shingle',rp(-(ha+o),s*(hb+o),ze),rp(ha+o,s*(hb+o),ze),rp(hr,0,zr),rp(-hr,0,zr),[[0,0],[L/8,0],[(ha+o+hr)/8,sl/8],[(ha+o-hr)/8,sl/8]]);
@@ -5187,6 +5513,13 @@ function buildingParts(T,b,ring,P){
       else pTri(P,wk('blank',sH),rp(s*ha,-hb,top),rp(s*ha,hb,top),rp(s*ha,0,zr),[0,0],[2*hb/fbay,0],[hb/fbay,(zr-top)/sH]);
     });
     if(type==='sf')pBox(P,rp(ha*0.45,hb*0.35,0),top-1,zr+2.5,av,3,3,lin('#8a4636'));
+    // a Western Reserve store or hall of any length carries a white cupola on its ridge
+    if(FACADES[fk].pitched&&(type==='com'||type==='mu')&&!hip&&ha>=18){
+      var cw=Math.max(4,Math.min(7,hb*0.4)),ct=zr+cw*0.85,e2=cw/2+0.7,cap=lin('#3d4043');
+      pBox(P,[C[0],C[1]],zr-cw*pitch*0.5-0.3,ct,av,cw,cw,lin('#f4f1ea'));
+      var q=[[-1,-1],[1,-1],[1,1],[-1,1]].map(function(s){return rp(s[0]*e2,s[1]*e2,ct);}),ap=rp(0,0,ct+cw*0.75);
+      for(var ci=0;ci<4;ci++)pTri(P,'solid',q[ci],q[(ci+1)%4],ap,null,null,null,cap);
+    }
   }
 }
 function buildingMeshes(T,b,ring,y0,cx,cy,drop){
@@ -5269,6 +5602,17 @@ function drapeCanvas(g,box,mode){
   streets().forEach(function(r){var f=roadPoly(r);if(!f)return;path(llRings(f));c.fillStyle='#3d4348';c.fill('evenodd');
     c.beginPath();r.pts.map(toLocal).forEach(function(p,n){var q=px(p);if(n)c.lineTo(q[0],q[1]);else c.moveTo(q[0],q[1]);});
     c.setLineDash([8*sc,6*sc]);c.lineWidth=Math.max(1,sc*0.5);c.strokeStyle='#f1f3f5';c.stroke();c.setLineDash([]);});
+  S.aprons.forEach(function(a){var g=apronGeom(a);
+    function ln(pts,w,col,dash){c.beginPath();pts.forEach(function(p,k){var q=px(p);if(k)c.lineTo(q[0],q[1]);else c.moveTo(q[0],q[1]);});c.setLineDash(dash?[3*sc,3*sc]:[]);c.lineWidth=w;c.strokeStyle=col;c.stroke();c.setLineDash([]);}
+    if(g.rt){path([g.rt]);c.fillStyle='#3d4348';c.fill();}
+    path([g.ring]);c.fillStyle=g.cfg.t.res?'#c4c0b6':'#3d4348';c.fill();
+    if(g.walk){path([g.walk]);c.fillStyle='#cfd4d9';c.fill();}
+    g.islands.forEach(function(r){path([r]);c.fillStyle='#b9b4a8';c.fill();c.lineWidth=Math.max(1,sc*0.3);c.strokeStyle='#f1f3f5';c.stroke();});
+    g.green.forEach(function(r){path([r]);c.fillStyle='#4fae5c';c.fill();c.lineWidth=Math.max(1,sc*0.3);c.strokeStyle='#f1f3f5';c.stroke();});
+    g.lines.forEach(function(l){ln(l.pts,Math.max(1,sc*0.4),l.col,l.dash);});
+    g.bars.forEach(function(b){ln(b,Math.max(1.5,sc*1),'#f8f9fa',false);});
+    g.arrows.forEach(function(r){path([r]);c.fillStyle='#f8f9fa';c.fill();});
+  });
   S.lots.forEach(function(l){var gl=S.lotG[l.id];if(!gl)return;
     if(gl.aisle){path(llRings(gl.aisle));c.fillStyle='#3b4249';c.fill('evenodd');}
     gl.stalls.forEach(function(q){path([q]);c.fillStyle='#4a525a';c.fill();c.lineWidth=Math.max(1,sc*0.35);c.strokeStyle='#f8f9fa';c.stroke();});});

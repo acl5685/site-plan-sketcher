@@ -34,8 +34,8 @@ ok(t.demReq===1,'changing the plan reuses the terrain grid ('+t.demReq+' request
 ok(t.proj().set.storyH===14,'story height is saved in the project');
 ok(/14\.0 ft per story/.test(info()),'panel shows the new story height');
 // facades: the five plain ones and five higher-end ones, defaults by type, saved with the building and carried through GeoJSON
-ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass,brickstone,limestone,charcoal,modern,craftsman','ten facade options: five plain, five higher-end');
-ok(t.$$('#iFacade button').slice(5).map(b=>b.textContent).join()==='Brick & stone,Limestone,Charcoal brick,Stucco & wood,Wood & stone'&&t.$$('#iFacade button').every(b=>b.title.length>10),'the higher-end ones are named, each with a description');
+ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass,brickstone,limestone,charcoal,modern,craftsman,reserve,reservew','twelve facade options: five plain, five higher-end, two Western Reserve');
+ok(t.$$('#iFacade button').slice(5).map(b=>b.textContent).join()==='Brick & stone,Limestone,Charcoal brick,Stucco & wood,Wood & stone,Western Reserve,Painted brick'&&t.$$('#iFacade button').every(b=>b.title.length>10),'the newer ones are named, each with a description');
 {const l=t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon);l.fire('mousedown',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);}
 const selName=t.$('#iName').value,defFa={th:'brick',apt:'stucco'}[t.proj().buildings.find(b=>b.name===selName).type];
 ok(t.$('#iFacade button.on')&&t.$('#iFacade button.on').getAttribute('data-fa')===defFa,'selected building shows its default facade ('+defFa+')');
@@ -56,6 +56,30 @@ ok(gj2.features.find(f=>f.properties.kind==='building'&&f.properties.name===selN
 const t3=await boot();await openVia(t3,{name:'p.geojson',text:()=>Promise.resolve(JSON.stringify(gj2))});
 ok(t3.proj().buildings.find(b=>b.name===selName).fa==='brickstone'&&t3.errors.length===0,'and GeoJSON import restores it');
 t.key('z',{ctrlKey:true});
+// ---- the roof: a choice on any rectangular building, saved and reopened; and one look for every store
+{
+  const r=await boot();await r.freshSite(r.row(0,[0,1,2,3]).concat(r.row(1,[0,1,2,3])));r.tab('build');
+  const place=(type,x,y)=>{r.click(r.$('.typebtn[data-type="'+type+'"]'));r.set('#tW','40');r.set('#tD','40');r.set('#tRot','0');r.placeAt(x,y);};
+  place('com',-230,-150);place('mu',-150,-150);place('sf',-60,-150);place('com',20,-150);
+  const B=i=>r.proj().buildings[i],pick=async i=>{r.tool('select');r.key('Escape');await sleep(520);const l=r.layers('pBldg').filter(l=>l instanceof r.w.L.Polygon&&!/ent-mark/.test(l.options.className||''))[i];l.fire('mousedown',{latlng:r.c});l.fire('click',{latlng:r.c});r.M.fire('mouseup',{});await sleep(10);};
+  await pick(0);
+  ok(Array.from(r.$('#iRoof').options).map(o=>o.value).join()===',gable,hip,flat'&&r.$('#iRoof').value===''&&!r.$('#iLookAll').hidden,'a store has a Roof menu (automatic, gable, hip, flat) and a button to give every store its look');
+  r.set('#iRoof','gable','change');
+  ok(B(0).roof==='gable'&&r.$('#iRoof').value==='gable','choosing Gable gives the store a pitched roof');
+  r.click(r.$('#iFacade button[data-fa="reserve"]'));
+  ok(B(0).fa==='reserve'&&B(1).fa===undefined&&B(3).fa===undefined,'Western Reserve is set on this one store only, so far');
+  r.click(r.$('#iLookAll'));
+  ok([0,1,3].every(i=>B(i).fa==='reserve'&&B(i).roof==='gable')&&B(2).fa===undefined&&B(2).roof===undefined,'Use this look for all stores gives every store and mixed-use building the facade and roof, and leaves the house alone');
+  r.key('z',{ctrlKey:true});ok(B(1).fa===undefined&&B(0).fa==='reserve','one undo takes it back off the others');
+  await pick(0);r.set('#iRoof','','change');ok(B(0).roof===undefined,'Automatic clears the choice (a Western Reserve store is then pitched by its facade)');
+  r.set('#iRoof','flat','change');
+  r.click(r.$('#xGeo'));const g=JSON.parse(r.dl['site-plan.geojson']),gb=g.features.filter(f=>f.properties.kind==='building').map(f=>f.properties);
+  ok(gb[0].roof==='flat'&&gb[0].facade==='reserve'&&gb[1].roof===null,'GeoJSON carries the roof that was chosen, and none where it is automatic');
+  const r2=await boot();await openVia(r2,{name:'p.geojson',text:()=>Promise.resolve(JSON.stringify(g))});
+  ok(r2.proj().buildings[0].roof==='flat'&&r2.proj().buildings[0].fa==='reserve'&&r2.proj().buildings[1].roof===undefined&&r2.errors.length===0,'and it comes back when the file is opened');
+  await pick(2);ok(r.$('#iLookAll').hidden&&!r.$('#iRoof').closest('.field').hidden,'a house has the Roof menu but not the all-stores button');
+  ok(r.errors.length===0,'no page errors ('+r.errors.join('; ')+')');
+}
 // the material photos are in the project, small, and the page points at them
 {const fs=require('fs'),path=require('path'),dir=path.join(__dirname,'..','textures'),html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
  const want=(html.match(/src:'textures\/[a-z0-9_]+\.jpg'/g)||[]).map(s=>s.slice(14,-1));
