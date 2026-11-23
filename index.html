@@ -665,6 +665,7 @@ td:first-child{font-family:var(--font)}
       <span id="pbInfo"></span>
       <button class="btn small primary" id="pbAdd">Add this building</button>
       <button class="btn small" id="pbFence" title="Put a fence along this lot's lines, in the style and height set under Fences on the Build tab">Fence this lot</button>
+      <button class="btn small danger" id="pbDel" title="Remove the lot line that makes this lot, joining it to its neighbour (Delete)">Remove lot line</button>
       <button class="btn small" id="pbDone" title="Close (Esc)">Done</button>
       <span class="note" id="pbTip"></span>
       <span class="note" id="pbEdit">To resize this lot, drag the square handles on its lot lines, or a round ✥ handle to slide a whole line. Its side lengths are shown on the map.</span>
@@ -1769,10 +1770,13 @@ function renderMap(){
   if(S.site){
     L.polygon(ringsToLatLngs(polysOf(S.site)),{pane:'pSite',color:'#ff4d6d',weight:3,dashArray:'10 5',fill:false,interactive:false}).addTo(gSite);
   }
-  // areas
+  // areas (afterwards the smaller ones are lifted over the bigger, whatever order they were drawn in, so a shape
+  // inside another can always be clicked)
+  var stack=[];
   S.areas.forEach(function(a){
     var k=AREAS[a.kind]||AREAS.land;
     var poly=L.polygon(a.ring.map(ll2),{pane:'pAreas',className:'obj-path',color:k.color,weight:selIs('a',a.id)?3:1.5,fillColor:k.color,fillOpacity:.5}).addTo(gAreas);
+    var mine={sf:Math.abs(polyAreaSigned(a.ring.map(toLocal))),ls:[poly]};stack.push(mine);
     poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('a',a.id);else select({k:'a',id:a.id});L.DomEvent.stopPropagation(e);}});
     poly.on('mousedown',function(e){groupDown('a',a.id,e);});
     var pg=S.parkG[a.id],lp=lsPlan(a);
@@ -1781,7 +1785,7 @@ function renderMap(){
     if(lp)Object.keys(LS_PLANT).forEach(function(t){
       var kd=LS_PLANT[t],rings=[];
       lp.pts.forEach(function(p){if(p.t!==t)return;var c=[];for(var i=0;i<10;i++){var an=i/10*2*Math.PI;c.push(ll2(toLL([p.x+Math.cos(an)*kd.r,p.y+Math.sin(an)*kd.r])));}rings.push([c]);});
-      if(rings.length)L.polygon(rings,{pane:'pAreas',className:'plant-path plant-'+t,color:'#0b2e13',weight:1,fillColor:kd.col,fillOpacity:t==='can'?.55:.8,interactive:false}).addTo(gAreas);
+      if(rings.length)mine.ls.push(L.polygon(rings,{pane:'pAreas',className:'plant-path plant-'+t,color:'#0b2e13',weight:1,fillColor:kd.col,fillOpacity:t==='can'?.55:.8,interactive:false}).addTo(gAreas));
     });
     // a loading zone: its truck bays, hatched in yellow, and the count
     var lg=S.loadG[a.id];
@@ -1808,6 +1812,7 @@ function renderMap(){
     var lc=polyCentroid(a.ring.map(toLocal));
     L.marker(ll2(toLL(lc)),{pane:'pFence',interactive:false,icon:L.divIcon({className:'blabel',iconSize:[110,30],iconAnchor:[55,15],html:pg.count+' stalls'})}).addTo(gAreas);
   });
+  if(stack.length>1)stack.sort(function(p,q){return q.sf-p.sf;}).forEach(function(o){o.ls.forEach(function(l){try{l.bringToFront();}catch(e){}});});
   // sidewalks first (drawn walks, and the strips along roads), so the roads lie over them where they cross
   function roadWire(poly,r,tip){
     poly.on('click',function(e){if(S.tool==='select'){if(Date.now()-marqueeAt<300||Date.now()-gdragAt<300){L.DomEvent.stopPropagation(e);return;}if(e.originalEvent&&e.originalEvent.shiftKey)toggleMulti('r',r.id);else select({k:'r',id:r.id});L.DomEvent.stopPropagation(e);}});
@@ -2042,6 +2047,13 @@ function moveGroup(dx,dy){var os=multiObjs();if(!os.length||(!dx&&!dy))return;pu
 function rotateGroup(deg){var os=multiObjs();if(!os.length||!deg)return;pushUndo();var c=groupCenter(os);os.forEach(function(m){rotateAny(m.k,m.o,c,deg);});renderAll();}
 function deleteGroup(){var os=multiObjs();if(!os.length)return;pushUndo();os.forEach(function(m){var arr=arrOf(m.k);arr.splice(arr.indexOf(m.o),1);});S.sel=null;S.multi=[];renderAll();}
 var gdrag=null,gdragAt=0,mq=null,marqueeAt=0;
+// Has the pointer gone far enough from where it was pressed to mean a drag? A hand never holds quite still during a
+// click, and without this every click on a shape nudged it (and snapped it to whatever was near).
+var DRAG_PX=5;
+function dragFar(start,e){
+  var a=map.latLngToContainerPoint(L.latLng(start[1],start[0])),b=e.containerPoint||map.latLngToContainerPoint(e.latlng);
+  return a.distanceTo(b)>=DRAG_PX;
+}
 // mouse down on a member of a multi-selection starts dragging the whole group; on the one selected area, road,
 // sidewalk, parking row or fence it starts dragging that (a building has its own drag, and needs no click first).
 // A shape that is not selected is left alone, so the map can still be panned by dragging across a large one.
@@ -2066,7 +2078,11 @@ function focusSide(){
   if(on&&focusWas===null){focusWas=side.scrollTop;side.scrollTop=0;}
   side.classList.toggle('focus',on);$('#focusBar').hidden=!on;
   if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence'})[S.sel.k]||'Selection');
-  else if(focusWas!==null){side.scrollTop=focusWas;focusWas=null;}
+  else if(focusWas!==null){
+    side.scrollTop=focusWas;focusWas=null;
+    // the settings that had the keyboard are gone from view: give the keys back to the plan
+    var ae=document.activeElement;if(ae&&ae.blur&&ae.closest&&ae.closest('#insB,#insR,#insA,#insP,#insF,#insM'))ae.blur();
+  }
 }
 function fillInspector(){
   focusSide();
@@ -2132,6 +2148,17 @@ function fillInspector(){
       if(lp)$('#aPlantRow').hidden=true;
     }
   }
+}
+// Delete with a carve-out selected removes it. With a lot selected it removes the lot line (or cut-out shape) that
+// makes the lot, when there is just the one; with several, it says where to remove them one at a time.
+function lotLinesOf(p){return p?S.splits.filter(function(s){return s.pts&&s.pts.length>=2&&splitTouches(s,p);}):[];}
+function deleteLotLine(){
+  var cv=selCarve();
+  if(cv){pushUndo();S.carveShapes=S.carveShapes.filter(function(c){return c!==cv;});S.carveSel=null;siteChanged();return true;}
+  var p=selPlot(),ls=lotLinesOf(p);if(!p)return false;
+  if(ls.length===1){pushUndo();S.splits=S.splits.filter(function(s){return s!==ls[0];});S.plotSel=null;siteChanged();return true;}
+  toast(ls.length?p.name+' is bounded by '+ls.length+' lot lines. Remove the one you mean with its ✕ under Lots on the Site tab.':'No lot line to remove here.',true);
+  return false;
 }
 function deleteSel(){
   if(S.multi.length>=2){deleteGroup();return;}
@@ -2480,7 +2507,7 @@ map.on('mousemove',function(e){
   }
   if(gdrag){
     var gdx=e.latlng.lng-gdrag.start[0],gdy=e.latlng.lat-gdrag.start[1];
-    if(!gdrag.moved&&(Math.abs(gdx)>1e-8||Math.abs(gdy)>1e-8)){gdrag.moved=true;undoStack.push(gdrag.snap);}
+    if(!gdrag.moved&&dragFar(gdrag.start,e)){gdrag.moved=true;undoStack.push(gdrag.snap);}
     if(gdrag.moved){
       if(!gdrag.T){var ex2={},mp=[];gdrag.items.forEach(function(it){ex2[it.m.k+':'+it.m.id]=true;shapePts(it.m.k,it.m.o).forEach(function(q){mp.push(q);});});gdrag.T=snapTargets(ex2);gdrag.mp=mp;}
       var gc=snapShift(gdrag.mp.map(function(q){return [q[0]+gdx,q[1]+gdy];}),gdrag.T);
@@ -2496,7 +2523,7 @@ map.on('mousemove',function(e){
   }
   if(drag){
     var dx=e.latlng.lng-drag.start[0],dy=e.latlng.lat-drag.start[1];
-    if(!drag.moved&&(Math.abs(dx)>1e-8||Math.abs(dy)>1e-8)){drag.moved=true;undoStack.push(drag.snap);}
+    if(!drag.moved&&dragFar(drag.start,e)){drag.moved=true;undoStack.push(drag.snap);}
     if(drag.moved){
       var b=S.buildings.filter(function(x){return x.id===drag.id;})[0];
       if(b&&b.pts){
@@ -2538,8 +2565,11 @@ function rotStepFor(e){return e.altKey?0.1:(e.shiftKey?1:S.set.rotStep);}
 document.addEventListener('keydown',function(e){
   if(e.key==='Shift')shiftHeld=true;
   var tag=(e.target&&e.target.tagName)||'',typing=/INPUT|TEXTAREA|SELECT/.test(tag);
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing){e.preventDefault();undo();return;}
-  if(typing)return;
+  // a menu, tick box or slider has no use of its own for Delete or Ctrl+Z, so there they act on the plan; a text box
+  // keeps both for its own typing
+  var soft=tag==='SELECT'||(tag==='INPUT'&&/^(checkbox|radio|range|file|button)$/i.test(e.target.type||''));
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&(!typing||soft)){e.preventDefault();undo();return;}
+  if(typing&&!(soft&&e.key==='Delete'))return;
   // copy, cut and paste shapes (text selected on the page is left to the browser)
   var ck=(e.ctrlKey||e.metaKey)&&!e.altKey?(e.key||'').toLowerCase():'';
   if((ck==='c'||ck==='x')&&!D){
@@ -2555,6 +2585,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&D){finishDraw();return;}
   if(e.key==='Backspace'&&D){D.pts.pop();drawPreview();e.preventDefault();return;}
   if((e.key==='Delete'||e.key==='Backspace')&&(S.sel||S.multi.length)){deleteSel();e.preventDefault();return;}
+  if((e.key==='Delete'||e.key==='Backspace')&&S.tool==='select'&&(S.carveSel||S.plotSel)){deleteLotLine();e.preventDefault();return;}
   if(S.multi.length>=2&&S.tool==='select'){
     var rk0=rotKey(e);
     if(rk0==='q'||rk0==='e'){rotateGroup((rk0==='e'?-1:1)*rotStepFor(e));return;}
@@ -3559,6 +3590,7 @@ function renderPlotBar(){
   $('#pbName').textContent=p.name+' · '+n0(p.sf)+' sf ('+(p.sf/ACRE).toFixed(2)+' ac)';
   $('#pbInfo').textContent=b.rect?'Buildable inside the '+n1(S.set.setback)+' ft setback: '+n0(b.envSf)+' sf · Largest building: '+b.rect.w+' × '+b.rect.d+' ft = '+n0(b.rect.sf)+' sf footprint, '+n0(b.rect.sf*st)+' sf on '+st+(st>1?' stories':' story')
     :'No room for a building inside the '+n1(S.set.setback)+' ft setback.';
+  $('#pbDel').hidden=lotLinesOf(p).length!==1;
   $('#pbAdd').hidden=!b.rect;$('#pbAdd').textContent='Add it as a '+tn;
   $('#pbTip').textContent='The largest rectangle that fits inside the setback (Check tab)'+(nb?', ignoring the '+nb+' building'+(nb>1?'s':'')+' already on this lot':'')+'. Type and stories come from New building on the Build tab.';
 }
@@ -3568,6 +3600,7 @@ $('#pbAdd').addEventListener('click',function(){
   S.buildings.push(b);S.plotSel=null;S.sel={k:'b',id:b.id};renderAll();showTab('build');
 });
 $('#pbDone').addEventListener('click',function(){S.plotSel=null;renderAll();});
+$('#pbDel').addEventListener('click',deleteLotLine);
 // a fence along the clicked lot's own lines (its outer outline; corners closer than 0.1 ft are merged)
 $('#pbFence').addEventListener('click',function(){
   var p=selPlot();if(!p)return;
