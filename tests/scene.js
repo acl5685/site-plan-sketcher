@@ -52,6 +52,23 @@ s=await scene();ok(!/eating|children|talking/.test(s),'a plaza under a building 
 // the same plan gives the same scene every time
 t.key('z',{ctrlKey:true});const s1=await scene(),s2=await scene();
 ok(s1===s2&&/eating/.test(s1),'the scene is the same each time it is opened ('+s1+')');
+// ---- a restaurant sets its tables out in the courtyard beside it, and they show on the plan
+t.click(t.$('#newBtn'));await t.freshSite(t.row(0,[0,1,2,3]).concat(t.row(1,[0,1,2,3])));t.tab('build');
+t.set('#areaKind','hard','change');await t.draw('area',t.rectPts(-200,-150,-80,-30));          // a 120 x 120 ft courtyard
+t.click(t.$('.typebtn[data-type="com"]'));t.set('#tW','60');t.set('#tD','50');t.set('#tSt','1');t.set('#tRot','0');t.placeAt(-240,-90);
+const bw=Math.max(...t.proj().buildings[0].c?[t.toFt(t.proj().buildings[0].c)[0]+30]:[0]);     // its east wall, facing the courtyard
+const tablesOnPlan=()=>{const l=t.layers('pLots').filter(l=>/dine-table/.test((l.options||{}).className||''))[0];if(!l)return [];
+  const flat=a=>a.length&&a[0].lat===undefined?a.reduce((o,x)=>o.concat(x.length&&x[0].lat===undefined?flat(x):[x]),[]):[a];
+  return flat(l.getLatLngs()).map(r=>{const p=r.map(q=>t.toFt([q.lng,q.lat]));return [p.reduce((s,q)=>s+q[0],0)/p.length,p.reduce((s,q)=>s+q[1],0)/p.length];});};
+let tp=tablesOnPlan();s=await scene();
+ok(tp.length>=1&&tp.length===num(s,/at (\d+) tables?/)&&!/set out by the restaurants/.test(s),'a courtyard has its tables drawn on the plan, the same number the 3D view stands there ('+tp.length+')');
+ok(tp.every(p=>p[0]>-200&&p[0]<-80&&p[1]>-150&&p[1]<-30)&&t.layers('pLots').some(l=>/dine-chair/.test((l.options||{}).className||'')),'each inside the courtyard, with its chairs round it');
+t.set('#iFood','50');                                                                          // half of the 3,000 sf store is a restaurant
+tp=tablesOnPlan();s=await scene();
+const nearR=tp.filter(p=>p[0]-bw<=45.5&&p[1]>-165&&p[1]<-15).length;
+ok(/\(5 tables set out by the restaurants\)/.test(s)&&nearR>=5,'with a restaurant facing it, five tables are set out within 45 ft of its wall ('+nearR+' of '+tp.length+'; '+s+')');
+t.click(t.$('#xCsv'));ok(new RegExp('"Outdoor dining tables","'+tp.length+'"').test(t.dl['building-schedule.csv'])&&/"Outdoor dining seats","\d+"/.test(t.dl['building-schedule.csv']),'the schedule counts the outdoor tables and seats');
+t.set('#iFood','0');ok(!/set out by the restaurants/.test(await scene()),'take the restaurant away and they go back to an ordinary courtyard');
 ok(t.errors.length===0,'no page errors ('+t.errors.join('; ')+')');
 console.log('\n'+R.pass+' passed, '+R.fails.length+' failed');R.fails.forEach(f=>console.log(' - '+f));process.exit(R.fails.length?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
