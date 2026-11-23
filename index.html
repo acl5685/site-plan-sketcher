@@ -64,7 +64,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 /* something is selected: the panel shows that item's settings and nothing else */
 #focusBar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
 #focusBar[hidden]{display:none}
-#focusName{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#focusName{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+#focusDel{flex:0 0 auto;font-weight:600}
 #side.focus .tabs,#side.focus .pane{display:none}
 #side.focus #pane-build{display:flex}
 #side.focus #pane-build>div:not([id^="ins"]){display:none}
@@ -204,7 +205,7 @@ td:first-child{font-family:var(--font)}
 
   <aside id="side">
     <div class="card" id="summary"></div>
-    <div id="focusBar" hidden><button class="btn" id="focusBack" title="Stop editing this and show every tab again (Esc)">&larr; All settings</button><span id="focusName"></span></div>
+    <div id="focusBar" hidden><button class="btn" id="focusBack" title="Stop editing this and show every tab again (Esc)">&larr; All settings</button><span id="focusName"></span><button class="btn small danger" id="focusDel" title="Delete what is selected (Del)">Delete</button></div>
     <nav class="tabs" role="tablist">
       <button class="on" data-tab="site">Site</button>
       <button data-tab="build">Build</button>
@@ -420,6 +421,10 @@ td:first-child{font-family:var(--font)}
         <div class="note shape-tip" style="margin-top:4px">On the map: drag it to move it. Drag a square handle to move a corner, a round one to add a corner, and double-click a square one to remove it.</div>
       </div>
 
+      <div id="insC" hidden>
+        <h3>Selected carve-out</h3>
+        <div class="note">This shape is taken out of the site. On the map, drag a square handle to move a corner or the round ✥ handle to slide the whole shape; its side lengths are shown. Delete puts the land back in the site.</div>
+      </div>
       <div id="insF" hidden>
         <h3>Selected fence</h3>
         <div class="row">
@@ -2074,10 +2079,10 @@ function getSel(){
 // way back. The tabs, and where the panel was scrolled to, come back when the selection is dropped.
 var focusWas=null;
 function focusSide(){
-  var o=getSel(),many=S.multi.length>=2,on=!!o||many,side=$('#side');
+  var o=getSel(),many=S.multi.length>=2,cv=!o&&!many&&S.tool==='select'?selCarve():null,on=!!o||many||!!cv,side=$('#side');
   if(on&&focusWas===null){focusWas=side.scrollTop;side.scrollTop=0;}
-  side.classList.toggle('focus',on);$('#focusBar').hidden=!on;
-  if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence'})[S.sel.k]||'Selection');
+  side.classList.toggle('focus',on);$('#focusBar').hidden=!on;$('#insC').hidden=!cv;
+  if(on)$('#focusName').textContent=many?S.multi.length+' shapes selected':(cv?'Carved-out shape':(o.name||({b:'Building',r:o.walk?'Sidewalk':'Road',a:'Area',p:'Parking row',f:'Fence'})[S.sel.k]||'Selection'));
   else if(focusWas!==null){
     side.scrollTop=focusWas;focusWas=null;
     // the settings that had the keyboard are gone from view: give the keys back to the plan
@@ -3617,6 +3622,10 @@ $('#plotList').addEventListener('click',function(e){
   var id=+b.getAttribute('data-split');pushUndo();S.splits=S.splits.filter(function(s){return s.id!==id;});siteChanged();
 });
 function renderSelBar(){
+  renderSelBars();
+  $('#hint').style.visibility=(!$('#selBar').hidden||!$('#plotBar').hidden||!$('#lsAsk').hidden)?'hidden':'';
+}
+function renderSelBars(){
   renderPlotBar();
   // the question asked after a green space is drawn stays up until it is answered, skipped, or the area is gone or given a purpose
   var la=S.lsAsk&&S.areas.filter(function(x){return x.id===S.lsAsk;})[0];
@@ -3637,7 +3646,9 @@ $('#sbDup').addEventListener('click',function(){
 });
 $('#sbDel').addEventListener('click',function(){if(S.multi.length>=2)deleteGroup();else deleteSel();});
 $('#sbDone').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
-$('#focusBack').addEventListener('click',function(){S.sel=null;S.multi=[];renderAll();});
+$('#focusBack').addEventListener('click',function(){S.sel=null;S.multi=[];S.carveSel=null;renderAll();});
+// Delete, for whatever is selected: one shape, a group, or a carve-out
+$('#focusDel').addEventListener('click',function(){if(S.sel||S.multi.length)deleteSel();else if(S.carveSel)deleteLotLine();});
 map.on('zoomend',function(){if(S.ctx&&!S.snapSkip)renderHandles();});
 $('#drawBtn').addEventListener('click',function(){setTool('bpoly');});
 $('#iFreeform').addEventListener('click',function(){
@@ -4018,8 +4029,48 @@ var FACADES={
   siding:{name:'Siding',bay:10,desc:'Lap siding, trimmed windows'},
   stone:{name:'Stone',bay:12,desc:'Limestone block, tall windows'},
   stucco:{name:'Stucco',bay:12,desc:'Stucco / EIFS, trimmed windows'},
-  glass:{name:'Glass',bay:10,desc:'Glass curtain wall'}
+  glass:{name:'Glass',bay:10,desc:'Glass curtain wall'},
+  // the higher-end ones: real brick, stone, wood and stucco (photos) with drawn sills, lintels, bases and windows.
+  // base: the ground story is painted with a base course the upper stories do not have.
+  brickstone:{name:'Brick & stone',bay:12,desc:'Red brick on a limestone base, stone sills, lintels and band course, black-framed windows',lux:true,base:true},
+  limestone:{name:'Limestone',bay:12,desc:'Cut limestone with a cornice line and tall bronze-framed windows',lux:true,base:true},
+  charcoal:{name:'Charcoal brick',bay:12,desc:'Dark brick with large black-framed windows',lux:true},
+  modern:{name:'Stucco & wood',bay:12,desc:'Smooth light stucco with warm wood panels around large windows',lux:true},
+  craftsman:{name:'Wood & stone',bay:10,desc:'Stained wood cladding over a stacked-stone base, white trim',lux:true,base:true}
 };
+// Material photos for those: seamless textures from Poly Haven (polyhaven.com), licence CC0, shrunk to 512 px and kept
+// in the textures folder beside this page. ft: how much wall one tile covers. rgb: the colour used until the photo has
+// loaded, or where it cannot be used (a page opened straight from disk, or a browser with no canvas).
+var MATS={
+  brick:{src:'textures/red_brick_03.jpg',ft:3.3,rgb:[142,74,60],course:0.24},
+  lime:{src:'textures/white_sandstone_blocks_02.jpg',ft:6.5,rgb:[201,195,180],course:0.55},
+  stack:{src:'textures/stacked_stone_wall.jpg',ft:6.5,rgb:[140,88,64],course:0.3},
+  wood:{src:'textures/brown_planks_09.jpg',ft:3.3,rgb:[150,128,102],course:0.47},
+  stucco:{src:'textures/white_stucco_02.jpg',ft:5.9,rgb:[196,196,194],course:0}
+};
+function matImg(n){
+  var m=MATS[n];if(!m||m.bad||typeof Image==='undefined')return null;
+  if(m.img)return m.ready?m.img:null;
+  m.img=new Image();
+  m.img.onload=function(){
+    // a photo the page may not read back (opened from disk) would poison every texture it is painted into
+    try{var t=document.createElement('canvas');t.width=t.height=2;var x=t.getContext('2d');x.drawImage(m.img,0,0,2,2);x.getImageData(0,0,1,1);}catch(e){m.bad=true;return;}
+    m.ready=true;matsChanged();
+  };
+  m.img.onerror=function(){m.bad=true;};
+  m.img.src=m.src;
+  return null;
+}
+// a photo has arrived: whatever was painted without it is painted again
+var matsTimer=0;
+function matsChanged(){
+  clearTimeout(matsTimer);
+  matsTimer=setTimeout(function(){
+    if(V3&&V3.tex)Object.keys(V3.tex).forEach(function(k){var f=FACADES[k.split('|')[0]];if(f&&f.lux){if(V3.tex[k]&&V3.tex[k].dispose)V3.tex[k].dispose();delete V3.tex[k];}});
+    buildFacadePicker();var o=getSel();if(o&&S.sel&&S.sel.k==='b')markFacade(o);
+    if(V3&&V3.on&&V3.r)build3D();
+  },150);
+}
 var FACADE_DEF={sf:'siding',th:'brick',mu:'brick',apt:'stucco',com:'glass',acc:'siding'};
 function facadeOf(b){return FACADES[b.fa]?b.fa:(FACADE_DEF[b.type]||'brick');}
 function rng(seed){return function(){seed=(seed+0x6D2B79F5)|0;var t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296;};}
@@ -4030,6 +4081,7 @@ function paintFacade(kind,storyH,size,open,bayW){
   var c=null;try{c=cv.getContext('2d');}catch(e){}
   if(!c)return null;
   open=open||'win';
+  var gnd=/@g$/.test(open);if(gnd)open=open.slice(0,-2); // '@g': the ground story, which may have a base course
   var sx=N/bay,sy=N/storyH,R=rng(kind.length*7919+Math.round(storyH*10)+open.length*131);
   function X(ft){return ft*sx;}function Y(ft){return N-ft*sy;} // feet from the left edge / from the floor
   function jit(rgb,a){var d=(R()-0.5)*a;return 'rgb('+Math.round(rgb[0]+d)+','+Math.round(rgb[1]+d*0.8)+','+Math.round(rgb[2]+d*0.7)+')';}
@@ -4044,8 +4096,63 @@ function paintFacade(kind,storyH,size,open,bayW){
     glassRect(x0,sill,w,h);frame(x0,sill,w,h,fcol,0.18);
     box(x0+w/2-0.09,sill,0.18,h,fcol);box(x0,sill+h*0.62-0.07,w,0.14,fcol);
   }
+  // a stretch of wall in one material: its photo, tiled a whole number of times across the bay and up the story
+  // so that neighbouring bays and stories join without a seam; a flat colour with courses ruled in until it has loaded.
+  // o.turn: boards upright. o.tint: a stain or wash multiplied over it. o.lift: lightened by so much (0 to 1).
+  function mat(name,x0,z0,w,ht,o){
+    o=o||{};var m=MATS[name],img=matImg(name),px=X(x0),py=Y(z0+ht),pw=X(w),ph=ht*sy;
+    c.save();c.beginPath();c.rect(px,py,pw,ph);c.clip();
+    if(img){
+      c.fillStyle=c.createPattern(img,'repeat');
+      if(o.turn){var ta=m.ft*sy/img.width,tb=m.ft*sx/img.height;c.rotate(Math.PI/2);c.scale(ta,tb);c.fillRect(0,-N/tb,N/ta,N/tb);}
+      else{var tw=N/Math.max(1,Math.round(bay/m.ft)),th=N/Math.max(1,Math.round(storyH/m.ft));c.scale(tw/img.width,th/img.height);c.fillRect(0,0,N*img.width/tw,N*img.height/th);}
+      c.setTransform(1,0,0,1,0,0);
+    }else{
+      c.fillStyle='rgb('+m.rgb.join(',')+')';c.fillRect(px,py,pw,ph);
+      if(m.course){c.fillStyle='rgba(0,0,0,0.16)';
+        if(o.turn)for(var u=x0;u<x0+w;u+=m.course)c.fillRect(X(u),py,Math.max(1,sx*0.03),ph);
+        else for(var v=z0;v<z0+ht;v+=m.course)c.fillRect(px,Y(v),pw,Math.max(1,sy*0.03));}
+      for(var i=0;i<pw*ph/900;i++){c.fillStyle='rgba('+(R()<0.5?'0,0,0':'255,255,255')+','+(R()*0.08)+')';c.fillRect(px+R()*pw,py+R()*ph,1+R()*2,1+R()*2);}
+    }
+    if(o.tint){c.globalCompositeOperation='multiply';c.fillStyle=o.tint;c.fillRect(px,py,pw,ph);c.globalCompositeOperation='source-over';}
+    if(o.lift){c.fillStyle='rgba(255,255,255,'+o.lift+')';c.fillRect(px,py,pw,ph);}
+    c.restore();
+  }
+  // a projecting band across the bay (a base cap, a string course, a cornice): lit along the top, shadowed beneath
+  function course(z,ht,col){box(0,z,bay,ht,col);box(0,z+ht-0.05,bay,0.05,'rgba(255,255,255,0.3)');box(0,z-0.07,bay,0.07,'rgba(0,0,0,0.3)');}
+  // a window set back in the wall: lintel and sill of stone or a board surround, a dark reveal, a slim frame
+  function luxWin(w,ht,sill,fcol,o){
+    ht=Math.max(2,Math.min(ht,storyH-sill-1.4));var x0=(bay-w)/2;
+    if(o.trim)box(x0-0.42,sill-0.42,w+0.84,ht+0.9,o.trim);
+    if(o.lintel){box(x0-0.55,sill+ht,w+1.1,0.75,o.lintel);box(x0-0.55,sill+ht-0.05,w+1.1,0.05,'rgba(0,0,0,0.3)');}
+    if(o.sill){box(x0-0.45,sill-0.34,w+0.9,0.34,o.sill);box(x0-0.45,sill-0.4,w+0.9,0.06,'rgba(0,0,0,0.32)');}
+    box(x0-0.1,sill-0.1,w+0.2,ht+0.2,'rgba(0,0,0,0.45)');
+    glassRect(x0,sill,w,ht);frame(x0,sill,w,ht,fcol,0.19);
+    for(var i=1;i<(o.lites||2);i++)box(x0+w*i/(o.lites||2)-0.07,sill,0.14,ht,fcol);
+    if(o.transom)box(x0,sill+ht*0.74-0.07,w,0.14,fcol);
+  }
+  var STONE='#d8d1bf';
   // wall material
-  if(kind==='brick'){
+  if(kind==='brickstone'){
+    mat('brick',0,0,bay,storyH);
+    if(gnd){mat('lime',0,0,bay,2.4);course(2.4,0.3,STONE);}
+    course(storyH-0.8,0.5,STONE);
+  }else if(kind==='limestone'){
+    mat('lime',0,0,bay,storyH);
+    if(gnd){mat('lime',0,0,bay,1.7,{tint:'#b4ad9e'});course(1.7,0.22,'#cbc4b2');}
+    course(storyH-0.55,0.32,'#e2dccb');box(0,storyH-0.23,bay,0.23,'#c2bba9');
+  }else if(kind==='charcoal'){
+    mat('brick',0,0,bay,storyH,{tint:'#7d8087',lift:0.06});
+    course(storyH-0.36,0.22,'#1f2326');
+  }else if(kind==='modern'){
+    mat('stucco',0,0,bay,storyH,{lift:0.42});
+    if(open==='win'||open==='door'){var aw=open==='win'?7.6:5;mat('wood',(bay-aw)/2,0,aw,storyH,{turn:true,tint:'#e0a96d'});}
+    box(0,storyH-0.1,bay,0.1,'rgba(0,0,0,0.3)');
+  }else if(kind==='craftsman'){
+    mat('wood',0,0,bay,storyH,{tint:'#ecd2ad',lift:0.05});
+    if(gnd){mat('stack',0,0,bay,3,{lift:0.14});course(3,0.28,'#d5cdbb');}
+    box(0,storyH-0.75,bay,0.75,'#f3efe6');box(0,storyH-0.82,bay,0.07,'rgba(0,0,0,0.28)');
+  }else if(kind==='brick'){
     c.fillStyle='#b8afa2';c.fillRect(0,0,N,N);var ch=2.667/12,bw=8/12,m=0.035;
     for(var r=0,y=0;y<storyH;r++,y+=ch)for(var x=(r%2?-bw/2:0);x<bay;x+=bw){c.fillStyle=jit([152,64,48],46);c.fillRect(X(x+m),Y(y+ch-m),X(bw-2*m),(ch-2*m)*sy);}
     speckle(1500,0.12);
@@ -4071,9 +4178,15 @@ function paintFacade(kind,storyH,size,open,bayW){
   }
   // what sits in the bay
   var WIN={brick:[4,5,2.8,'#ece9e2',null],siding:[3,5,2.8,'#f4f4f1','#fbfbf8'],stone:[4,6.5,2.2,'#5b6166',null],stucco:[4,5,2.8,'#f5f1e8','#efe6d3']}[kind];
-  var TRIM={brick:'#d8d0c2',siding:'#fbfbf8',stone:'#8f8672',stucco:'#efe6d3',glass:'#c9cfd4'}[kind];
-  var DOOR={brick:'#26402f',siding:'#7a2e2a',stone:'#2f3338',stucco:'#5a3d2b',glass:'#2e3a43'}[kind];
-  if(open==='win'&&WIN){
+  var TRIM={brick:'#d8d0c2',siding:'#fbfbf8',stone:'#8f8672',stucco:'#efe6d3',glass:'#c9cfd4',brickstone:STONE,limestone:'#bdb5a1',charcoal:'#1f2326',modern:'#15181b',craftsman:'#f3efe6'}[kind];
+  var DOOR={brick:'#26402f',siding:'#7a2e2a',stone:'#2f3338',stucco:'#5a3d2b',glass:'#2e3a43',brickstone:'#1d2b24',limestone:'#3b3026',charcoal:'#b5532a',modern:'#24282c',craftsman:'#34503f'}[kind];
+  if(open==='win'&&f.lux){
+    if(kind==='brickstone')luxWin(4.4,6.2,2.75,'#1d2124',{lintel:STONE,sill:STONE,lites:2,transom:true});
+    else if(kind==='limestone')luxWin(4,7,2.4,'#3b3026',{sill:'#cbc4b2',lites:2,transom:true});
+    else if(kind==='charcoal')luxWin(5.4,6.4,2.4,'#101316',{sill:'#2a2e33',lites:3});
+    else if(kind==='modern')luxWin(5.6,6.6,1.9,'#15181b',{lites:2});
+    else luxWin(3.6,5,3.3,'#2b2f33',{trim:'#f3efe6',lites:2,transom:true});
+  }else if(open==='win'&&WIN){
     if(kind==='brick'){var wh=Math.max(2,Math.min(5,storyH-4));box((bay-4)/2-0.4,2.8+wh,4.8,0.55,'#d8d0c2');box((bay-4)/2-0.25,2.5,4.5,0.3,'#d8d0c2');}
     windowAt.apply(null,WIN);
   }else if(open==='door'){
@@ -4123,7 +4236,7 @@ function paintShingles(){
 function buildFacadePicker(){
   var el=$('#iFacade');
   el.innerHTML=Object.keys(FACADES).map(function(k){return '<button type="button" role="radio" data-fa="'+k+'" title="'+esc(FACADES[k].desc)+'"><span class="sw" data-sw="'+k+'"></span>'+esc(FACADES[k].name)+'</button>';}).join('');
-  Object.keys(FACADES).forEach(function(k){var cv=paintFacade(k,11,128);if(!cv)return;var sw=el.querySelector('[data-sw="'+k+'"]');cv.className='sw';sw.replaceWith(cv);});
+  Object.keys(FACADES).forEach(function(k){var cv=paintFacade(k,11,128,FACADES[k].base?'win@g':'win');if(!cv)return;var sw=el.querySelector('[data-sw="'+k+'"]');cv.className='sw';sw.replaceWith(cv);});
 }
 function markFacade(o){var k=facadeOf(o);$$('#iFacade button').forEach(function(b){var on=b.getAttribute('data-fa')===k;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');});}
 buildFacadePicker();
@@ -4874,7 +4987,8 @@ function fenceMeshes(T,f,cx,cy,gy){
 function facadeTex(kind,open,H){
   var T=window.THREE,key=kind+'|'+open+'|'+H;V3.tex=V3.tex||{};
   if(V3.tex[key]!==undefined)return V3.tex[key];
-  var cv=open==='shingle'?paintShingles():paintFacade(kind,H,512,open,open==='shop'?20:(open==='garage'?12:FACADES[kind].bay));
+  var o0=open.replace('@g','');
+  var cv=o0==='shingle'?paintShingles():paintFacade(kind,H,512,open,o0==='shop'?20:(o0==='garage'?12:FACADES[kind].bay));
   if(!cv)return (V3.tex[key]=null);
   var t=new T.CanvasTexture(cv);t.wrapS=t.wrapT=T.RepeatWrapping;
   t.encoding=T.sRGBEncoding;t.anisotropy=Math.min(8,V3.r.capabilities.getMaxAnisotropy());t.userData.keep=true;
@@ -4987,7 +5101,7 @@ function buildingParts(T,b,ring,P){
   var front=frontEdge(E,cen,type==='th'&&rect?[longI,longI+2]:null,b);
   function wk(open,H){return 'w|'+fk+'|'+open+'|'+(+H.toFixed(2));}
   function pt(ed,t,z,off){off=off||0;return [ed.p[0]+ed.e[0]*t*ed.len+ed.n[0]*off,ed.p[1]+ed.e[1]*t*ed.len+ed.n[1]*off,z];}
-  function band(ed,t0,t1,z0,z1,open,H,bays,v1,tint){pQuad(P,wk(open,H),pt(ed,t0,z0),pt(ed,t1,z0),pt(ed,t1,z1),pt(ed,t0,z1),[[0,0],[bays,0],[bays,v1],[0,v1]],tint);}
+  function band(ed,t0,t1,z0,z1,open,H,bays,v1,tint){pQuad(P,wk(open+(FACADES[fk].base&&z0<0.01&&z1>0.01?'@g':''),H),pt(ed,t0,z0),pt(ed,t1,z0),pt(ed,t1,z1),pt(ed,t0,z1),[[0,0],[bays,0],[bays,v1],[0,v1]],tint);}
   function canopy(ed,tc,w,depth,z,drop,posts){
     var dt=w/2/ed.len;
     pQuad(P,'solid',pt(ed,tc-dt,z,0.05),pt(ed,tc+dt,z,0.05),pt(ed,tc+dt,z-drop,depth),pt(ed,tc-dt,z-drop,depth),null,lin('#3d4146'));

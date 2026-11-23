@@ -33,8 +33,9 @@ t.set('#sStoryH','14');await sleep(400);
 ok(t.demReq===1,'changing the plan reuses the terrain grid ('+t.demReq+' requests)');
 ok(t.proj().set.storyH===14,'story height is saved in the project');
 ok(/14\.0 ft per story/.test(info()),'panel shows the new story height');
-// facades: five choices, defaults by type, saved with the building and carried through GeoJSON
-ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass','five facade options');
+// facades: the five plain ones and five higher-end ones, defaults by type, saved with the building and carried through GeoJSON
+ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass,brickstone,limestone,charcoal,modern,craftsman','ten facade options: five plain, five higher-end');
+ok(t.$$('#iFacade button').slice(5).map(b=>b.textContent).join()==='Brick & stone,Limestone,Charcoal brick,Stucco & wood,Wood & stone'&&t.$$('#iFacade button').every(b=>b.title.length>10),'the higher-end ones are named, each with a description');
 {const l=t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon);l.fire('mousedown',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);}
 const selName=t.$('#iName').value,defFa={th:'brick',apt:'stucco'}[t.proj().buildings.find(b=>b.name===selName).type];
 ok(t.$('#iFacade button.on')&&t.$('#iFacade button.on').getAttribute('data-fa')===defFa,'selected building shows its default facade ('+defFa+')');
@@ -46,6 +47,20 @@ const t2=await boot();await openVia(t2,{name:'p.geojson',text:()=>Promise.resolv
 ok(t2.proj().buildings.find(b=>b.name===selName).fa==='glass','GeoJSON import restores the facade');
 t.key('z',{ctrlKey:true});
 ok(t.proj().buildings.find(b=>b.name===selName).fa!=='glass','undo reverts the facade');
+// a higher-end facade is chosen, saved and reopened the same way
+{const l=t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon);l.fire('mousedown',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);}
+t.click(t.$('#iFacade button[data-fa="brickstone"]'));
+ok(t.proj().buildings.find(b=>b.name===selName).fa==='brickstone'&&t.$('#iFacade button.on').getAttribute('data-fa')==='brickstone','clicking Brick & stone sets the facade');
+t.click(t.$('#xGeo'));const gj2=JSON.parse(t.dl['site-plan.geojson']);
+ok(gj2.features.find(f=>f.properties.kind==='building'&&f.properties.name===selName).properties.facade==='brickstone','GeoJSON export carries it');
+const t3=await boot();await openVia(t3,{name:'p.geojson',text:()=>Promise.resolve(JSON.stringify(gj2))});
+ok(t3.proj().buildings.find(b=>b.name===selName).fa==='brickstone'&&t3.errors.length===0,'and GeoJSON import restores it');
+t.key('z',{ctrlKey:true});
+// the material photos are in the project, small, and the page points at them
+{const fs=require('fs'),path=require('path'),dir=path.join(__dirname,'..','textures'),html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+ const want=(html.match(/src:'textures\/[a-z0-9_]+\.jpg'/g)||[]).map(s=>s.slice(14,-1));
+ ok(want.length===5&&want.every(f=>fs.existsSync(path.join(dir,f))&&fs.statSync(path.join(dir,f)).size<150000),'the five material photos the facades use are in the textures folder, each under 150 KB ('+want.join(', ')+')');
+ ok(fs.existsSync(path.join(dir,'README.txt'))&&/CC0/.test(fs.readFileSync(path.join(dir,'README.txt'),'utf8')),'with a note of where they came from and their licence');}
 t.click(t.$('#v3dClose'));
 ok(t.$('#v3d').hidden&&!t.$('#view3dBtn').classList.contains('on'),'Back to 2D closes the view');
 // ---- terrain checks in the 2D plan: slope flags, pad elevation, cut and fill

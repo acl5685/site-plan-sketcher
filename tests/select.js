@@ -87,6 +87,41 @@ t.key('Delete');
 ok(t.proj().splits.length===2&&/bounded by 2 lot lines/.test(t.$('#toast').textContent),'Delete there removes nothing and says why ('+t.$('#toast').textContent.slice(0,60)+')');
 await clickMap(-250,-75);t.click(t.$('#pbDel'));
 ok(t.proj().splits.length===1&&t.proj().splits[0].pts.map(t.toFt).every(p=>near(p[0],-100,0.05)),'the end lot has one line: the button removes just that one');
+
+// ---- select, then click Delete: the button at the top of the side panel
+t.key('Escape');t.tab('build');
+const fd=t.$('#focusDel');
+ok(!!fd&&t.$('#focusBar').hidden,'the side panel has a Delete button in its selection bar, hidden while nothing is selected');
+// a building
+t.click(t.$('.typebtn[data-type="sf"]'));t.set('#tW','40');t.set('#tD','40');t.set('#tRot','0');t.placeAt(-250,20);
+ok(!t.$('#focusBar').hidden&&t.$('#selBar').hidden,'a building just placed is selected, and the map bar is not up yet (the Building tool is still on)');
+t.click(fd);ok(t.proj().buildings.length===0&&t.$('#focusBar').hidden,'Delete at the top of the panel removes it straight away');
+t.key('z',{ctrlKey:true});ok(t.proj().buildings.length===1,'undo brings it back');
+// a parking area just drawn, with the drawing tool still on
+await t.draw('parkarea',t.rectPts(-90,-200,90,-136));
+ok(t.proj().areas.length===1&&!t.$('#focusBar').hidden&&t.$('#focusName').textContent===t.proj().areas[0].name,'a parking area just drawn is selected ('+t.$('#focusName').textContent+')');
+t.click(fd);ok(t.proj().areas.length===0,'and Delete removes it without changing tool first');
+// a road, clicked
+t.set('#roadW','24');await t.draw('road',[[-90,-215],[90,-215]]);t.tool('select');
+t.layers('pRoads').find(l=>l instanceof t.w.L.Polygon).fire('click',{latlng:t.c});
+t.click(fd);ok(t.proj().roads.length===0,'a selected road is deleted the same way');
+// a group
+t.key('z',{ctrlKey:true});await sleep(320);
+const shift={originalEvent:{shiftKey:true}};
+bL()[0].fire('mousedown',Object.assign({latlng:t.c},shift));
+t.layers('pRoads').find(l=>l instanceof t.w.L.Polygon).fire('click',Object.assign({latlng:t.c},shift));
+ok(/2 shapes selected/.test(t.$('#focusName').textContent),'two shapes selected together');
+t.click(fd);ok(t.proj().buildings.length===0&&t.proj().roads.length===0,'Delete removes the whole group');
+t.key('z',{ctrlKey:true});
+// a carve-out: it gets the bar and the button too
+await sleep(520);await clickMap(30,-20);
+ok(!t.$('#focusBar').hidden&&t.$('#focusName').textContent==='Carved-out shape'&&!t.$('#insC').hidden,'a selected carve-out shows in the side panel with the Delete button ('+t.$('#focusName').textContent+')');
+t.click(fd);ok(t.proj().carveShapes.length===0&&t.$('#focusBar').hidden,'and Delete removes it');
+t.key('z',{ctrlKey:true});
+// the hint steps aside while a selection bar is up
+await sleep(320);bL()[0].fire('mousedown',{latlng:t.c,originalEvent:{}});bL()[0].fire('click',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);
+ok(!t.$('#selBar').hidden&&t.$('#hint').style.visibility==='hidden','with the selection bar up on the map, the hint under it is hidden');
+t.key('Escape');ok(t.$('#hint').style.visibility==='','and comes back when nothing is selected');
 ok(t.errors.length===0,'no page errors ('+t.errors.join('; ')+')');
 console.log('\n'+R.pass+' passed, '+R.fails.length+' failed');R.fails.forEach(f=>console.log(' - '+f));process.exit(R.fails.length?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
