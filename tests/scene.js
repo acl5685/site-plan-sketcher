@@ -13,6 +13,12 @@ const num=(s,re)=>+((s.match(re)||[])[1]||0);
 const skip=()=>{if(!t.$('#lsAsk').hidden)t.click(t.$('#lsSkip'));};
 
 ok(!!t.$('#v3dPlay')&&/eating in the courtyard/.test(t.$('#v3dPlay').title),'the 3D view has a Play scene button that says what it shows');
+// the camera circles while it plays unless that is switched off, and the choice is kept
+{const sp=t.$('#v3dSpin'),html=require('fs').readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+ ok(!!sp&&sp.checked&&sp.closest('#v3dBar')&&/Circle the camera/.test(sp.parentNode.textContent),'beside it is a Circle the camera tick box, on to begin with');
+ ok(/if\(!V3\.hold&&!V3\.drag&&\$\('#v3dSpin'\)\.checked\)\{/.test(html),'the camera only circles while that box is ticked');
+ t.click(sp);ok(!sp.checked&&t.w.localStorage.getItem('sitePlanSketcher.spin')==='0','unticking it is remembered in this browser');
+ t.click(sp);ok(sp.checked&&t.w.localStorage.getItem('sitePlanSketcher.spin')==='1','and so is ticking it again');}
 let s=await scene();
 ok(/nothing to animate yet/.test(s),'an empty plan says there is nothing to animate yet ('+s+')');
 // ---- a road: cars

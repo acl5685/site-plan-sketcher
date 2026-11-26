@@ -34,8 +34,8 @@ ok(t.demReq===1,'changing the plan reuses the terrain grid ('+t.demReq+' request
 ok(t.proj().set.storyH===14,'story height is saved in the project');
 ok(/14\.0 ft per story/.test(info()),'panel shows the new story height');
 // facades: the five plain ones and five higher-end ones, defaults by type, saved with the building and carried through GeoJSON
-ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass,brickstone,limestone,charcoal,modern,craftsman,reserve,reservew','twelve facade options: five plain, five higher-end, two Western Reserve');
-ok(t.$$('#iFacade button').slice(5).map(b=>b.textContent).join()==='Brick & stone,Limestone,Charcoal brick,Stucco & wood,Wood & stone,Western Reserve,Painted brick'&&t.$$('#iFacade button').every(b=>b.title.length>10),'the newer ones are named, each with a description');
+ok(t.$$('#iFacade button').map(b=>b.getAttribute('data-fa')).join()==='brick,siding,stone,stucco,glass,brickstone,limestone,charcoal,modern,craftsman,reserve,reservew,village','thirteen facade options: five plain, five higher-end, three Western Reserve');
+ok(t.$$('#iFacade button').slice(5).map(b=>b.textContent).join()==='Brick & stone,Limestone,Charcoal brick,Stucco & wood,Wood & stone,Western Reserve,Painted brick,Brick & clapboard'&&t.$$('#iFacade button').every(b=>b.title.length>10),'the newer ones are named, each with a description');
 {const l=t.layers('pBldg').find(l=>l instanceof t.w.L.Polygon);l.fire('mousedown',{latlng:t.c});t.M.fire('mouseup',{});await sleep(10);}
 const selName=t.$('#iName').value,defFa={th:'brick',apt:'stucco'}[t.proj().buildings.find(b=>b.name===selName).type];
 ok(t.$('#iFacade button.on')&&t.$('#iFacade button.on').getAttribute('data-fa')===defFa,'selected building shows its default facade ('+defFa+')');
