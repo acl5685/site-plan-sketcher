@@ -118,6 +118,14 @@ td:first-child{font-family:var(--font)}
 #v3dBar input[type=range]{width:120px}
 #v3dTime{font-family:var(--mono);min-width:5.5em}
 #v3dInfo{position:absolute;left:12px;bottom:12px;max-width:min(440px,calc(100% - 24px));max-height:45%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:6px 10px;font-size:12px}
+#sheet{position:absolute;inset:0;z-index:1001;background:#5d6568;display:flex;flex-direction:column}
+#sheet[hidden]{display:none}
+#sheetBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 10px;font-size:12px}
+#sheetBar label{display:inline-flex;align-items:center;gap:4px}
+#sheetBar input[type=text]{width:130px}#sheetBar #shNum{width:56px}
+#sheetView{flex:1;min-height:0;padding:14px}
+#sheetView svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 8px rgba(0,0,0,.45))}
+#sheetNote{background:var(--panel);border-top:1px solid var(--line);padding:5px 10px}
 #v3dInfo table{width:100%;border-collapse:collapse}#v3dInfo td{padding:1px 4px}#v3dInfo td.n{text-align:right;font-family:var(--mono)}
 .ov{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .ov .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -647,6 +655,13 @@ td:first-child{font-family:var(--font)}
 
     <div class="pane" id="pane-export">
       <div>
+        <h3>Site plan sheet</h3>
+        <div class="row" style="flex-direction:column;align-items:stretch">
+          <button class="btn primary" id="xSheet">Site plan sheet (PDF)</button>
+        </div>
+        <div class="note">One page with the plan drawn to scale: the length of every site and lot line, building sizes, offsets to property lines, roads and other buildings, a north arrow, scale bar, legend and the site figures. You choose the paper size and title before it downloads.</div>
+      </div>
+      <div>
         <h3>Site plan files</h3>
         <div class="row" style="flex-direction:column;align-items:stretch">
           <button class="btn primary" id="xGeo">GeoJSON (WGS84) for ArcGIS Pro or QGIS</button>
@@ -727,6 +742,23 @@ td:first-child{font-family:var(--font)}
         <button class="btn" id="v3dExport" title="Download this 3D scene as a .glb file for Blender, 3ds Max, Maya or Unity (units: metres)">Export .glb</button>
       </div>
       <div id="v3dInfo"></div>
+    </div>
+    <div id="sheet" hidden>
+      <div id="sheetBar">
+        <button class="btn" id="shClose">Back to plan</button>
+        <button class="btn primary" id="shPdf" title="Download this sheet as a PDF: one page, drawn to scale, sharp at any zoom">Download PDF</button>
+        <label>Paper <select id="shPaper"></select></label>
+        <label>Scale <select id="shScale"><option value="auto">Best fit</option></select></label>
+        <label>Title <input type="text" id="shTitle" placeholder="Project name" maxlength="80"></label>
+        <label>Address or note <input type="text" id="shSub" placeholder="Street, city" maxlength="120"></label>
+        <label>Prepared by <input type="text" id="shBy" maxlength="60"></label>
+        <label>Sheet <input type="text" id="shNum" maxlength="10"></label>
+        <label title="The length of every site and lot line, and the size of each building along its walls"><input type="checkbox" id="shDims" checked> Dimensions</label>
+        <label title="Distances from buildings to property lines, road edges and other buildings">Offsets <select id="shOffs"><option value="min">Closest of each kind</option><option value="all">Every wall</option><option value="none">None</option></select></label>
+        <label><input type="checkbox" id="shBw"> Black and white</label>
+      </div>
+      <div id="sheetView"></div>
+      <div id="sheetNote" class="note"></div>
     </div>
   </main>
 </div>
@@ -991,7 +1023,7 @@ function projectJSON(){
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)||S.carved.has(id))keep.push(f);});
   return {v:1,org:[ORG.lng,ORG.lat],labelField:S.labelField,parcels:{type:'FeatureCollection',features:keep},
     selected:Array.from(S.selected),carved:Array.from(S.carved),carveShapes:S.carveShapes,splits:S.splits,roads:S.roads,buildings:S.buildings,
-    areas:S.areas,lots:S.lots,fences:S.fences,aprons:S.aprons,demo:!!S.demo,set:S.set,tpl:S.tpl,nextId:S.nextId,counters:S.counters,
+    areas:S.areas,lots:S.lots,fences:S.fences,aprons:S.aprons,demo:!!S.demo,set:S.set,tpl:S.tpl,sheet:S.sheet,nextId:S.nextId,counters:S.counters,
     overlays:S.overlays.filter(function(o){return o.url;}).map(function(o){return {name:o.name,url:o.url,tiled:o.tiled,opacity:o.opacity};})};
 }
 function saveLocal(){try{localStorage.setItem('sitePlanSketcher.v1',JSON.stringify(projectJSON()));}catch(e){}if(typeof renderLayouts==='function'&&$('#pane-layouts').classList.contains('on'))renderLayouts();}
@@ -1001,6 +1033,7 @@ function loadProject(o){
   S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
   S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];S.fences=o.fences||[];S.aprons=o.aprons||[];
   if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
+  if(o.sheet)S.sheet=Object.assign({},SHEET_DEF,o.sheet);
   S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
   fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
   if(o.overlays&&o.overlays.length&&!S.overlays.length)o.overlays.forEach(addOverlay);
@@ -2664,6 +2697,7 @@ function rotKey(e){return e.code==='KeyQ'?'q':(e.code==='KeyE'?'e':(e.key||'').t
 function rotStepFor(e){return e.altKey?0.1:(e.shiftKey?1:S.set.rotStep);}
 document.addEventListener('keydown',function(e){
   if(e.key==='Shift')shiftHeld=true;
+  if(!$('#sheet').hidden){if(e.key==='Escape')$('#sheet').hidden=true;return;}
   var tag=(e.target&&e.target.tagName)||'',typing=/INPUT|TEXTAREA|SELECT/.test(tag);
   // a menu, tick box or slider has no use of its own for Delete or Ctrl+Z, so there they act on the plan; a text box
   // keeps both for its own typing
@@ -2967,7 +3001,7 @@ $('#finishBtn').addEventListener('click',finishDraw);
 $('#cancelBtn').addEventListener('click',cancelDraw);
 $('#newBtn').addEventListener('click',function(){
   if(!S.buildings.length&&!S.roads.length&&!S.lots.length&&!S.areas.length&&!S.fences.length&&!S.selected.size&&!S.demo){return;}
-  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.aprons=[];S.sel=null;S.multi=[];S.counters={};
+  pushUndo();S.parcels=S.demo?null:S.parcels;S.demo=false;S.selected.clear();S.carved.clear();S.carveShapes=[];S.splits=[];S.roads=[];S.lots=[];S.buildings=[];S.areas=[];S.fences=[];S.aprons=[];S.sel=null;S.multi=[];S.counters={};S.sheet.title='';S.sheet.sub='';
   if(!S.parcels)gParcels.clearLayers();siteChanged();
 });
 $('#clearPicks').addEventListener('click',function(){pushUndo();S.selected.clear();S.carved.clear();S.carveShapes=[];siteChanged();});
@@ -3436,6 +3470,467 @@ function dxfText(){
 }
 $('#xDxf').addEventListener('click',function(){download('site-plan.dxf',dxfText(),'application/dxf');});
 $('#xProj').addEventListener('click',function(){download('site-plan-project.json',JSON.stringify(projectJSON()),'application/json');});
+
+// ---------- site plan sheet: the plan drawn to an engineering scale with its dimensions, offsets, a title block and the
+// site figures. It is kept as a list of shapes and text in points (1/72 in, y down) and written out twice from that one
+// list: as SVG to look at on screen, and as a PDF to keep, so the two always agree. ----------
+var PAPERS={letter:{name:'Letter, 8.5 × 11 in',w:792,h:612,k:0.8,tb:190},tabloid:{name:'Tabloid, 11 × 17 in',w:1224,h:792,k:1,tb:250},archd:{name:'Arch D, 24 × 36 in',w:2592,h:1728,k:1.9,tb:470}};
+var SHEET_SCALES=[10,20,30,40,50,60,80,100,150,200,300,400,500,1000];
+var SHEET_DEF={paper:'tabloid',scale:'auto',title:'',sub:'',by:'',num:'SP-1',dims:true,offs:'min',bw:false};
+S.sheet=Object.assign({},SHEET_DEF);
+// widths of Helvetica and Helvetica-Bold, characters 32 to 126, in thousandths of the type size (the PDF's own fonts)
+var HELV='278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 333 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584'.split(' ').map(Number);
+var HELVB='278 333 474 556 556 889 722 238 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611 975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667 778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 333 556 611 556 611 556 333 611 611 278 278 556 278 889 611 611 611 611 389 556 333 611 556 778 556 556 500 389 280 389 584'.split(' ').map(Number);
+// the few characters outside plain ASCII that the sheet uses: their code in the PDF's WinAnsi encoding, and width
+var SH_WIN={'×':[215,584],'§':[167,556],'·':[183,278],'°':[176,400],'–':[150,556],'—':[151,1000],'’':[146,222],'‘':[145,222],'“':[147,333],'”':[148,333],'′':[39,191],'″':[34,355],'½':[189,834],'±':[177,584]};
+function shW(s,size,bold){var t=bold?HELVB:HELV,w=0;for(var i=0;i<s.length;i++){var c=s.charCodeAt(i),x=SH_WIN[s.charAt(i)];w+=x?x[1]:(c>=32&&c<=126?t[c-32]:556);}return w*size/1000;}
+function shFit(s,size,bold,maxW){s=String(s);if(shW(s,size,bold)<=maxW)return s;while(s.length>1&&shW(s+'...',size,bold)>maxW)s=s.slice(0,-1);return s.replace(/\s+$/,'')+'...';}
+function shWrap(s,size,bold,maxW){
+  var out=[],ln='';String(s).split(/\s+/).forEach(function(w){if(!w)return;var t=ln?ln+' '+w:w;if(ln&&shW(t,size,bold)>maxW){out.push(ln);ln=w;}else ln=t;});
+  if(ln)out.push(ln);return out.map(function(l){return shFit(l,size,bold,maxW);});
+}
+function shRgb(h){h=String(h).replace('#','');if(h.length===3)h=h.charAt(0)+h.charAt(0)+h.charAt(1)+h.charAt(1)+h.charAt(2)+h.charAt(2);var n=parseInt(h,16)||0;return [n>>16,(n>>8)&255,n&255];}
+function shHex(r,g,b){return '#'+((1<<24)+(Math.round(r)<<16)+(Math.round(g)<<8)+Math.round(b)).toString(16).slice(1);}
+function shMix(h,t){var c=shRgb(h);return shHex(c[0]+(255-c[0])*t,c[1]+(255-c[1])*t,c[2]+(255-c[2])*t);}   // towards white
+function shGrey(h){var c=shRgb(h),g=0.3*c[0]+0.59*c[1]+0.11*c[2];return shHex(g,g,g);}
+// the sides of an outline in local feet, with points on a straight run merged, and sides under 8 ft left out
+function sheetSides(P0){
+  var Pn=[];P0.forEach(function(q){var l=Pn[Pn.length-1];if(!l||Math.hypot(q[0]-l[0],q[1]-l[1])>0.1)Pn.push(q);});
+  if(Pn.length>3&&Math.hypot(Pn[0][0]-Pn[Pn.length-1][0],Pn[0][1]-Pn[Pn.length-1][1])<=0.1)Pn.pop();
+  var n=Pn.length,Cn=Pn.filter(function(q,i){
+    var a=Pn[(i+n-1)%n],b=Pn[(i+1)%n],la=Math.hypot(q[0]-a[0],q[1]-a[1]),lb=Math.hypot(b[0]-q[0],b[1]-q[1]);
+    return Math.abs((q[0]-a[0])*(b[1]-q[1])-(q[1]-a[1])*(b[0]-q[0]))/(la*lb)>0.02;
+  });
+  if(Cn.length<3)Cn=Pn;
+  return Cn.map(function(q,i){var b=Cn[(i+1)%Cn.length];return {a:q,b:b,len:Math.hypot(b[0]-q[0],b[1]-q[1])};}).filter(function(s){return s.len>=8;});
+}
+// the line a building must stay behind: the site (or each lot) drawn in by the property-line setback
+var SH_ENV={k:null,v:null};
+function sheetEnv(){
+  var key=(S.siteVer||0)+'|'+S.set.setback+'|'+S.plots.length+'|'+S.splits.length;
+  if(SH_ENV.k===key)return SH_ENV.v;
+  var out=[];
+  try{
+    if(S.plots.length>=2)S.plots.forEach(function(p){var e=plotBuild(p).env;if(e)out=out.concat(e);});
+    else{var e=turf.buffer(S.site,-S.set.setback*0.3048,{units:'meters',steps:4});if(e)out=polysOf(e);}
+  }catch(err){out=[];}
+  SH_ENV={k:key,v:out};return out;
+}
+// the least distance from any building to a property line, to a road edge, and to another building
+function sheetMins(){
+  var c=S.ctx,m={prop:null,road:null,sep:null},bs=S.buildings.slice(0,150);
+  (S.checks||[]).forEach(function(ch){if(ch.minProp!==null&&ch.minProp!==undefined&&(m.prop===null||ch.minProp<m.prop))m.prop=ch.minProp;});
+  bs.forEach(function(b,i){
+    var ring=c.rings[b.id];if(!ring)return;
+    c.roadRings.forEach(function(r){var d=minRingDist(ring,r).d;if(m.road===null||d<m.road)m.road=d;});
+    for(var j=i+1;j<bs.length;j++){var r2=c.rings[bs[j].id];if(!r2)continue;var d2=minRingDist(ring,r2).d;if(m.sep===null||d2<m.sep)m.sep=d2;}
+  });
+  return m;
+}
+function sheetModel(){
+  var o=S.sheet,pp=PAPERS[o.paper]||PAPERS.tabloid,W=pp.w,H=pp.h,k=pp.k,m=28.8*(k>1.5?1.5:1),tb=pp.tb,bw=!!o.bw,INK='#111111',RED=bw?'#111111':'#c92a2a',
+    ops=[],legend={},c=S.ctx||{siteRings:[],sitePolys:[],roadRings:[],rings:{}},st=S.stats||{},i;
+  var fx0=m,fy0=m,fx1=W-m-tb,fy1=H-m,fw=fx1-fx0,fh=fy1-fy0;
+  function C(col){return bw?shGrey(col):col;}
+  function path(d,sty){d=d.filter(function(r){return r.length>=2&&r.every(function(p){return isFinite(p[0])&&isFinite(p[1]);});});if(d.length)ops.push(Object.assign({t:'path',d:d,close:true,fill:null,stroke:null,lw:0.5*k,dash:null},sty));}
+  function line(a,b,sty){path([[a,b]],Object.assign({close:false,stroke:INK},sty));}
+  function text(x,y,s,sty){ops.push(Object.assign({t:'text',x:x,y:y,s:String(s),size:7*k,anchor:'start',rot:0,color:INK,bold:false,mid:false},sty));}
+  function circle(c0,r,sty){var d=[],n=r>5*k?24:12;for(var j=0;j<n;j++){var a=j/n*2*Math.PI;d.push([c0[0]+Math.cos(a)*r,c0[1]+Math.sin(a)*r]);}path([d],sty);}
+  // ---- what has to fit: the site, or without one, whatever has been drawn
+  var ext=null;function grow(p){if(!ext)ext=[p[0],p[1],p[0],p[1]];else{ext[0]=Math.min(ext[0],p[0]);ext[1]=Math.min(ext[1],p[1]);ext[2]=Math.max(ext[2],p[0]);ext[3]=Math.max(ext[3],p[1]);}}
+  if(S.site)polysOf(S.site).forEach(function(pl){pl[0].forEach(function(q){grow(toLocal(q));});});
+  else{
+    S.buildings.forEach(function(b){(c.rings[b.id]||[]).forEach(grow);});
+    S.roads.concat(S.lots).forEach(function(r){(r.pts||[]).forEach(function(q){grow(toLocal(q));});});
+    S.areas.forEach(function(a){a.ring.forEach(function(q){grow(toLocal(q));});});
+  }
+  // ---- the scale: the largest standard one at which it fits with room for the dimensions round it, unless one is chosen
+  var pad=44*k,scale=+o.scale||0;
+  if(ext&&!scale){
+    var ew=Math.max(1,ext[2]-ext[0]),eh=Math.max(1,ext[3]-ext[1]);scale=SHEET_SCALES[SHEET_SCALES.length-1];
+    for(i=0;i<SHEET_SCALES.length;i++){var sc=SHEET_SCALES[i];if(ew*72/sc<=fw-2*pad&&eh*72/sc<=fh-2*pad){scale=sc;break;}}
+  }
+  if(!scale)scale=40;
+  var f=72/scale,ex=ext?(ext[0]+ext[2])/2:0,ey=ext?(ext[1]+ext[3])/2:0,cx=(fx0+fx1)/2,cy=(fy0+fy1)/2;
+  function P(p){return [cx+(p[0]-ex)*f,cy-(p[1]-ey)*f];}       // local feet to the sheet
+  function PL(ll){return P(toLocal(ll));}
+  function R(ring){return ring.map(P);}
+  function RL(ring){return ring.map(PL);}
+  // ---- labels keep clear of one another: one that would land on another is moved or left off
+  var boxes=[];
+  function ang(a,b){var t=Math.atan2(-(b[1]-a[1]),b[0]-a[0])*180/Math.PI;if(t>90)t-=180;if(t<=-90)t+=180;return t;}
+  function lab(x,y,s,sty){
+    sty=sty||{};
+    var size=(sty.size||6.5)*k,w=shW(s,size,sty.bold),r=(sty.rot||0)*Math.PI/180,cs=Math.abs(Math.cos(r)),sn=Math.abs(Math.sin(r)),g=1.5*k,
+      hw=(cs*w+sn*size)/2+g,hh=(sn*w+cs*size)/2+g,bx=[x-hw,y-hh,x+hw,y+hh];
+    if(x<fx0+hw||x>fx1-hw||y<fy0+hh||y>fy1-hh)return false;
+    if(!sty.force&&boxes.some(function(q){return bx[0]<q[2]&&bx[2]>q[0]&&bx[1]<q[3]&&bx[3]>q[1];}))return false;
+    boxes.push(bx);
+    if(sty.halo){var u=[Math.cos(r),-Math.sin(r)],v=[Math.sin(r),Math.cos(r)],a=w/2+g,b=size/2+g*0.6;
+      path([[[x-u[0]*a-v[0]*b,y-u[1]*a-v[1]*b],[x+u[0]*a-v[0]*b,y+u[1]*a-v[1]*b],[x+u[0]*a+v[0]*b,y+u[1]*a+v[1]*b],[x-u[0]*a+v[0]*b,y-u[1]*a+v[1]*b]]],{fill:'#ffffff'});}
+    text(x,y,s,{size:size,bold:!!sty.bold,rot:sty.rot||0,color:sty.color||INK,mid:true,anchor:'middle',dim:!!sty.dim});
+    return true;
+  }
+  // a dimension line: the line, a tick at each end, and the distance written on it (or beside it when it is short)
+  function dimLine(a,b,s,col,bold){
+    var L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<0.5)return;
+    var ux=(b[0]-a[0])/L,uy=(b[1]-a[1])/L,tk=2.4*k,nx=-uy,ny=ux,mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,d=5.5*k,
+      sty={size:5.8,rot:ang(a,b),color:col,halo:true,bold:!!bold,dim:true};
+    line(a,b,{stroke:col,lw:0.5*k});
+    [a,b].forEach(function(e){line([e[0]-(ux-uy)*tk,e[1]-(uy+ux)*tk],[e[0]+(ux-uy)*tk,e[1]+(uy+ux)*tk],{stroke:col,lw:0.7*k});});
+    if(L>shW(s,5.8*k,bold)+8*k&&(lab(mx,my,s,sty)||lab(a[0]+ux*L*0.3,a[1]+uy*L*0.3,s,sty)||lab(a[0]+ux*L*0.7,a[1]+uy*L*0.7,s,sty)))return;
+    if(!(lab(mx+nx*d,my+ny*d,s,sty)||lab(mx-nx*d,my-ny*d,s,sty)))lab(mx+nx*d,my+ny*d,s,Object.assign({force:true},sty));
+  }
+  // =========================== the drawing ===========================
+  ops.push({t:'clip',r:[fx0,fy0,fw,fh]});
+  if(ext){
+    // parcels round about, for context; the ones that make up the site are dashed
+    if(S.parcels){var np=0;S.parcels.features.forEach(function(ft){
+      if(np>4000||!ft.geometry||!/Polygon$/.test(ft.geometry.type))return;var inSite=S.selected.has(ft.properties.__pid);
+      polysOf(ft).forEach(function(pl){
+        var r=RL(pl[0]),x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;r.forEach(function(q){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]);});
+        if(x1<fx0||x0>fx1||y1<fy0||y0>fy1)return;np++;
+        path([r],inSite?{stroke:'#8d949a',lw:0.4*k,dash:[4*k,3*k]}:{stroke:'#b9bfc4',lw:0.4*k});
+        if(inSite&&S.selected.size>1)legend.parcel=1;
+      });
+    });}
+    // areas, the larger first so one drawn inside another shows
+    var AFILL={land:'#d3eccb',open:'#e4f2c4',park:'#e3e6e9',pond:'#cbe3f6',hard:'#eeeeea',load:'#f4dfbd'};
+    S.areas.map(function(a){return {a:a,sf:Math.abs(polyAreaSigned(a.ring.map(toLocal)))};}).sort(function(p,q){return q.sf-p.sf;}).forEach(function(it){
+      var a=it.a,kd=AREAS[a.kind]?a.kind:'land',pg=(S.parkG||{})[a.id],lp=lsPlan(a),lg=(S.loadG||{})[a.id];
+      path([RL(a.ring)],{fill:C(AFILL[kd]),stroke:C('#7b848a'),lw:0.4*k});legend['a_'+kd]=1;
+      if(lp)lp.pts.forEach(function(q){var kp=LS_PLANT[q.t];if(kp)circle(P([q.x,q.y]),kp.r*f,{fill:C(q.t==='can'?'#b5dba8':'#9ccf8d'),stroke:C('#4f7f45'),lw:0.3*k});});
+      if(lg)lg.bays.forEach(function(r){path([R(r)],{stroke:INK,lw:0.5*k,dash:[3*k,2*k]});});
+      if(pg&&pg.on){
+        pg.aisles.forEach(function(r){path([R(r)],{fill:C('#d2d6da')});});
+        pg.stalls.forEach(function(r){path([R(r)],{stroke:C('#4a5157'),lw:0.35*k});});
+        (pg.lights||[]).forEach(function(q){circle(P(q),1.6*k,{fill:INK});legend.light=1;});
+      }
+    });
+    // sidewalks, then roads over them, then driveway aprons and rows of parking
+    S.roads.forEach(function(r){
+      var rings=r.walk?polysOf(roadPoly(r)):roadWalks(r).map(function(g){return [closeRing(g)];});
+      rings.forEach(function(pl){path(pl.map(RL),{fill:C('#ececec'),stroke:C('#8d949a'),lw:0.35*k});legend.walk=1;});
+    });
+    streets().forEach(function(r){
+      var ft=roadPoly(r);if(!ft)return;
+      polysOf(ft).forEach(function(pl){path(pl.map(RL),{fill:C('#d4d8dc'),stroke:C('#495057'),lw:0.6*k});});
+      path([RL(r.pts)],{close:false,stroke:'#ffffff',lw:0.7*k,dash:[6*k,4*k]});legend.road=1;
+    });
+    S.aprons.forEach(function(a){
+      var g=apronGeom(a);
+      if(g.rt)path([R(g.rt)],{fill:C('#d4d8dc'),stroke:C('#495057'),lw:0.4*k});
+      path([R(g.ring)],{fill:C(g.cfg.t.res?'#e4e0d6':'#d4d8dc'),stroke:C('#495057'),lw:0.5*k});
+      g.islands.forEach(function(r){path([R(r)],{fill:'#ffffff',stroke:C('#495057'),lw:0.4*k});});
+      g.green.forEach(function(r){path([R(r)],{fill:C('#d3eccb'),stroke:C('#495057'),lw:0.4*k});});
+      g.lines.forEach(function(l){path([R(l.pts)],{close:false,stroke:C('#6b7379'),lw:0.4*k,dash:l.dash?[3*k,3*k]:null});});
+      g.bars.forEach(function(b){path([R(b)],{close:false,stroke:'#ffffff',lw:1.2*k});});
+      g.arrows.forEach(function(r){path([R(r)],{fill:'#ffffff'});});legend.apron=1;
+    });
+    S.lots.forEach(function(l){
+      var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;
+      if(g.aisle)polysOf(g.aisle).forEach(function(pl){path(pl.map(RL),{fill:C('#d2d6da'),stroke:C('#495057'),lw:0.4*k});});
+      g.stalls.forEach(function(r){path([R(r)],{stroke:C('#4a5157'),lw:0.35*k});});legend.a_park=1;
+    });
+    // the setback line, lot lines and the site boundary
+    if(S.site&&S.set.setback>0)sheetEnv().forEach(function(pl){path(pl.map(RL),{stroke:C('#2b8a3e'),lw:0.5*k,dash:[5*k,2.5*k]});legend.setback=1;});
+    if(S.plots.length>=2)S.plots.forEach(function(p){path(p.coords.map(RL),{stroke:INK,lw:0.7*k,dash:[7*k,3*k]});legend.lot=1;});
+    if(S.site)polysOf(S.site).forEach(function(pl){path(pl.map(RL),{stroke:INK,lw:1.5*k,dash:[14*k,3*k,2.5*k,3*k]});legend.site=1;});
+    S.fences.forEach(function(fc){if(!fc.pts||fc.pts.length<2)return;path([RL(fencePath(fc))],{close:false,stroke:C('#5c3d1e'),lw:0.9*k,dash:[4*k,1.5*k,0.6*k,1.5*k]});legend.fence=1;});
+    (S.dine||[]).forEach(function(tbl){circle(P([tbl.x,tbl.y]),1.9*f,{fill:'#ffffff',stroke:C('#5c4a3a'),lw:0.3*k});});
+    // buildings
+    S.buildings.forEach(function(b){
+      var ring=c.rings[b.id];if(!ring)return;
+      path([R(ring)],{fill:bw?'#e2e2e2':shMix(bType(b).color,0.72),stroke:INK,lw:1.1*k});legend['b_'+(TYPES[b.type]?b.type:'sf')]=1;
+      if(b.row&&!b.pts){var rs=rowSegments(b,ring);if(rs)rs.forEach(function(sg){path([R(sg.ring)],{stroke:INK,lw:0.35*k});});}
+      var pw=b.porch&&!b.pts?entranceWall(b):null;
+      if(pw&&pw.len>=10)path([R([pw.a,pw.b,[pw.b[0]+pw.n[0]*8,pw.b[1]+pw.n[1]*8],[pw.a[0]+pw.n[0]*8,pw.a[1]+pw.n[1]*8]])],{stroke:INK,lw:0.4*k,dash:[2.5*k,2*k]});
+      var ew=b.ent?entranceWall(b):null;if(ew)ew.doors.forEach(function(d){path([R(d)],{fill:INK});legend.door=1;});
+    });
+    // ---- names first, so that the dimensions keep off them
+    var binfo=S.buildings.map(function(b){
+      var ring=c.rings[b.id];if(!ring)return null;
+      var pr=R(ring),n=pr.length,edge=[];
+      for(var j=0;j<n;j++){var a=pr[j],q=pr[(j+1)%n],r0=ring[j],r1=ring[(j+1)%n];edge.push({a:a,b:q,pt:Math.hypot(q[0]-a[0],q[1]-a[1]),ft:Math.hypot(r1[0]-r0[0],r1[1]-r0[1])});}
+      var minPt=Math.min.apply(null,edge.map(function(e){return e.pt;})),ctr=P(b.pts?polyCentroid(ring):toLocal(b.c)),dimIt=!!o.dims&&(b.pts?true:minPt>=46*k);
+      lab(ctr[0],ctr[1]-7.5*k,b.name,{size:7.5,bold:true,force:true});
+      lab(ctr[0],ctr[1],(b.pts||dimIt?'':b.w+' × '+b.d+' ft · ')+b.st+(b.st>1?' stories':' story'),{size:5.8,force:true});
+      lab(ctr[0],ctr[1]+7*k,n0(fpOf(b))+' sf',{size:5.8,force:true});
+      return {b:b,edge:edge,ctr:ctr,dimIt:dimIt};
+    }).filter(Boolean);
+    // ---- offsets: from the middle of a wall to the nearest property line, road edge or other building
+    var drawnB=[];   // building-to-building offsets already drawn: the same gap measured back from the other side is left off
+    if(o.offs!=='none')(S.checks||[]).forEach(function(ch){
+      var lim={property:S.set.setback,building:S.set.sep,road:S.set.setRoad},offs=(ch.offsets||[]).filter(function(q){return q.dist!==null&&q.to&&lim[q.kind]!==undefined;}),keep=offs;
+      if(o.offs!=='all'){var best={};offs.forEach(function(q){if(!best[q.kind]||q.dist<best[q.kind].dist)best[q.kind]=q;});keep=offs.filter(function(q){return best[q.kind]===q||q.dist<lim[q.kind]-0.05;});}
+      keep.forEach(function(q){
+        var bad=q.dist<lim[q.kind]-0.05;
+        if(q.kind==='building'){
+          var qm=[(q.from[0]+q.to[0])/2,(q.from[1]+q.to[1])/2];
+          if(drawnB.some(function(z){return Math.abs(z.d-q.dist)<0.05&&Math.hypot(z.m[0]-qm[0],z.m[1]-qm[1])<Math.max(25,q.dist);}))return;
+          drawnB.push({d:q.dist,m:qm});
+        }
+        dimLine(P(q.from),P(q.to),ftf(q.dist)+(bad?' (min '+ftf(lim[q.kind])+')':''),bad?RED:C('#1c5d99'),bad);legend.off=1;if(bad)legend.bad=1;
+      });
+    });
+    // ---- the length of every side of the site, and of every lot, written outside the line
+    if(o.dims&&S.site){var seen={};
+      (S.plots.length>=2?S.plots.map(function(p){return p.coords[0];}):polysOf(S.site).map(function(pl){return pl[0];})).forEach(function(rg){
+        sheetSides(rg.map(toLocal)).forEach(function(sd){
+          var m2=[(sd.a[0]+sd.b[0])/2,(sd.a[1]+sd.b[1])/2],key=Math.round(m2[0])+','+Math.round(m2[1]);if(seen[key])return;seen[key]=1;
+          var a=P(sd.a),b=P(sd.b),L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<26*k)return;
+          var nx=-(b[1]-a[1])/L,ny=(b[0]-a[0])/L,mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,d=6*k,sty={size:6,rot:ang(a,b),bold:true,dim:true};
+          if(pointInAny([m2[0]+nx*2,m2[1]-ny*2],c.sitePolys)){nx=-nx;ny=-ny;}
+          if(lab(mx+nx*d,my+ny*d,ftf(sd.len),sty)||lab(mx-nx*d,my-ny*d,ftf(sd.len),sty))legend.dim=1;
+        });
+      });
+    }
+    // ---- the size of each building, written along two of its walls (every wall of one drawn point by point)
+    binfo.forEach(function(bi){
+      if(!bi.dimIt)return;
+      (bi.b.pts?bi.edge.map(function(e,j){return j;}):[0,1]).forEach(function(j){
+        var e=bi.edge[j];if(!e||e.ft<8||e.pt<30*k)return;
+        var mx=(e.a[0]+e.b[0])/2,my=(e.a[1]+e.b[1])/2,nx=-(e.b[1]-e.a[1])/e.pt,ny=(e.b[0]-e.a[0])/e.pt;
+        if(nx*(bi.ctr[0]-mx)+ny*(bi.ctr[1]-my)<0){nx=-nx;ny=-ny;}
+        if(lab(mx+nx*5.5*k,my+ny*5.5*k,ftf(e.ft),{size:5.6,rot:ang(e.a,e.b),dim:true}))legend.dim=1;
+      });
+    });
+    // ---- lots, stall counts, roads and the larger areas by name
+    if(S.plots.length>=2)S.plots.forEach(function(p){
+      var q=P(p.c),s1=p.name.toUpperCase()+' · '+n0(p.sf)+' sf',tries=[[0,0],[0,-16],[0,16],[0,-30],[0,30],[-40,0],[40,0],[-40,-24],[40,24]];
+      for(var j=0;j<tries.length;j++)if(lab(q[0]+tries[j][0]*k,q[1]+tries[j][1]*k,s1,{size:6.5,bold:true,halo:true}))break;
+    });
+    S.areas.forEach(function(a){
+      var pg=(S.parkG||{})[a.id],lg=(S.loadG||{})[a.id],lr=a.ring.map(toLocal),q=P(polyCentroid(lr));
+      if(pg&&pg.on)lab(q[0],q[1],pg.count+' stalls',{size:6.2,bold:true,halo:true});
+      else if(lg)lab(q[0],q[1],'Loading · '+lg.count+(lg.count===1?' bay':' bays'),{size:6,halo:true});
+      else if(Math.sqrt(Math.abs(polyAreaSigned(lr)))*f>=46*k)lab(q[0],q[1],a.name||(AREAS[a.kind]||AREAS.land).name,{size:5.8});
+    });
+    S.lots.forEach(function(l){
+      var g=S.lotG[l.id];if(!g||(!g.aisle&&!g.row))return;
+      var mi=Math.floor((l.pts.length-1)/2),a=PL(l.pts[mi]),b=PL(l.pts[mi+1]||l.pts[mi]);
+      lab((a[0]+b[0])/2,(a[1]+b[1])/2,g.count+' stalls',{size:6.2,bold:true,halo:true});
+    });
+    streets().forEach(function(r){
+      var Pp=r.pts.map(PL),segs=[];for(var j=0;j<Pp.length-1;j++)segs.push({a:Pp[j],b:Pp[j+1],l:Math.hypot(Pp[j+1][0]-Pp[j][0],Pp[j+1][1]-Pp[j][1])});
+      var s1=(r.name||'Road').toUpperCase()+' · '+r.width+' FT WIDE';
+      segs.sort(function(p,q){return q.l-p.l;}).some(function(sg){
+        if(sg.l<shW(s1,6*k,true)+10*k)return false;
+        return [0.5,0.3,0.7].some(function(t){return lab(sg.a[0]+(sg.b[0]-sg.a[0])*t,sg.a[1]+(sg.b[1]-sg.a[1])*t,s1,{size:6,rot:ang(sg.a,sg.b),bold:true});});
+      });
+    });
+  }else{
+    text(cx,cy,'Nothing to draw yet',{size:14*k,bold:true,anchor:'middle',color:'#666666'});
+    text(cx,cy+16*k,'Pick the parcels that make up the site, or draw a building or a road, and it will appear here.',{size:8*k,anchor:'middle',color:'#666666'});
+  }
+  ops.push({t:'unclip'});
+  // =========================== the frame and the title block ===========================
+  path([[[fx0,fy0],[W-m,fy0],[W-m,fy1],[fx0,fy1]]],{stroke:INK,lw:1.4*k});
+  line([fx1,fy0],[fx1,fy1],{lw:1*k});
+  var x0=fx1+9*k,x1=W-m-9*k,tw=x1-x0,y=fy0+7*k,title=(o.title||'').trim()||'Site plan',HEADC=bw?'#222222':'#1f3a4d';
+  function rule(yy,lw){line([fx1,yy],[W-m,yy],{lw:(lw||0.8)*k});}
+  shWrap(title,14*k,true,tw).slice(0,2).forEach(function(ln){y+=15*k;text(x0,y,ln,{size:14*k,bold:true});});
+  if((o.sub||'').trim())shWrap(o.sub.trim(),8*k,false,tw).slice(0,2).forEach(function(ln){y+=10*k;text(x0,y,ln,{size:8*k,color:'#333333'});});
+  y+=8*k;rule(y);
+  y+=14*k;text(x0,y,'SITE PLAN',{size:11*k,bold:true});text(x1,y,'Concept',{size:7*k,anchor:'end',color:'#555555'});
+  y+=7*k;rule(y);
+  // north arrow and scale
+  var nc=[x0+14*k,y+31*k],nr=12*k;
+  text(nc[0],y+11*k,'N',{size:9*k,bold:true,anchor:'middle'});
+  circle(nc,nr,{stroke:INK,lw:0.7*k});
+  path([[[nc[0],nc[1]-nr-3*k],[nc[0]+5.5*k,nc[1]+8*k],[nc[0],nc[1]+3.5*k]]],{fill:INK});
+  path([[[nc[0],nc[1]-nr-3*k],[nc[0]-5.5*k,nc[1]+8*k],[nc[0],nc[1]+3.5*k]]],{fill:'#ffffff',stroke:INK,lw:0.6*k});
+  var sx=x0+40*k,inches=Math.max(1,Math.min(4,Math.floor((x1-sx-14*k)/72))),bf=scale*inches,nseg=inches*2,by=y+27*k,bh=4*k;
+  text(sx,y+14*k,'SCALE: 1 in = '+scale+' ft',{size:8.5*k,bold:true});
+  text(sx,y+22.5*k,'1" = '+scale+'\'   North is up',{size:6*k,color:'#555555'});
+  for(i=0;i<nseg;i++)path([[[sx+i*36,by],[sx+(i+1)*36,by],[sx+(i+1)*36,by+bh],[sx+i*36,by+bh]]],{fill:i%2?'#ffffff':INK,stroke:INK,lw:0.5*k});
+  [0,nseg/2,nseg].forEach(function(j){text(sx+j*36,by+bh+7*k,j===nseg?n0(bf)+' ft':n0(bf*j/nseg),{size:5.5*k,anchor:'middle'});});
+  y+=50*k;
+  function head(s){path([[[fx1,y],[W-m,y],[W-m,y+12*k],[fx1,y+12*k]]],{fill:HEADC});text(x0,y+8.6*k,s,{size:7*k,bold:true,color:'#ffffff'});y+=12*k;}
+  function sep(){line([x0,y],[x1,y],{stroke:'#d0d4d7',lw:0.3*k});}
+  function row(a,b,bad){y+=9.4*k;text(x0,y-2.7*k,a,{size:6.3*k,color:'#333333'});text(x1,y-2.7*k,shFit(b,6.3*k,true,tw*0.62),{size:6.3*k,bold:true,anchor:'end',color:bad?RED:INK});sep();}
+  function row3(a,b,d,bad,hd){y+=9.4*k;var cl=hd?'#666666':'#333333',sz=(hd?5.4:6.3)*k;
+    text(x0,y-2.7*k,a,{size:sz,color:cl});text(x0+tw*0.72,y-2.7*k,b,{size:sz,anchor:'end',color:cl});text(x1,y-2.7*k,d,{size:sz,anchor:'end',bold:!hd,color:hd?cl:(bad?RED:INK)});sep();}
+  function pct(a,b){return b?(a/b*100).toFixed(1)+'%':'-';}
+  // ---- site data
+  head('SITE DATA');
+  if(st.siteSf){
+    row('Site area',st.acres.toFixed(2)+' ac · '+n0(st.siteSf)+' sf');
+    if(S.plots.length>=2)row('Lots',String(S.plots.length));
+  }
+  row('Buildings',S.buildings.length+' · '+n0(st.fp||0)+' sf footprint');
+  if(st.siteSf)row('Building coverage',pct(st.fp,st.siteSf));
+  row('Gross floor area',n0(st.gfa||0)+' sf');
+  if(st.siteSf)row('Floor area ratio',(st.gfa/st.siteSf).toFixed(2));
+  row('Dwelling units',n0(st.units||0)+(st.acres?' · '+(st.units/st.acres).toFixed(1)+' per acre':''));
+  if(st.comm>0)row('Commercial floor area',n0(st.comm)+' sf');
+  if(st.siteSf){
+    row('Impervious surface',n0(st.imperv)+' sf · '+pct(st.imperv,st.siteSf));
+    row('Green space',n0(st.openSf)+' sf · '+st.greenPct.toFixed(1)+'%',st.greenShort);
+  }
+  row('Parking spaces',n0(st.provStalls||0)+' shown · '+n0(st.reqStalls||0)+' required',(st.provStalls||0)<(st.reqStalls||0));
+  if(st.loadBays||st.loadReq)row('Loading spaces',n0(st.loadBays)+' shown · '+n0(st.loadReq)+' required',st.loadShort);
+  // ---- the distances and counts the Check tab holds the plan to, against what is drawn
+  y+=4*k;head('ZONING CHECK');
+  row3('Item','Required','Shown',false,true);
+  var mn=S.ctx?sheetMins():{prop:null,road:null,sep:null};
+  function dist(lbl,need,got){if(got===null)return;row3(lbl,ftf(need)+' min',ftf(got),got<need-0.05);}
+  dist('Building to property line',S.set.setback,mn.prop);
+  dist('Building to road edge',S.set.setRoad,mn.road);
+  dist('Building to building',S.set.sep,mn.sep);
+  row3('Parking spaces',n0(st.reqStalls||0),n0(st.provStalls||0),(st.provStalls||0)<(st.reqStalls||0));
+  if(S.set.greenMin>0&&st.siteSf)row3('Green space',n1(S.set.greenMin)+'% min',st.greenPct.toFixed(1)+'%',st.greenShort);
+  if(st.loadReq)row3('Loading spaces',n0(st.loadReq),n0(st.loadBays),st.loadShort);
+  row3('Items flagged on the Check tab','',st.flags?String(st.flags):'None',!!st.flags);
+  // ---- from the bottom up: sheet cells, the note, the legend; the building schedule takes what is left between
+  var LG=[];
+  if(legend.site)LG.push({s:'Site boundary',line:INK,lw:1.5,dash:[9,2,2,2]});
+  if(legend.lot)LG.push({s:'Lot line',line:INK,lw:0.7,dash:[5,2.5]});
+  if(legend.parcel)LG.push({s:'Existing parcel line',line:'#8d949a',lw:0.5,dash:[3,2]});
+  if(legend.setback)LG.push({s:'Building setback line ('+n1(S.set.setback)+' ft)',line:C('#2b8a3e'),lw:0.6,dash:[4,2]});
+  if(bw){if(S.buildings.length)LG.push({s:'Building',fill:'#e2e2e2',edge:INK});}
+  else Object.keys(TYPES).forEach(function(t){if(legend['b_'+t])LG.push({s:TYPES[t].name,fill:shMix(TYPES[t].color,0.72),edge:INK});});
+  if(legend.door)LG.push({s:'Entrance',door:1});
+  if(legend.road)LG.push({s:'Road',fill:C('#d4d8dc'),edge:C('#495057')});
+  if(legend.apron)LG.push({s:'Driveway apron',fill:C('#d4d8dc'),edge:C('#495057')});
+  if(legend.walk)LG.push({s:'Sidewalk',fill:C('#ececec'),edge:C('#8d949a')});
+  [['park','Parking'],['hard','Plaza or paving'],['load','Loading zone'],['land','Landscaping'],['open','Open space'],['pond','Detention / stormwater']].forEach(function(q){if(legend['a_'+q[0]])LG.push({s:q[1],fill:C(AFILL[q[0]]),edge:C('#7b848a')});});
+  if(legend.fence)LG.push({s:'Fence',line:C('#5c3d1e'),lw:0.9,dash:[4,1.5,0.6,1.5]});
+  if(legend.light)LG.push({s:'Light pole',dot:1});
+  if(legend.dim)LG.push({s:'Length of a side',dimtxt:1});
+  if(legend.off)LG.push({s:'Offset distance',line:C('#1c5d99'),lw:0.6,tick:1});
+  if(legend.bad)LG.push({s:'Under the required distance',line:RED,lw:0.6,tick:1});
+  var note=shWrap('Concept plan for planning and discussion. Not a survey and not for construction. The boundary and all dimensions are scaled from GIS parcel data and should be confirmed by survey. Required distances and parking rates are the settings on the Check tab.',5.2*k,false,tw),
+    cellH=24*k,gy=fy1-2*cellH,noteH=note.length*6.4*k+9*k,lgRows=Math.ceil(LG.length/2),lgH=LG.length?12*k+lgRows*9.5*k+6*k:0,lgTop=gy-noteH-lgH;
+  // building schedule
+  var rowH=8.6*k,room=lgTop-y-4*k-12*k-9.4*k-4*k,nfit=Math.floor(room/rowH),nb=S.buildings.length;
+  if(nb&&nfit>=2){
+    y+=4*k;head('BUILDING SCHEDULE');
+    var cols=[[0,'start','Name'],[0.19,'start','Type'],[0.64,'end','W × D ft'],[0.71,'end','Fl'],[0.86,'end','Footprint'],[1,'end','Floor area']];
+    function srow(v,hd,bold){y+=hd?9.4*k:rowH;cols.forEach(function(cdef,j){text(x0+tw*cdef[0],y-2.6*k,v[j],{size:(hd?5.4:6)*k,anchor:cdef[1],color:hd?'#666666':INK,bold:!!bold||(!hd&&j===0)});});sep();}
+    srow(cols.map(function(q){return q[2];}),true);
+    var all=nb+1<=nfit,show=all?nb:nfit-1;
+    S.buildings.slice(0,show).forEach(function(b){var fp=fpOf(b);srow([shFit(b.name,6*k,true,tw*0.18),shFit(bType(b).name,6*k,false,tw*0.26),b.pts?'drawn':b.w+' × '+b.d,String(b.st),n0(fp),n0(fp*b.st)]);});
+    if(all)srow(['Total','','','',n0(st.fp||0),n0(st.gfa||0)],false,true);
+    else{y+=rowH;text(x0,y-2.6*k,'+ '+(nb-show)+' more: see the building schedule (CSV)',{size:6*k,color:'#555555'});}
+  }
+  // legend
+  if(LG.length){
+    y=lgTop;head('LEGEND');y+=3*k;
+    LG.forEach(function(it,j){
+      var col=j%2,lx=x0+col*(tw/2),ly=y+Math.floor(j/2)*9.5*k+5*k,sw=15*k;
+      if(it.fill)path([[[lx,ly-3*k],[lx+sw,ly-3*k],[lx+sw,ly+3*k],[lx,ly+3*k]]],{fill:it.fill,stroke:it.edge,lw:0.5*k});
+      else if(it.line){line([lx,ly],[lx+sw,ly],{stroke:it.line,lw:it.lw*k,dash:it.dash?it.dash.map(function(v){return v*k*0.8;}):null});
+        if(it.tick)[lx,lx+sw].forEach(function(xx){line([xx-1.8*k,ly+1.8*k],[xx+1.8*k,ly-1.8*k],{stroke:it.line,lw:0.7*k});});}
+      else if(it.dot)circle([lx+sw/2,ly],1.6*k,{fill:INK});
+      else if(it.door)path([[[lx+sw/2-3*k,ly+2.5*k],[lx+sw/2+3*k,ly+2.5*k],[lx+sw/2,ly-3*k]]],{fill:INK});
+      else if(it.dimtxt)text(lx+sw/2,ly+2*k,'88.0\'',{size:5.4*k,anchor:'middle',bold:true});
+      text(lx+sw+4*k,ly+2*k,shFit(it.s,5.8*k,false,tw/2-sw-7*k),{size:5.8*k});
+    });
+  }
+  // the note and the sheet cells
+  rule(gy-noteH);
+  note.forEach(function(ln,j){text(x0,gy-noteH+10*k+j*6.4*k,ln,{size:5.2*k,color:'#444444'});});
+  rule(gy);rule(gy+cellH,0.5);
+  var gx=fx1+tb*0.6,MON=['January','February','March','April','May','June','July','August','September','October','November','December'],now=new Date();
+  line([gx,gy],[gx,fy1],{lw:0.5*k});
+  function cell(xa,xb,yy,cap,val,big){text(xa+5*k,yy+7.5*k,cap,{size:4.8*k,color:'#666666'});text(xa+5*k,yy+19*k,shFit(val,(big||8.5)*k,true,xb-xa-9*k),{size:(big||8.5)*k,bold:true});}
+  cell(fx1,gx,gy,'PREPARED BY',(o.by||'').trim());
+  cell(gx,W-m,gy,'DATE',MON[now.getMonth()]+' '+now.getDate()+', '+now.getFullYear(),7.5);
+  cell(fx1,gx,gy+cellH,'SCALE','1" = '+scale+'\'');
+  cell(gx,W-m,gy+cellH,'SHEET',(o.num||'').trim()||'SP-1',11);
+  return {w:W,h:H,ops:ops,scale:scale,paper:pp,empty:!ext,title:title};
+}
+// where a piece of text starts, on its baseline: (x, y) is its start, middle or end, or its very centre when mid is set
+function shTextAt(o){
+  var w=shW(o.s,o.size,o.bold),r=o.rot*Math.PI/180,u=[Math.cos(r),-Math.sin(r)],v=[Math.sin(r),Math.cos(r)],sh=o.anchor==='middle'?w/2:(o.anchor==='end'?w:0),dn=o.mid?o.size*0.35:0;
+  return [o.x-u[0]*sh+v[0]*dn,o.y-u[1]*sh+v[1]*dn];
+}
+function sheetSvg(M){
+  var r2=function(v){return Math.round(v*100)/100;},nc=0,
+    s='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+M.w+' '+M.h+'" font-family="Helvetica, Arial, sans-serif" style="white-space:pre"><rect width="'+M.w+'" height="'+M.h+'" fill="#ffffff"/>';
+  M.ops.forEach(function(o){
+    if(o.t==='clip'){nc++;s+='<clipPath id="shc'+nc+'"><rect x="'+r2(o.r[0])+'" y="'+r2(o.r[1])+'" width="'+r2(o.r[2])+'" height="'+r2(o.r[3])+'"/></clipPath><g clip-path="url(#shc'+nc+')">';}
+    else if(o.t==='unclip')s+='</g>';
+    else if(o.t==='path'){
+      s+='<path d="'+o.d.map(function(r){return 'M'+r.map(function(p){return r2(p[0])+' '+r2(p[1]);}).join('L')+(o.close?'Z':'');}).join('')+'" fill="'+(o.fill||'none')+'"'+(o.fill?' fill-rule="evenodd"':'')+
+        (o.stroke?' stroke="'+o.stroke+'" stroke-width="'+r2(o.lw)+'" stroke-linejoin="round"'+(o.dash?' stroke-dasharray="'+o.dash.map(r2).join(' ')+'"':''):'')+'/>';
+    }else{var g=shTextAt(o);
+      s+='<text'+(o.dim?' class="sh-dim"':'')+' transform="translate('+r2(g[0])+' '+r2(g[1])+')'+(o.rot?' rotate('+r2(-o.rot)+')':'')+'" font-size="'+r2(o.size)+'"'+(o.bold?' font-weight="bold"':'')+' fill="'+o.color+'">'+esc(o.s)+'</text>';}
+  });
+  return s+'</svg>';
+}
+function pdfStr(s){
+  var out='';s=String(s);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i),x=SH_WIN[s.charAt(i)];if(x)c=x[0];
+    if(c===40||c===41||c===92)out+='\\'+String.fromCharCode(c);
+    else if(c>=32&&c<=126)out+=String.fromCharCode(c);
+    else if(c>=128&&c<=255)out+='\\'+c.toString(8);
+    else out+='?';
+  }
+  return out;
+}
+// One page, vector throughout, in the PDF's own Helvetica: no fonts or pictures to embed, so it stays small and sharp
+// at any zoom. Everything written is plain ASCII, which is what lets the byte offsets be counted as characters.
+function sheetPdf(M){
+  var H=M.h,n=function(v){return String(Math.round(v*100)/100);},n4=function(v){return String(Math.round(v*10000)/10000);},
+    rgb=function(h){var q=shRgb(h);return n(q[0]/255)+' '+n(q[1]/255)+' '+n(q[2]/255);},c='1 j 0 J\n';
+  M.ops.forEach(function(o){
+    if(o.t==='clip')c+='q '+n(o.r[0])+' '+n(H-o.r[1]-o.r[3])+' '+n(o.r[2])+' '+n(o.r[3])+' re W n\n';
+    else if(o.t==='unclip')c+='Q\n';
+    else if(o.t==='path'){
+      if(!o.fill&&!o.stroke)return;
+      if(o.fill)c+=rgb(o.fill)+' rg\n';
+      if(o.stroke)c+=rgb(o.stroke)+' RG '+n(o.lw)+' w ['+(o.dash?o.dash.map(n).join(' '):'')+'] 0 d\n';
+      o.d.forEach(function(r){r.forEach(function(p,i){c+=n(p[0])+' '+n(H-p[1])+(i?' l ':' m ');});if(o.close)c+='h ';});
+      c+=(o.fill&&o.stroke?'B*':(o.fill?'f*':'S'))+'\n';
+    }else{
+      var g=shTextAt(o),r=o.rot*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r);
+      c+='BT /F'+(o.bold?2:1)+' '+n(o.size)+' Tf '+rgb(o.color)+' rg '+n4(cs)+' '+n4(sn)+' '+n4(-sn)+' '+n4(cs)+' '+n(g[0])+' '+n(H-g[1])+' Tm ('+pdfStr(o.s)+') Tj ET\n';
+    }
+  });
+  var d=new Date(),z=function(v){return ('0'+v).slice(-2);},stamp=d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());
+  var objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+M.w+' '+M.h+'] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Length '+c.length+' >>\nstream\n'+c+'endstream',
+    '<< /Title ('+pdfStr(M.title)+') /Subject (Site plan, 1 in = '+M.scale+' ft) /Creator (Site Plan Sketcher) /Producer (Site Plan Sketcher) /CreationDate (D:'+stamp+') >>'];
+  var out='%PDF-1.4\n',offs=[];
+  objs.forEach(function(b,i){offs.push(out.length);out+=(i+1)+' 0 obj\n'+b+'\nendobj\n';});
+  var xr=out.length;out+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';
+  offs.forEach(function(v){out+=('0000000000'+v).slice(-10)+' 00000 n \n';});
+  return out+'trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R /Info 7 0 R >>\nstartxref\n'+xr+'\n%%EOF\n';
+}
+function renderSheet(){
+  var M=sheetModel();
+  $('#sheetView').innerHTML=sheetSvg(M);
+  $('#sheetNote').textContent=M.empty?'There is nothing to put on the sheet yet: pick the parcels that make up the site, or draw something first.'
+    :'Drawn at 1 in = '+M.scale+' ft on '+M.paper.name+'. Print the PDF at 100% (actual size), not "fit to page", and it will measure true with a scale ruler.';
+  return M;
+}
+function fillSheet(){
+  var o=S.sheet;
+  $('#shPaper').value=PAPERS[o.paper]?o.paper:'tabloid';$('#shScale').value=+o.scale?String(+o.scale):'auto';
+  $('#shTitle').value=o.title||'';$('#shSub').value=o.sub||'';$('#shBy').value=o.by||'';$('#shNum').value=o.num||'';
+  $('#shDims').checked=o.dims!==false;$('#shOffs').value=/^(all|none)$/.test(o.offs)?o.offs:'min';$('#shBw').checked=!!o.bw;
+}
+function openSheet(){fillSheet();$('#sheet').hidden=false;renderSheet();}
+(function(){
+  Object.keys(PAPERS).forEach(function(kp){var op=document.createElement('option');op.value=kp;op.textContent=PAPERS[kp].name;$('#shPaper').appendChild(op);});
+  SHEET_SCALES.forEach(function(v){var op=document.createElement('option');op.value=String(v);op.textContent='1 in = '+v+' ft';$('#shScale').appendChild(op);});
+  function read(){
+    S.sheet={paper:$('#shPaper').value,scale:$('#shScale').value==='auto'?'auto':+$('#shScale').value,title:$('#shTitle').value,sub:$('#shSub').value,by:$('#shBy').value,num:$('#shNum').value,
+      dims:$('#shDims').checked,offs:$('#shOffs').value,bw:$('#shBw').checked};
+    saveLocal();renderSheet();
+  }
+  ['#shPaper','#shScale','#shDims','#shOffs','#shBw'].forEach(function(id){$(id).addEventListener('change',read);});
+  ['#shTitle','#shSub','#shBy','#shNum'].forEach(function(id){$(id).addEventListener('input',read);});
+  $('#xSheet').addEventListener('click',openSheet);
+  $('#shClose').addEventListener('click',function(){$('#sheet').hidden=true;});
+  $('#shPdf').addEventListener('click',function(){download('site-plan.pdf',sheetPdf(sheetModel()),'application/pdf');});
+})();
+
 
 // ---------- open a project or site plan file (button or drag and drop) ----------
 var toastTimer=null;
@@ -4026,7 +4521,7 @@ function lyOpen(id){
   if(S.parcels)S.parcels.features.forEach(function(f){have[f.properties.__pid]=1;feats.push(f);});
   ((o.parcels&&o.parcels.features)||[]).forEach(function(f){if(!have[f.properties.__pid])feats.push(f);});
   o.parcels={type:'FeatureCollection',features:feats};
-  o.demo=false;
+  o.demo=false;delete o.sheet;   // the sheet's title and paper belong to the project, not to one layout
   loadProject(o);
   LY.active=id;if(!e.sum)e.sum=lySummary();lyStore();
   if(S.site){var bb=turf.bbox(S.site);map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);}
