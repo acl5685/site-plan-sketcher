@@ -91,6 +91,9 @@ th{font-weight:500;color:var(--muted)}
 td{font-family:var(--mono);font-variant-numeric:tabular-nums}
 td:first-child{font-family:var(--font)}
 .scroll-x{overflow-x:auto}
+#yTable tr.on td{background:color-mix(in srgb,var(--ok) 12%,transparent)}
+#yTable td:first-child,#yTable th:first-child{text-align:left}
+#yTable td{padding:3px 5px}#yTable .btn.small{padding:2px 7px}
 .flag{padding:5px 8px;border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent);margin-bottom:4px;font-size:12px}
 .flag.ok{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
 .note{font-size:12px;color:var(--muted)}
@@ -160,7 +163,7 @@ td:first-child{font-family:var(--font)}
 #lenBox{width:96px;font-family:var(--mono)}
 #map:not(.tool-select) .obj-path{pointer-events:none!important}
 #map:not(.tool-parcels):not(.tool-carve) .parcel-path{pointer-events:none!important}
-#map.tool-split,#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-fence,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
+#map.tool-yield,#map.tool-split,#map.tool-road,#map.tool-lot,#map.tool-area,#map.tool-fence,#map.tool-carvepoly,#map.tool-building{cursor:crosshair}
 .blabel{background:none;border:0;color:#fff;font:500 11px/1.25 var(--font);text-align:center;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;pointer-events:none}
 .dim{background:none;border:0;font:500 11px var(--mono);white-space:nowrap;pointer-events:none;text-align:center}
 .dim span{padding:1px 4px;border-radius:3px;background:rgba(15,20,22,.82);color:#fff;border:1px solid currentColor}
@@ -186,6 +189,7 @@ td:first-child{font-family:var(--font)}
       <button class="tool" data-tool="carvepoly" title="Draw a shape to remove from the site altogether (to make a lot inside the site, use Cut out lot)">Carve shape</button>
       <button class="tool" data-tool="split" title="Draw a line across the site to split it into separate lots">Split lots</button>
       <button class="tool" data-tool="cutlot" title="Draw a shape on the site to cut it out as its own lot (the land stays in the site)">Cut out lot</button>
+      <button class="tool" data-tool="yield" title="Click where a new street comes into the site: it is laid out with the most lots the rules allow, each facing the street with a home on it">Most lots</button>
 </div>
       <div class="tgrp"><span class="tlab">Roads &amp; parking</span>
       <button class="tool" data-tool="road" title="Draw a road centerline">Road</button>
@@ -261,7 +265,34 @@ td:first-child{font-family:var(--font)}
           <div class="field" style="flex:1 1 120px"><label for="sLotMin">Minimum lot area sf (0 = no check)</label><input type="number" id="sLotMin" min="0" step="500"></div>
         </div>
         <div id="plotList" class="scroll-x" style="margin-top:6px"></div>
-        <p class="note">Split lots draws a line across the site; Cut out lot draws a shape that becomes a lot of its own (both are also on the toolbar). To take land out of the site altogether, use Carve shape instead. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks. With the Select tool, click inside a lot to see the largest building that fits.</p>
+        <p class="note" id="lotsNote">Split lots draws a line across the site; Cut out lot draws a shape that becomes a lot of its own (both are also on the toolbar). To take land out of the site altogether, use Carve shape instead. Each piece becomes its own lot: buildings are checked against their own lot's lines, and lot lines count as property lines for setbacks. With the Select tool, click inside a lot to see the largest building that fits.</p>
+      </div>
+
+    <!-- most lots that fit -->
+      <div id="ySec">
+        <h3>Most lots that fit</h3>
+        <div class="row">
+          <div class="field" style="flex:1 1 170px"><label for="yHome">Home on each lot</label><select id="yHome"></select></div>
+          <div class="field" style="flex:1 1 150px"><label for="yPat">Street layout</label><select id="yPat"><option value="best">Whichever fits the most</option><option value="spine">One straight street</option><option value="cross">A street with cross streets</option></select></div>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="field"><label for="sYLotMin" title="The same number as Minimum lot area under Lots">Lot area sf, min</label><input type="number" id="sYLotMin" min="0" step="500"></div>
+          <div class="field"><label for="sLotW" title="The least width a lot may have along the street">Lot width ft, min</label><input type="number" id="sLotW" min="10" step="5"></div>
+          <div class="field"><label for="sYFront" title="From the street line (the edge of the right-of-way) to the front of the home">Front setback ft</label><input type="number" id="sYFront" min="0" step="1"></div>
+          <div class="field"><label for="sYSide" title="The same number as Setback to property line on the Check tab, which is what the plan is checked against">Side setback ft</label><input type="number" id="sYSide" min="0" step="1"></div>
+          <div class="field"><label for="sYRear" title="From the back of the home to the rear lot line">Rear setback ft</label><input type="number" id="sYRear" min="0" step="1"></div>
+          <div class="field"><label for="sRowW" title="The full width set aside for the street, pavement and verges together; lots begin at its edge">Street right-of-way ft</label><input type="number" id="sRowW" min="20" step="1"></div>
+          <div class="field"><label for="sPaveW" title="The width of the pavement drawn down the middle of the right-of-way">Pavement ft</label><input type="number" id="sPaveW" min="10" step="1"></div>
+        </div>
+        <div class="row" style="margin-top:6px"><label class="chk"><input type="checkbox" id="yDrive" checked> A driveway to each home</label></div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn primary" id="yGo" title="Then click on the edge of the site where the new street comes in">Lay out the most lots…</button>
+          <button class="btn small" id="yAuto" title="Tries a street from the middle and the quarter points of each side of the site, and keeps the one that gives the most lots">Find the best way in</button>
+          <button class="btn small" id="yAgain" hidden title="Lay it out again from the same place with the rules and home as they are now">Update</button>
+          <button class="btn small danger" id="yClear" hidden title="Take away the lots, street, homes and driveways this laid out">Remove this layout</button>
+        </div>
+        <div id="yOut" class="scroll-x" style="margin-top:6px"></div>
+        <p class="note">Choose a home and enter what the zoning asks for, press the button, then click on the edge of the site where the new street should come in. A street is run in from there and lots are set out along both sides of it, each facing the street and as narrow as the rules and the home allow, with a home on each. The lots, street and homes are ordinary ones: move, reshape or delete them afterwards. A test fit for a first count, not an engineered subdivision: it does not look at slopes, turnarounds, corner lots, easements or stormwater.</p>
       </div>
     </div>
 
@@ -659,7 +690,7 @@ td:first-child{font-family:var(--font)}
         <div class="row" style="flex-direction:column;align-items:stretch">
           <button class="btn primary" id="xSheet">Site plan sheet (PDF)</button>
         </div>
-        <div class="note">One page with the plan drawn to scale: the length of every site and lot line, building sizes, offsets to property lines, roads and other buildings, a north arrow, scale bar, legend and the site figures. You choose the paper size and title before it downloads.</div>
+        <div class="note">The plan drawn to scale on one sheet: the length of every site and lot line, building sizes, offsets to property lines, roads and other buildings, a north arrow, scale bar, legend and the site figures. A second sheet carries the zoning check and the lot, building and parking schedules in full. You choose the paper size and title before it downloads.</div>
       </div>
       <div>
         <h3>Site plan files</h3>
@@ -756,6 +787,8 @@ td:first-child{font-family:var(--font)}
         <label title="The length of every site and lot line, and the size of each building along its walls"><input type="checkbox" id="shDims" checked> Dimensions</label>
         <label title="Distances from buildings to property lines, road edges and other buildings">Offsets <select id="shOffs"><option value="min">Closest of each kind</option><option value="all">Every wall</option><option value="none">None</option></select></label>
         <label><input type="checkbox" id="shBw"> Black and white</label>
+        <label title="A second sheet in the PDF with the site data, the zoning check and every item it flags, and the lot, building and parking schedules in full"><input type="checkbox" id="shData" checked> Data sheet</label>
+        <label>Showing <select id="shPage"><option value="1">Sheet 1: the plan</option><option value="2">Sheet 2: data and schedules</option></select></label>
       </div>
       <div id="sheetView"></div>
       <div id="sheetNote" class="note"></div>
@@ -981,7 +1014,7 @@ var S={
   tool:'select',parcels:null,labelField:null,selected:new Set(),carved:new Set(),carveShapes:[],
   roads:[],buildings:[],areas:[],fences:[],aprons:[],apronType:'full',fenceCfg:{style:'privacy',h:6},sel:null,
   tpl:{type:'th',w:88,d:42,st:3,rot:0},
-  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0,greenMin:0,loadRule:'retail'},
+  set:{setback:10,setRoad:10,snapGap:0,sep:10,parkRes:2,parkApt:2.25,parkComm:5,parkFood:20,stall:320,unitSf:900,rotStep:15,storyH:11,slopeBldg:15,slopePark:5,slopeRoad:10,demPad:200,lotMin:0,greenMin:0,loadRule:'retail',lotW:60,yFront:30,yRear:30,rowW:50,paveW:24,yHome:'colonial',yPat:'best',yDrive:1},
   opt:{vsnap:true,align:true,hold:true,edge:true,dimsAll:false},
   roadW:26,areaKind:'land',nextId:1,multi:[],lots:[],lotG:{},lotCfg:{aisleW:0,stallW:10,stallD:20,angle:90,sides:'left'},parkCfg:{ang:'auto',w:10,d:20,aisle:24},parkG:{},loadCfg:null,loadG:{},demo:false,site:null,ctx:null,overlays:[],base:'imagery',svcBase:null,counters:{},
   angMode:{bpoly:'ortho',area:'free',carvepoly:'free',road:'free',walk:'free',lot:'free',split:'free',fence:'free'},snapSkip:null,
@@ -1033,6 +1066,7 @@ function loadProject(o){
   S.selected=new Set(o.selected||[]);S.carved=new Set(o.carved||[]);S.carveShapes=o.carveShapes||[];
   S.roads=o.roads||[];S.lots=o.lots||[];S.buildings=o.buildings||[];S.areas=o.areas||[];S.splits=o.splits||[];S.fences=o.fences||[];S.aprons=o.aprons||[];
   if(o.set)Object.assign(S.set,o.set);if(o.tpl)Object.assign(S.tpl,o.tpl);
+  if(!o.set||!o.set.yAt)delete S.set.yAt;S.yield=null;
   if(o.sheet)S.sheet=Object.assign({},SHEET_DEF,o.sheet);
   S.nextId=o.nextId||1;S.counters=o.counters||{};S.sel=null;S.multi=[];S.demo=!!o.demo;
   fillLabelFields();drawParcels();fillSettings();syncTpl();siteChanged();
@@ -1772,10 +1806,10 @@ function computeStats(checks){
   });
   // a laid-out parking area counts its drawn stalls and only its own paving (roads, buildings and islands in it are
   // counted where they belong); one without a layout is estimated from its square footage
-  st.areaStalls=0;var estSf=0;
+  st.areaStalls=0;st.driveStalls=0;var estSf=0;
   S.areas.forEach(function(a){
     var k=a.kind,pg=k==='park'?S.parkG[a.id]:null,laid=!!(pg&&pg.on&&!pg.bad),sf=laid?pg.sf:areaInSite(areaFeat(a));
-    if(k==='park'){st.parkSf+=sf;if(laid)st.areaStalls+=pg.count;else estSf+=sf;}else if(k==='hard'||k==='load')st.hardSf+=sf;else if(k==='pond')st.pondSf+=sf;else st.greenSf+=sf;
+    if(k==='park'){st.parkSf+=sf;if(laid)st.areaStalls+=pg.count;else if(a.sub)st.driveStalls+=Math.floor(sf/S.set.stall);else estSf+=sf;}else if(k==='hard'||k==='load')st.hardSf+=sf;else if(k==='pond')st.pondSf+=sf;else st.greenSf+=sf;
   });
   // loading: truck bays drawn, against what the commercial floor area calls for (when a rate is set on the Check tab)
   // Brecksville §1183.20: spaces by each building's commercial floor area; a building of 20,000 sf or more needs its
@@ -1793,7 +1827,7 @@ function computeStats(checks){
   st.lotStalls=0;st.lotSf=0;
   S.lots.forEach(function(l){var g=S.lotG[l.id];if(!g)return;st.lotStalls+=g.count;st.lotSf+=(g.aisle?areaInSite(g.aisle):0)+g.stallSf;});
   var rq=0,re=0;S.buildings.forEach(function(b){var q=parkReq(b);rq+=q.n;re+=q.enc;});st.reqStalls=codeRound(rq);st.reqEnclosed=Math.round(re);
-  st.provStalls=Math.floor(estSf/S.set.stall)+st.areaStalls+st.lotStalls;
+  st.provStalls=Math.floor(estSf/S.set.stall)+st.areaStalls+st.lotStalls+st.driveStalls;
   st.imperv=st.fp+st.roadSf+st.parkSf+st.hardSf+st.lotSf+st.walkSf;
   // green space: what is left of the site once buildings, paving and ponds are taken off (so trimming a parking area
   // or removing a road adds to it without anything being drawn). greenSf is the part drawn as landscaping or open space.
@@ -1828,6 +1862,21 @@ function restyleParcels(){gParcels.eachLayer(function(grp){if(grp.eachLayer)grp.
 function ll2(c){return [c[1],c[0]];}
 function ringsToLatLngs(polys){return polys.map(function(p){return p.map(function(r){return r.map(ll2);});});}
 
+// Where a lot's name goes on the map: its middle, unless a building stands there, and then the spot in the lot
+// that is furthest from any building (so the lot's label and the building's do not sit on top of one another).
+function plotLabelAt(p){
+  var rings=[],k;for(k in S.ctx.rings)rings.push(S.ctx.rings[k]);
+  function clear(q){var d=Infinity;for(var i=0;i<rings.length;i++){if(pointInRing(q,rings[i]))return 0;var sg=segsOf(rings[i]);for(var j=0;j<sg.length;j++){var r=ptSegDist(q,sg[j][0],sg[j][1]).d;if(r<d)d=r;}}return d;}
+  if(!rings.length||clear(p.c)>=18)return p.c;
+  var lp=p.coords.map(function(r){return r.map(toLocal);}),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,best=p.c,bd=clear(p.c);
+  lp[0].forEach(function(q){x0=Math.min(x0,q[0]);y0=Math.min(y0,q[1]);x1=Math.max(x1,q[0]);y1=Math.max(y1,q[1]);});
+  for(var i=1;i<8;i++)for(var j=1;j<8;j++){
+    var q=[x0+(x1-x0)*i/8,y0+(y1-y0)*j/8];if(!pointInPoly(q,lp))continue;
+    var e=Infinity;lp.forEach(function(r){segsOf(r).forEach(function(sg){var d=ptSegDist(q,sg[0],sg[1]).d;if(d<e)e=d;});});
+    var sc=Math.min(clear(q),e*1.5);if(sc>bd+0.5){bd=sc;best=q;}
+  }
+  return best;
+}
 function renderMap(){
   buildCtx();
   gSite.clearLayers();gRoads.clearLayers();gAreas.clearLayers();gBldg.clearLayers();gDims.clearLayers();
@@ -1835,7 +1884,7 @@ function renderMap(){
   // lots (under the site outline), each labelled with its name and area; lot lines that do not split anything yet still show
   if(S.plots.length>=2){
     L.polygon(ringsToLatLngs(S.plots.map(function(p){return p.coords;})),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',fill:false,interactive:false}).addTo(gSite);
-    S.plots.forEach(function(p){L.marker(ll2(toLL(p.c)),{pane:'pSite',interactive:false,icon:L.divIcon({className:'blabel plabel',iconSize:[110,30],iconAnchor:[55,15],html:esc(p.name)+'<br>'+n0(p.sf)+' sf'})}).addTo(gSite);});
+    S.plots.forEach(function(p){L.marker(ll2(toLL(plotLabelAt(p))),{pane:'pSite',interactive:false,icon:L.divIcon({className:'blabel plabel',iconSize:[110,30],iconAnchor:[55,15],html:esc(p.name)+'<br>'+n0(p.sf)+' sf'})}).addTo(gSite);});
   }
   // the lot that was clicked: its outline, the area left inside the setbacks, and the largest building that fits there
   var sp=S.tool==='select'&&!S.sel?selPlot():null;
@@ -1856,6 +1905,7 @@ function renderMap(){
     lotSides(cv.ring.concat([cv.ring[0]])).forEach(function(sd){L.marker(ll2(toLL(sd.m)),{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim road lot-dim',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%);color:#ff8787">'+n1(sd.len)+' ft</span>'})}).addTo(gSite);});
   }
   S.splits.forEach(function(s,i){
+    if(s.sub&&S.plots.length>=2)return;
     if(S.plots.length<2)L.polyline((s.shape?s.pts.concat([s.pts[0]]):s.pts).map(ll2),{pane:'pSite',color:'#ffd43b',weight:2,dashArray:'6 5',interactive:false}).addTo(gSite);
     var m=Math.floor((s.pts.length-1)/2),a=s.pts[m],b=s.pts[m+1]||a;
     L.marker([(a[1]+b[1])/2,(a[0]+b[0])/2],{pane:'pSite',interactive:false,icon:L.divIcon({className:'dim road',iconSize:[0,0],html:'<span style="position:absolute;transform:translate(-50%,-50%);color:#ffd43b">'+(s.shape?'Shape ':'Line ')+(i+1)+'</span>'})}).addTo(gSite);
@@ -2038,8 +2088,9 @@ function renderPanels(){
   if(st.greenShort)html+='<div class="flag"><b>Green space</b> is '+n1(st.greenPct)+'% of the site, minimum is '+n1(S.set.greenMin)+'%. Short by '+n0((S.set.greenMin-st.greenPct)/100*st.siteSf)+' sf.</div>';
   renderTerrInfo();renderPlots();
   var pn=[];
-  if(st.provStalls>=100)pn.push('100+ spaces: §1183.15(b) wants 10% of the parking area as planting areas (min 10 ft wide, a tree in each) and no more than 20 cars in a line without an island.');
-  else if(st.provStalls>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
+  var lotCars=st.provStalls-(st.driveStalls||0);   // cars in parking lots, as against on the driveways of homes
+  if(lotCars>=100)pn.push('100+ spaces: §1183.15(b) wants 10% of the parking area as planting areas (min 10 ft wide, a tree in each) and no more than 20 cars in a line without an island.');
+  else if(lotCars>12)pn.push('Lots over 12 cars must be striped (§1183.15(e)); islands and walkways at least 10 ft wide, 10% planting area may be waived under 100 spaces.');
   if(st.reqStalls&&!st.comm&&st.provStalls>st.reqStalls*1.5+1e-9)pn.push('Open residential parking is capped at 150% of required ('+Math.floor(st.reqStalls*1.5)+') unless approved as a conditional use (§1183.08(a)).');
   if(st.reqStalls&&st.units&&st.comm)pn.push('Mixed residential and commercial use: required spaces are added together unless the Commission approves shared parking (up to 50%, §1183.06(b)).');
   if((st.loadBays||st.loadReq)&&!st.loadShort)pn.push('Loading: '+st.loadBays+(st.loadBays===1?' space':' spaces')+' drawn, '+st.loadReq+' required (§1183.20(f)). Each needs 14 ft of clear height and room to manoeuvre off the street, and may not sit in a required front yard (§1183.20(b), (e)).');
@@ -2087,6 +2138,19 @@ function computePlots(){
   var pieces=polysOf(S.site);
   S.splits.forEach(function(s){
     if(!s.pts||s.pts.length<2)return;
+    // a lot laid out by Most lots: what lies inside its shape is the lot, with no strip lost along its lines
+    if(s.sub&&s.shape&&s.pts.length>=3){
+      var shp=null,bb=[Infinity,Infinity,-Infinity,-Infinity],nx=[];
+      s.pts.forEach(function(q){bb[0]=Math.min(bb[0],q[0]);bb[1]=Math.min(bb[1],q[1]);bb[2]=Math.max(bb[2],q[0]);bb[3]=Math.max(bb[3],q[1]);});
+      try{shp=turf.polygon([closeRing(s.pts)]);}catch(e){return;}
+      pieces.forEach(function(co){
+        var cb=[Infinity,Infinity,-Infinity,-Infinity];co[0].forEach(function(q){cb[0]=Math.min(cb[0],q[0]);cb[1]=Math.min(cb[1],q[1]);cb[2]=Math.max(cb[2],q[0]);cb[3]=Math.max(cb[3],q[1]);});
+        var hit=cb[0]<bb[2]&&cb[2]>bb[0]&&cb[1]<bb[3]&&cb[3]>bb[1],ins=[],outs=[];
+        if(hit){try{var pc=turf.polygon(co);ins=polysOf(turf.intersect(pc,shp)).filter(real);outs=ins.length?polysOf(turf.difference(pc,shp)).filter(real):[];}catch(e){console.warn('split',e);ins=[];}}
+        if(ins.length&&outs.length)ins.concat(outs).forEach(function(q){nx.push(q);});else nx.push(co);
+      });
+      pieces=nx;return;
+    }
     try{
       var P=s.pts.map(toLocal),n=P.length;
       var ext=function(a,b){var l=Math.hypot(a[0]-b[0],a[1]-b[1])||1;return [a[0]+(a[0]-b[0])/l*3,a[1]+(a[1]-b[1])/l*3];};
@@ -2111,7 +2175,23 @@ function computePlots(){
   if(out.length<2)return;
   // number them in reading order: north to south in 60 ft bands, west to east within a band
   out.sort(function(p,q){var rp=Math.round(p.c[1]/60),rq=Math.round(q.c[1]/60);return rp!==rq?rq-rp:p.c[0]-q.c[0];});
-  out.forEach(function(p,i){p.name='Lot '+(i+1);});
+  // once lots have been laid out, land that is in none of them (nor in a lot cut out by hand) is the street and what is left over
+  var subs=S.splits.filter(function(s){return s.shape&&s.pts&&s.pts.length>=3;}).map(function(s){return {sub:!!s.sub,r:s.pts.map(toLocal)};}),ln=0,rn=0;
+  if(subs.some(function(s){return s.sub;})){
+    var mids=[];S.roads.forEach(function(r){if(!r.sub)return;var Q=r.pts.map(toLocal);for(var i=0;i<Q.length-1;i++)[0.25,0.5,0.75].forEach(function(t){mids.push([Q[i][0]+(Q[i+1][0]-Q[i][0])*t,Q[i][1]+(Q[i+1][1]-Q[i][1])*t]);});});
+    out.forEach(function(p){
+      if(subs.some(function(s){return pointInRing(p.c,s.r);}))return;
+      var lp=p.coords.map(function(r){return r.map(toLocal);});
+      p.rem=true;p.street=mids.some(function(m){return pointInPoly(m,lp);});
+    });
+  }
+  if(!out.some(function(p){return !p.rem;}))out.forEach(function(p){p.rem=false;});
+  out=out.filter(function(p){return !p.rem;}).concat(out.filter(function(p){return p.rem;}));   // the lots first, then the street and what is left
+  out.forEach(function(p){
+    if(!p.rem)p.name='Lot '+(++ln);
+    else if(p.street&&!out.some(function(o){return o!==p&&o.name==='Street right-of-way';}))p.name='Street right-of-way';
+    else p.name='Leftover land '+'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.charAt(rn++%26);
+  });
   S.plots=out;
 }
 // Per-lot numbers for the Lots panel and the minimum lot area check. A building belongs to the lot its centre is in.
@@ -2119,10 +2199,10 @@ function plotInfo(){
   var info={rows:[],msgs:[]};
   if(!S.plots.length||!S.ctx)return info;
   S.plots.forEach(function(p){
-    var lp=p.coords.map(function(r){return r.map(toLocal);}),row={name:p.name,sf:p.sf,n:0,fp:0,units:0,names:[]};
+    var lp=p.coords.map(function(r){return r.map(toLocal);}),row={name:p.name,sf:p.sf,n:0,fp:0,units:0,names:[],rem:!!p.rem};
     S.buildings.forEach(function(b){var ring=S.ctx.rings[b.id];if(ring&&pointInPoly(polyCentroid(ring),lp)){row.n++;row.fp+=fpOf(b);row.units+=unitsOf(b);row.names.push(b.name);}});
     info.rows.push(row);
-    if(S.set.lotMin>0&&p.sf<S.set.lotMin-0.5)info.msgs.push({name:p.name,msg:'is '+n0(p.sf)+' sf, minimum lot area is '+n0(S.set.lotMin)+' sf.'});
+    if(!p.rem&&S.set.lotMin>0&&p.sf<S.set.lotMin-0.5)info.msgs.push({name:p.name,msg:'is '+n0(p.sf)+' sf, minimum lot area is '+n0(S.set.lotMin)+' sf.'});
   });
   return info;
 }
@@ -2303,6 +2383,7 @@ var HINTS={
   carvepoly:'Click corners of the area to carve out. Double-click or press Enter to finish.',
   road:'Click along the road centerline. Double-click or press Enter to finish.',
   walk:'Click along the middle of the sidewalk. Double-click or press Enter to finish. For sidewalks beside a road, select the road and set Sidewalks along it.',
+  yield:'Click on the edge of the site where the new street comes in. Lots are laid out along it, as many as the rules under Most lots that fit (Site tab) allow.',
   split:'Click from outside one edge of the site (or of a lot) to outside the other to split it in two. Double-click or press Enter to finish. Then choose Select and click a lot to see what fits on it.',
   cutlot:'Click the corners of the new lot to cut it out of the site; it can sit inside another lot. Double-click or press Enter to finish. Then choose Select and click the lot to see what fits on it.',
   lot:'Click points to pull a line; stalls appear along it (with an aisle width the line is the aisle middle, with aisle 0 it is the edge of the stalls). Type a length for an exact run. Double-click or press Enter to finish.',
@@ -2338,6 +2419,7 @@ function setTool(t){
   var m=$('#map');m.className=m.className.replace(/\btool-\w+/g,'').trim()+' tool-'+t;
   $('#hint').textContent=hintFor(t);gGhost.clearLayers();ghostLL=null;
   if(t==='building'||t==='road'||t==='walk'||t==='lot'||t==='area'||t==='bpoly'||t==='fence'||t==='apron')showTab('build');
+  if(t==='yield')showTab('site');
   updateDrawbar();renderHandles();
 }
 function cancelDraw(){D=null;gDraw.clearLayers();if(typeof gSnap!=='undefined')gSnap.clearLayers();var lb=$('#lenBox');if(lb)lb.value='';var di=$('#drawInfo');if(di)di.textContent='';}
@@ -2610,6 +2692,8 @@ map.on('click',function(e){
     var sp=ghostLL||snapPlacement([e.latlng.lng,e.latlng.lat],S.tpl.w,S.tpl.d,S.tpl.rot);
     pushUndo();var b=applyHome(newBuilding(S.tpl.type,S.tpl.w,S.tpl.d,S.tpl.st,sp.rot,sp.c));
     S.buildings.push(b);S.sel={k:'b',id:b.id};renderAll();
+  }else if(t==='yield'){
+    if(yRun([e.latlng.lng,e.latlng.lat]))setTool('select');
   }else if(t==='apron'){
     pushUndo();var na=newApron(S.apronType,e.latlng),onEdge=apronSnap(e.latlng).on;
     S.aprons.push(na);S.sel={k:'x',id:na.id};S.multi=[];renderAll();
@@ -2673,6 +2757,7 @@ map.on('mousemove',function(e){
     return;
   }
   if(S.tool==='building'){updateGhost(e.latlng);}
+  if(S.tool==='yield'){yGhost(e.latlng);}
   // a drawing tool shows where the next point will snap, before the first click too
   if(isDrawTool(S.tool)){var sn=drawSnap(e.latlng);showSnap(D&&D.pts.length&&D.typed>0?null:sn);if(D){D.cursor=sn.pt;if(!raf)raf=requestAnimationFrame(function(){raf=0;drawPreview();});}}
 });
@@ -3183,11 +3268,13 @@ $('#oEdge').addEventListener('change',function(){S.opt.edge=$('#oEdge').checked;
 $('#oDimsAll').addEventListener('change',function(){S.opt.dimsAll=$('#oDimsAll').checked;renderDims();});
 
 // rules
-var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH','#sSlopeB':'slopeBldg','#sSlopeP':'slopePark','#sSlopeR':'slopeRoad','#tPad':'demPad','#sLotMin':'lotMin','#sGreenMin':'greenMin'};
-function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});$('#sLoadRule').value=S.set.loadRule||'retail';}
+var SET_MAP={'#sSetback':'setback','#sSetRoad':'setRoad','#sSnapGap':'snapGap','#sSep':'sep','#sParkRes':'parkRes','#sParkApt':'parkApt','#sParkComm':'parkComm','#sParkFood':'parkFood','#sStall':'stall','#sUnitSf':'unitSf','#sStoryH':'storyH','#sSlopeB':'slopeBldg','#sSlopeP':'slopePark','#sSlopeR':'slopeRoad','#tPad':'demPad','#sLotMin':'lotMin','#sGreenMin':'greenMin','#sYLotMin':'lotMin','#sLotW':'lotW','#sYFront':'yFront','#sYSide':'setback','#sYRear':'yRear','#sRowW':'rowW','#sPaveW':'paveW'};
+function fillSettings(){Object.keys(SET_MAP).forEach(function(id){$(id).value=S.set[SET_MAP[id]];});$('#sLoadRule').value=S.set.loadRule||'retail';if(typeof fillYield==='function')fillYield();}
 $('#sLoadRule').addEventListener('change',function(){S.set.loadRule=this.value;renderAll();});
 Object.keys(SET_MAP).forEach(function(id){$(id).addEventListener('input',function(){
-  var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;renderAll();
+  var v=num($(id),NaN);if(!isFinite(v))return;S.set[SET_MAP[id]]=v;
+  Object.keys(SET_MAP).forEach(function(o){if(o!==id&&SET_MAP[o]===SET_MAP[id])$(o).value=v;});   // the same number shown in two places
+  renderAll();
 });});
 
 // ---------- parcel loading ----------
@@ -3350,8 +3437,8 @@ function download(name,text,mime){
 function exportFeatures(){
   var feats=[];
   if(S.site)feats.push(turf.feature(S.site.geometry,{kind:'site_boundary',areaSf:Math.round(areaOf(S.site)),areaAc:+(areaOf(S.site)/ACRE).toFixed(3)}));
-  S.plots.forEach(function(p){feats.push(turf.polygon(p.coords,{kind:'lot',name:p.name,areaSf:Math.round(p.sf),areaAc:+(p.sf/ACRE).toFixed(3)}));});
-  S.splits.forEach(function(s,i){feats.push(turf.lineString(s.shape?s.pts.concat([s.pts[0]]):s.pts,{kind:'lot_line',name:(s.shape?'Shape ':'Line ')+(i+1),shape:!!s.shape}));});
+  S.plots.forEach(function(p){var pr={kind:'lot',name:p.name,areaSf:Math.round(p.sf),areaAc:+(p.sf/ACRE).toFixed(3)};if(p.rem)pr.notALot=true;feats.push(turf.polygon(p.coords,pr));});
+  S.splits.forEach(function(s,i){feats.push(turf.lineString(s.shape?s.pts.concat([s.pts[0]]):s.pts,s.sub?{kind:'lot_line',name:'Laid-out lot '+(i+1),shape:true,laidOut:true}:{kind:'lot_line',name:(s.shape?'Shape ':'Line ')+(i+1),shape:!!s.shape}));});
   if(S.parcels)S.parcels.features.forEach(function(f){var id=f.properties.__pid;if(S.selected.has(id)){var p=Object.assign({},f.properties);delete p.__pid;p.kind='parcel';p.carved=S.carved.has(id);feats.push(turf.feature(f.geometry,p));}});
   S.roads.forEach(function(r){
     var f=roadPoly(r),sw=!r.walk&&r.sw&&r.sw.side?r.sw:null;
@@ -3361,7 +3448,7 @@ function exportFeatures(){
       return;
     }
     if(f)feats.push(turf.feature(f.geometry,{kind:'road',name:r.name,widthFt:r.width}));
-    feats.push(turf.lineString(r.pts,{kind:'road_centerline',name:r.name,widthFt:r.width,sidewalks:sw?sw.side:null,sidewalkWidthFt:sw?+sw.w||5:null,treeLawnFt:sw?+sw.gap||0:null}));
+    feats.push(turf.lineString(r.pts,Object.assign({kind:'road_centerline',name:r.name,widthFt:r.width,sidewalks:sw?sw.side:null,sidewalkWidthFt:sw?+sw.w||5:null,treeLawnFt:sw?+sw.gap||0:null},r.sub?{laidOut:true}:{})));
     roadWalks(r).forEach(function(ring){feats.push(turf.polygon([closeRing(ring)],{kind:'sidewalk',name:(r.name||'Road')+' sidewalk',road:r.name,widthFt:+sw.w||5,lengthFt:Math.round(lineLen(r.pts))}));});
   });
   S.lots.forEach(function(l){
@@ -3372,10 +3459,11 @@ function exportFeatures(){
   });
   S.buildings.forEach(function(b){
     var ring=S.ctx.rings[b.id].map(toLL);var fp=fpOf(b);
-    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),roof:ROOFS[b.roof]?b.roof:null,roofing:ROOFM[b.rm]?b.rm:'shingle',porch:!!b.porch,villageRow:!!b.row,homeStyle:b.home?homeOf(b.home).name:null,entrancesFace:b.ent||'road',padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
+    feats.push(turf.polygon([closeRing(ring)],{kind:'building',name:b.name,type:TYPES[b.type].name,widthFt:b.pts?null:b.w,depthFt:b.pts?null:b.d,freeform:!!b.pts,model:b.mod||null,facade:facadeOf(b),roof:ROOFS[b.roof]?b.roof:null,roofing:ROOFM[b.rm]?b.rm:'shingle',porch:!!b.porch,villageRow:!!b.row,homeStyle:b.home?homeOf(b.home).name:null,laidOut:b.sub?true:undefined,entrancesFace:b.ent||'road',padFt:b.pad==null?null:b.pad,stories:b.st,units:unitsOf(b),footprintSf:Math.round(fp),gfaSf:Math.round(fp*b.st),rotationDeg:b.pts?null:+b.rot.toFixed(2)}));
   });
   S.areas.forEach(function(a){
     var p={kind:'area',plant:a.pm?a.pm.m:null,plantPer1000:a.pm?a.pm.d:null,areaType:AREAS[a.kind].name,name:a.name,areaSf:Math.round(areaOf(areaFeat(a)))},pg=S.parkG[a.id];
+    if(a.sub)p.laidOut=true;
     if(pg&&pg.on){
       var c=parkCfg(a);
       Object.assign(p,{stalls:pg.count,parallelStalls:pg.par,pavedSf:Math.round(pg.sf),stallAngleDeg:c.ang,stallAngleBestFit:c.auto,stallWidthFt:c.w,stallDepthFt:c.d,aisleWidthFt:c.aisle,parallelFill:c.par,stallsOnRoad:c.road,lightPoles:c.lt?(pg.lights||[]).length:null,poleHeightFt:c.lt?c.lh:null,lumensPerPole:c.lt?c.lm:null,lumensPerSf:c.lt?Math.round(pg.lum*100)/100:null,carModel:a.pc?a.pc.m:null,carFill:a.pc?a.pc.f:null});
@@ -3476,7 +3564,9 @@ $('#xProj').addEventListener('click',function(){download('site-plan-project.json
 // list: as SVG to look at on screen, and as a PDF to keep, so the two always agree. ----------
 var PAPERS={letter:{name:'Letter, 8.5 × 11 in',w:792,h:612,k:0.8,tb:190},tabloid:{name:'Tabloid, 11 × 17 in',w:1224,h:792,k:1,tb:250},archd:{name:'Arch D, 24 × 36 in',w:2592,h:1728,k:1.9,tb:470}};
 var SHEET_SCALES=[10,20,30,40,50,60,80,100,150,200,300,400,500,1000];
-var SHEET_DEF={paper:'tabloid',scale:'auto',title:'',sub:'',by:'',num:'SP-1',dims:true,offs:'min',bw:false};
+var SHEET_DEF={paper:'tabloid',scale:'auto',title:'',sub:'',by:'',num:'SP-1',dims:true,offs:'min',bw:false,data:true};
+// the numbers of the two sheets: the second is the first with its number raised by one (SP-1, SP-2)
+function sheetNums(){var a=(S.sheet.num||'').trim()||'SP-1',mm=/^(.*?)(\d+)$/.exec(a);return [a,mm?mm[1]+(+mm[2]+1):a+'-2'];}
 S.sheet=Object.assign({},SHEET_DEF);
 // widths of Helvetica and Helvetica-Bold, characters 32 to 126, in thousandths of the type size (the PDF's own fonts)
 var HELV='278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 333 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584'.split(' ').map(Number);
@@ -3529,7 +3619,8 @@ function sheetMins(){
 }
 function sheetModel(){
   var o=S.sheet,pp=PAPERS[o.paper]||PAPERS.tabloid,W=pp.w,H=pp.h,k=pp.k,m=28.8*(k>1.5?1.5:1),tb=pp.tb,bw=!!o.bw,INK='#111111',RED=bw?'#111111':'#c92a2a',
-    ops=[],legend={},c=S.ctx||{siteRings:[],sitePolys:[],roadRings:[],rings:{}},st=S.stats||{},i;
+    ops=[],legend={},c=S.ctx||{siteRings:[],sitePolys:[],roadRings:[],rings:{}},st=S.stats||{},i,DATA={site:[],zone:[]},two=o.data!==false,
+    realLots=S.plots.filter(function(p){return !p.rem;}),minLot=realLots.length?Math.min.apply(null,realLots.map(function(p){return p.sf;})):0;
   var fx0=m,fy0=m,fx1=W-m-tb,fy1=H-m,fw=fx1-fx0,fh=fy1-fy0;
   function C(col){return bw?shGrey(col):col;}
   function path(d,sty){d=d.filter(function(r){return r.length>=2&&r.every(function(p){return isFinite(p[0])&&isFinite(p[1]);});});if(d.length)ops.push(Object.assign({t:'path',d:d,close:true,fill:null,stroke:null,lw:0.5*k,dash:null},sty));}
@@ -3653,9 +3744,15 @@ function sheetModel(){
       var pr=R(ring),n=pr.length,edge=[];
       for(var j=0;j<n;j++){var a=pr[j],q=pr[(j+1)%n],r0=ring[j],r1=ring[(j+1)%n];edge.push({a:a,b:q,pt:Math.hypot(q[0]-a[0],q[1]-a[1]),ft:Math.hypot(r1[0]-r0[0],r1[1]-r0[1])});}
       var minPt=Math.min.apply(null,edge.map(function(e){return e.pt;})),ctr=P(b.pts?polyCentroid(ring):toLocal(b.c)),dimIt=!!o.dims&&(b.pts?true:minPt>=46*k);
-      lab(ctr[0],ctr[1]-7.5*k,b.name,{size:7.5,bold:true,force:true});
-      lab(ctr[0],ctr[1],(b.pts||dimIt?'':b.w+' × '+b.d+' ft · ')+b.st+(b.st>1?' stories':' story'),{size:5.8,force:true});
-      lab(ctr[0],ctr[1]+7*k,n0(fpOf(b))+' sf',{size:5.8,force:true});
+      var bx0=Math.min.apply(null,pr.map(function(q){return q[0];})),bx1=Math.max.apply(null,pr.map(function(q){return q[0];})),by0=Math.min.apply(null,pr.map(function(q){return q[1];})),by1=Math.max.apply(null,pr.map(function(q){return q[1];}));
+      if(by1-by0<26*k||bx1-bx0<shW((b.pts||dimIt?'':b.w+' × '+b.d+' ft · ')+b.st+' stories',5.8*k)+2*k){   // a small one: its name and size; the rest is in the schedule
+        lab(ctr[0],ctr[1]-3.4*k,b.name,{size:6,bold:true,force:true});
+        lab(ctr[0],ctr[1]+3.8*k,b.pts?n0(fpOf(b))+' sf':b.w+' × '+b.d,{size:5.2,force:true});
+      }else{
+        lab(ctr[0],ctr[1]-7.5*k,b.name,{size:7.5,bold:true,force:true});
+        lab(ctr[0],ctr[1],(b.pts||dimIt?'':b.w+' × '+b.d+' ft · ')+b.st+(b.st>1?' stories':' story'),{size:5.8,force:true});
+        lab(ctr[0],ctr[1]+7*k,n0(fpOf(b))+' sf',{size:5.8,force:true});
+      }
       return {b:b,edge:edge,ctr:ctr,dimIt:dimIt};
     }).filter(Boolean);
     // ---- offsets: from the middle of a wall to the nearest property line, road edge or other building
@@ -3748,15 +3845,15 @@ function sheetModel(){
   y+=50*k;
   function head(s){path([[[fx1,y],[W-m,y],[W-m,y+12*k],[fx1,y+12*k]]],{fill:HEADC});text(x0,y+8.6*k,s,{size:7*k,bold:true,color:'#ffffff'});y+=12*k;}
   function sep(){line([x0,y],[x1,y],{stroke:'#d0d4d7',lw:0.3*k});}
-  function row(a,b,bad){y+=9.4*k;text(x0,y-2.7*k,a,{size:6.3*k,color:'#333333'});text(x1,y-2.7*k,shFit(b,6.3*k,true,tw*0.62),{size:6.3*k,bold:true,anchor:'end',color:bad?RED:INK});sep();}
-  function row3(a,b,d,bad,hd){y+=9.4*k;var cl=hd?'#666666':'#333333',sz=(hd?5.4:6.3)*k;
+  function row(a,b,bad){DATA.site.push([a,b,!!bad]);y+=9.4*k;text(x0,y-2.7*k,a,{size:6.3*k,color:'#333333'});text(x1,y-2.7*k,shFit(b,6.3*k,true,tw*0.62),{size:6.3*k,bold:true,anchor:'end',color:bad?RED:INK});sep();}
+  function row3(a,b,d,bad,hd){if(!hd)DATA.zone.push([a,b,d,!!bad]);y+=9.4*k;var cl=hd?'#666666':'#333333',sz=(hd?5.4:6.3)*k;
     text(x0,y-2.7*k,a,{size:sz,color:cl});text(x0+tw*0.72,y-2.7*k,b,{size:sz,anchor:'end',color:cl});text(x1,y-2.7*k,d,{size:sz,anchor:'end',bold:!hd,color:hd?cl:(bad?RED:INK)});sep();}
   function pct(a,b){return b?(a/b*100).toFixed(1)+'%':'-';}
   // ---- site data
   head('SITE DATA');
   if(st.siteSf){
     row('Site area',st.acres.toFixed(2)+' ac · '+n0(st.siteSf)+' sf');
-    if(S.plots.length>=2)row('Lots',String(S.plots.length));
+    if(S.plots.length>=2)row('Lots',realLots.length+(realLots.length?' · smallest '+n0(minLot)+' sf':''));
   }
   row('Buildings',S.buildings.length+' · '+n0(st.fp||0)+' sf footprint');
   if(st.siteSf)row('Building coverage',pct(st.fp,st.siteSf));
@@ -3778,6 +3875,7 @@ function sheetModel(){
   dist('Building to property line',S.set.setback,mn.prop);
   dist('Building to road edge',S.set.setRoad,mn.road);
   dist('Building to building',S.set.sep,mn.sep);
+  if(S.set.lotMin>0&&S.plots.length>=2&&realLots.length)row3('Smallest lot',n0(S.set.lotMin)+' sf min',n0(minLot)+' sf',minLot<S.set.lotMin-0.5);
   row3('Parking spaces',n0(st.reqStalls||0),n0(st.provStalls||0),(st.provStalls||0)<(st.reqStalls||0));
   if(S.set.greenMin>0&&st.siteSf)row3('Green space',n1(S.set.greenMin)+'% min',st.greenPct.toFixed(1)+'%',st.greenShort);
   if(st.loadReq)row3('Loading spaces',n0(st.loadReq),n0(st.loadBays),st.loadShort);
@@ -3812,7 +3910,7 @@ function sheetModel(){
     var all=nb+1<=nfit,show=all?nb:nfit-1;
     S.buildings.slice(0,show).forEach(function(b){var fp=fpOf(b);srow([shFit(b.name,6*k,true,tw*0.18),shFit(bType(b).name,6*k,false,tw*0.26),b.pts?'drawn':b.w+' × '+b.d,String(b.st),n0(fp),n0(fp*b.st)]);});
     if(all)srow(['Total','','','',n0(st.fp||0),n0(st.gfa||0)],false,true);
-    else{y+=rowH;text(x0,y-2.6*k,'+ '+(nb-show)+' more: see the building schedule (CSV)',{size:6*k,color:'#555555'});}
+    else{y+=rowH;text(x0,y-2.6*k,'+ '+(nb-show)+' more: see '+(two?'sheet '+sheetNums()[1]:'the building schedule (CSV)'),{size:6*k,color:'#555555'});}
   }
   // legend
   if(LG.length){
@@ -3839,7 +3937,92 @@ function sheetModel(){
   cell(gx,W-m,gy,'DATE',MON[now.getMonth()]+' '+now.getDate()+', '+now.getFullYear(),7.5);
   cell(fx1,gx,gy+cellH,'SCALE','1" = '+scale+'\'');
   cell(gx,W-m,gy+cellH,'SHEET',(o.num||'').trim()||'SP-1',11);
-  return {w:W,h:H,ops:ops,scale:scale,paper:pp,empty:!ext,title:title};
+  if(two&&ext)text(W-m-5*k,gy+cellH+19*k,'1 of 2',{size:6*k,anchor:'end',color:'#555555'});
+  return {w:W,h:H,ops:ops,scale:scale,paper:pp,empty:!ext,title:title,data:DATA,label:sheetNums()[0]+' Site plan'};
+}
+// The second sheet: the figures and the schedules in full, for whoever checks the plan against the code. Tables run
+// down two or three columns, each carrying on at the top of the next when it reaches the foot of one.
+function sheetData(M){
+  var o=S.sheet,pp=M.paper,W=M.w,H=M.h,k=pp.k,m=28.8*(k>1.5?1.5:1),bw=!!o.bw,INK='#111111',RED=bw?'#111111':'#c92a2a',HEADC=bw?'#222222':'#1f3a4d',ops=[],st=S.stats||{},nums=sheetNums();
+  function path(d,sty){ops.push(Object.assign({t:'path',d:d,close:true,fill:null,stroke:null,lw:0.5*k,dash:null},sty));}
+  function line(a,b,sty){path([[a,b]],Object.assign({close:false,stroke:INK},sty));}
+  function text(x,y,s,sty){ops.push(Object.assign({t:'text',x:x,y:y,s:String(s),size:7*k,anchor:'start',rot:0,color:INK,bold:false,mid:false},sty));}
+  var x0=m,y0=m,x1=W-m,y1=H-m,headH=30*k,cellH=24*k,inset=9*k;
+  path([[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]],{stroke:INK,lw:1.4*k});
+  line([x0,y0+headH],[x1,y0+headH],{lw:1*k});line([x0,y1-cellH],[x1,y1-cellH],{lw:0.8*k});
+  text(x0+inset,y0+20*k,shFit(M.title,14*k,true,(x1-x0)*0.5),{size:14*k,bold:true});
+  if((o.sub||'').trim())text(x0+inset+shW(shFit(M.title,14*k,true,(x1-x0)*0.5),14*k,true)+10*k,y0+20*k,shFit(o.sub.trim(),8*k,false,(x1-x0)*0.2),{size:8*k,color:'#333333'});
+  text(x1-inset,y0+19.5*k,'SITE DATA AND SCHEDULES',{size:11*k,bold:true,anchor:'end'});
+  var cw4=(x1-x0)/4,MON=['January','February','March','April','May','June','July','August','September','October','November','December'],now=new Date();
+  function cell(i,cap,val,big){var xa=x0+i*cw4;if(i)line([xa,y1-cellH],[xa,y1],{lw:0.5*k});text(xa+5*k,y1-cellH+7.5*k,cap,{size:4.8*k,color:'#666666'});text(xa+5*k,y1-cellH+19*k,shFit(val,(big||8.5)*k,true,cw4-34*k),{size:(big||8.5)*k,bold:true});}
+  cell(0,'PREPARED BY',(o.by||'').trim());cell(1,'DATE',MON[now.getMonth()]+' '+now.getDate()+', '+now.getFullYear(),7.5);
+  cell(2,'THE PLAN','Sheet '+nums[0]+', 1" = '+M.scale+'\'',7.5);cell(3,'SHEET',nums[1],11);
+  text(x1-5*k,y1-5*k,'2 of 2',{size:6*k,anchor:'end',color:'#555555'});
+  var note=shWrap('Figures are taken from the plan as drawn on sheet '+nums[0]+'. Required distances, lot sizes and parking rates are the settings on the Site and Check tabs, not a reading of the zoning code: confirm them against the code. Concept plan for planning and discussion; not a survey and not for construction.',5.2*k,false,x1-x0-2*inset).slice(0,2);
+  note.forEach(function(ln,j){text(x0+inset,y1-cellH-(note.length-j)*6.4*k+1.5*k,ln,{size:5.2*k,color:'#444444'});});
+  var ncol=W<900?2:3,gut=18*k,top=y0+headH+10*k,bot=y1-cellH-note.length*6.4*k-8*k,cw=(x1-x0-2*inset-(ncol-1)*gut)/ncol,ci=0,y=top,full=false,more=0,rowH=8.8*k;
+  function cx(){return x0+inset+ci*(cw+gut);}
+  function nextCol(){ci++;y=top;if(ci>=ncol)full=true;}
+  function band(s){path([[[cx(),y],[cx()+cw,y],[cx()+cw,y+12*k],[cx(),y+12*k]]],{fill:HEADC});text(cx()+5*k,y+8.6*k,s,{size:7*k,bold:true,color:'#ffffff'});y+=12*k;}
+  function cells(cols,v,sty){
+    y+=sty.hd?9.4*k:rowH;
+    cols.forEach(function(c,j){
+      if(v[j]==null||v[j]==='')return;
+      var xa=cx()+cw*c.a,xb=cx()+cw*c.b,end=c.al==='end',sz=(sty.hd?5.4:6.2)*k,bold=!sty.hd&&!!(sty.bold||c.bold);
+      text(end?xb-2*k:xa+2*k,y-2.7*k,shFit(String(v[j]),sz,bold,xb-xa-4*k),{size:sz,anchor:end?'end':'start',bold:bold,color:sty.hd?'#666666':(sty.bad&&c.badc?RED:(sty.grey?'#666666':INK))});
+    });
+    line([cx(),y],[cx()+cw,y],{stroke:'#d0d4d7',lw:0.3*k});
+  }
+  function table(title,cols,rows){
+    if(full){more+=rows.length;return;}
+    if(y>top&&y+8*k+12*k+9.4*k+rowH*Math.min(3,rows.length)>bot)nextCol();
+    if(full){more+=rows.length;return;}
+    if(y>top)y+=8*k;
+    var heads=cols.map(function(c){return c.h;});
+    band(title);cells(cols,heads,{hd:1});
+    for(var i=0;i<rows.length;i++){
+      if(y+rowH>bot){nextCol();if(full){more+=rows.length-i;return;}band(title+' (continued)');cells(cols,heads,{hd:1});}
+      cells(cols,rows[i].v,rows[i]);
+    }
+  }
+  // ---- site data and the zoning check, as on the plan sheet
+  table('SITE DATA',[{a:0,b:0.46,al:'start',h:'Item'},{a:0.46,b:1,al:'end',h:'',bold:1,badc:1}],M.data.site.map(function(r){return {v:[r[0],r[1]],bad:r[2]};}));
+  table('ZONING CHECK',[{a:0,b:0.5,al:'start',h:'Item'},{a:0.5,b:0.76,al:'end',h:'Required'},{a:0.76,b:1,al:'end',h:'Shown',bold:1,badc:1}],M.data.zone.map(function(r){return {v:[r[0],r[1],r[2]],bad:r[3]};}));
+  // ---- everything the Check tab flags, in words
+  var fl=[],frows=[];
+  (S.checks||[]).forEach(function(c){c.msgs.forEach(function(mm){fl.push(c.b.name+' '+mm);});});
+  if(S.terr)S.terr.msgs.forEach(function(q){fl.push(q.name+' '+q.msg);});
+  if(S.plotInfo)S.plotInfo.msgs.forEach(function(q){fl.push(q.name+' '+q.msg);});
+  if(st.greenShort)fl.push('Green space is '+n1(st.greenPct)+'% of the site, minimum is '+n1(S.set.greenMin)+'%.');
+  if(st.loadShort)fl.push('Loading: '+st.loadBays+' of '+st.loadReq+(st.loadReq===1?' space':' spaces')+' drawn.');
+  fl.forEach(function(s){shWrap(s,6.2*k,false,cw-12*k).forEach(function(ln,j){frows.push({v:[(j?'    ':'')+ln],bad:true});});});
+  if(!fl.length)frows.push({v:['None: the plan meets the rules it is checked against.']});
+  table('ITEMS FLAGGED ON THE CHECK TAB',[{a:0,b:1,al:'start',h:fl.length?fl.length+(fl.length===1?' item':' items'):'',badc:1}],frows);
+  // ---- lots
+  var pr=(S.plotInfo&&S.plotInfo.rows)||[];
+  if(pr.length){
+    var lr=pr.filter(function(r){return !r.rem;}),tot=0,lrows;lr.forEach(function(r){tot+=r.sf;});
+    lrows=pr.map(function(r){return {v:[r.name,n0(r.sf),(r.sf/ACRE).toFixed(2),r.names.join(', ')||'-',r.n?(r.fp/r.sf*100).toFixed(1)+'%':'-',r.rem?'':String(r.units)],grey:r.rem};});
+    lrows.push({v:[lr.length+(lr.length===1?' lot':' lots'),n0(tot),(tot/ACRE).toFixed(2),'','',''],bold:true});
+    table('LOT SCHEDULE',[{a:0,b:0.26,al:'start',h:'Lot',bold:1},{a:0.26,b:0.4,al:'end',h:'Area sf'},{a:0.4,b:0.5,al:'end',h:'Acres'},{a:0.53,b:0.78,al:'start',h:'Buildings'},{a:0.78,b:0.91,al:'end',h:'Coverage'},{a:0.91,b:1,al:'end',h:'Units'}],lrows);
+  }
+  // ---- buildings
+  if(S.buildings.length){
+    var brows=S.buildings.map(function(b){var fp=fpOf(b);return {v:[b.name,bType(b).name,b.pts?'drawn':b.w+' × '+b.d,String(b.st),String(unitsOf(b)),n0(fp),n0(fp*b.st)]};});
+    brows.push({v:['Total','','','',n0(st.units||0),n0(st.fp||0),n0(st.gfa||0)],bold:true});
+    table('BUILDING SCHEDULE',[{a:0,b:0.22,al:'start',h:'Name',bold:1},{a:0.22,b:0.43,al:'start',h:'Type'},{a:0.43,b:0.58,al:'end',h:'W × D ft'},{a:0.58,b:0.64,al:'end',h:'Fl'},{a:0.64,b:0.72,al:'end',h:'Units'},{a:0.72,b:0.86,al:'end',h:'Footprint sf'},{a:0.86,b:1,al:'end',h:'Floor area sf'}],brows);
+  }
+  // ---- parking: what each building asks for and why; buildings that ask the same way are taken together
+  var grp={},order=[];
+  S.buildings.forEach(function(b){var q=parkReq(b);if(!(q.n>0))return;var g=grp[q.rule];if(!g){g=grp[q.rule]={n:0,c:0,name:b.name,rule:q.rule};order.push(g);}g.n+=q.n;g.c++;});
+  if(order.length){
+    var prows=order.map(function(g){return {v:[g.c>1?g.c+' buildings':g.name,(g.c>1?'each: ':'')+g.rule,String(Math.round(g.n*10)/10)]};}),short=(st.provStalls||0)<(st.reqStalls||0);
+    prows.push({v:['Required','',n0(st.reqStalls||0)],bold:true});
+    prows.push({v:['Shown on the plan','',n0(st.provStalls||0)],bold:true,bad:short});
+    table('PARKING',[{a:0,b:0.27,al:'start',h:'Building',bold:1},{a:0.27,b:0.87,al:'start',h:'Basis'},{a:0.87,b:1,al:'end',h:'Spaces',badc:1}],prows);
+  }
+  if(more)text(x1-inset,bot+1*k,'+ '+more+' more rows than fit here: see the building schedule (CSV)',{size:6*k,anchor:'end',color:'#555555'});
+  return {w:W,h:H,ops:ops,scale:M.scale,paper:pp,title:M.title,label:nums[1]+' Site data and schedules'};
 }
 // where a piece of text starts, on its baseline: (x, y) is its start, middle or end, or its very centre when mid is set
 function shTextAt(o){
@@ -3873,9 +4056,12 @@ function pdfStr(s){
 }
 // One page, vector throughout, in the PDF's own Helvetica: no fonts or pictures to embed, so it stays small and sharp
 // at any zoom. Everything written is plain ASCII, which is what lets the byte offsets be counted as characters.
-function sheetPdf(M){
-  var H=M.h,n=function(v){return String(Math.round(v*100)/100);},n4=function(v){return String(Math.round(v*10000)/10000);},
-    rgb=function(h){var q=shRgb(h);return n(q[0]/255)+' '+n(q[1]/255)+' '+n(q[2]/255);},c='1 j 0 J\n';
+function sheetPdf(Ms){
+  if(!Array.isArray(Ms))Ms=[Ms];
+  var n=function(v){return String(Math.round(v*100)/100);},n4=function(v){return String(Math.round(v*10000)/10000);},
+    rgb=function(h){var q=shRgb(h);return n(q[0]/255)+' '+n(q[1]/255)+' '+n(q[2]/255);};
+  function content(M){
+  var H=M.h,c='1 j 0 J\n';
   M.ops.forEach(function(o){
     if(o.t==='clip')c+='q '+n(o.r[0])+' '+n(H-o.r[1]-o.r[3])+' '+n(o.r[2])+' '+n(o.r[3])+' re W n\n';
     else if(o.t==='unclip')c+='Q\n';
@@ -3890,45 +4076,62 @@ function sheetPdf(M){
       c+='BT /F'+(o.bold?2:1)+' '+n(o.size)+' Tf '+rgb(o.color)+' rg '+n4(cs)+' '+n4(sn)+' '+n4(-sn)+' '+n4(cs)+' '+n(g[0])+' '+n(H-g[1])+' Tm ('+pdfStr(o.s)+') Tj ET\n';
     }
   });
+  return c;
+  }
+  var M=Ms[0],c=content(M),np=Ms.length,pageObj=function(i){return i?6+2*i:3;},outl=8+2*(np-1);
   var d=new Date(),z=function(v){return ('0'+v).slice(-2);},stamp=d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());
-  var objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+  var objs=['<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /PrintScaling /None >>'+(np>1?' /Outlines '+outl+' 0 R':'')+' >>',
+    '<< /Type /Pages /Kids ['+Ms.map(function(_,i){return pageObj(i)+' 0 R';}).join(' ')+'] /Count '+np+' >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+M.w+' '+M.h+'] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     '<< /Length '+c.length+' >>\nstream\n'+c+'endstream',
     '<< /Title ('+pdfStr(M.title)+') /Subject (Site plan, 1 in = '+M.scale+' ft) /Creator (Site Plan Sketcher) /Producer (Site Plan Sketcher) /CreationDate (D:'+stamp+') >>'];
-  var out='%PDF-1.4\n',offs=[];
+  Ms.slice(1).forEach(function(M2,j){
+    var c2=content(M2),i=j+1;
+    objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+M2.w+' '+M2.h+'] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents '+(pageObj(i)+1)+' 0 R >>');
+    objs.push('<< /Length '+c2.length+' >>\nstream\n'+c2+'endstream');
+  });
+  if(np>1){
+    objs.push('<< /Type /Outlines /First '+(outl+1)+' 0 R /Last '+(outl+np)+' 0 R /Count '+np+' >>');
+    Ms.forEach(function(Mi,i){objs.push('<< /Title ('+pdfStr(Mi.label||('Sheet '+(i+1)))+') /Parent '+outl+' 0 R /Dest ['+pageObj(i)+' 0 R /Fit]'+(i?' /Prev '+(outl+i)+' 0 R':'')+(i<np-1?' /Next '+(outl+i+2)+' 0 R':'')+' >>');});
+  }
+  var out='%PDF-1.6\n',offs=[];
   objs.forEach(function(b,i){offs.push(out.length);out+=(i+1)+' 0 obj\n'+b+'\nendobj\n';});
   var xr=out.length;out+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';
   offs.forEach(function(v){out+=('0000000000'+v).slice(-10)+' 00000 n \n';});
   return out+'trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R /Info 7 0 R >>\nstartxref\n'+xr+'\n%%EOF\n';
 }
+// the sheets of the PDF: the plan, and (unless it is switched off, or there is nothing drawn) the data and schedules
+function sheetPages(){var M=sheetModel();return S.sheet.data===false||M.empty?[M]:[M,sheetData(M)];}
 function renderSheet(){
-  var M=sheetModel();
-  $('#sheetView').innerHTML=sheetSvg(M);
+  var P=sheetPages(),M=P[0],two=P.length>1,pg=two&&S.sheetPage===2?1:0;
+  $('#shPage').parentNode.hidden=!two;$('#shPage').value=String(pg+1);
+  $('#sheetView').innerHTML=sheetSvg(P[pg]);
   $('#sheetNote').textContent=M.empty?'There is nothing to put on the sheet yet: pick the parcels that make up the site, or draw something first.'
-    :'Drawn at 1 in = '+M.scale+' ft on '+M.paper.name+'. Print the PDF at 100% (actual size), not "fit to page", and it will measure true with a scale ruler.';
+    :'Drawn at 1 in = '+M.scale+' ft on '+M.paper.name+'. Print the PDF at 100% (actual size), not "fit to page", and it will measure true with a scale ruler.'+(two?' The PDF has two sheets: the plan ('+sheetNums()[0]+'), and the site data and schedules ('+sheetNums()[1]+').':'');
   return M;
 }
 function fillSheet(){
   var o=S.sheet;
   $('#shPaper').value=PAPERS[o.paper]?o.paper:'tabloid';$('#shScale').value=+o.scale?String(+o.scale):'auto';
   $('#shTitle').value=o.title||'';$('#shSub').value=o.sub||'';$('#shBy').value=o.by||'';$('#shNum').value=o.num||'';
-  $('#shDims').checked=o.dims!==false;$('#shOffs').value=/^(all|none)$/.test(o.offs)?o.offs:'min';$('#shBw').checked=!!o.bw;
+  $('#shDims').checked=o.dims!==false;$('#shOffs').value=/^(all|none)$/.test(o.offs)?o.offs:'min';$('#shBw').checked=!!o.bw;$('#shData').checked=o.data!==false;
 }
-function openSheet(){fillSheet();$('#sheet').hidden=false;renderSheet();}
+function openSheet(){S.sheetPage=1;fillSheet();$('#sheet').hidden=false;renderSheet();}
 (function(){
   Object.keys(PAPERS).forEach(function(kp){var op=document.createElement('option');op.value=kp;op.textContent=PAPERS[kp].name;$('#shPaper').appendChild(op);});
   SHEET_SCALES.forEach(function(v){var op=document.createElement('option');op.value=String(v);op.textContent='1 in = '+v+' ft';$('#shScale').appendChild(op);});
   function read(){
     S.sheet={paper:$('#shPaper').value,scale:$('#shScale').value==='auto'?'auto':+$('#shScale').value,title:$('#shTitle').value,sub:$('#shSub').value,by:$('#shBy').value,num:$('#shNum').value,
-      dims:$('#shDims').checked,offs:$('#shOffs').value,bw:$('#shBw').checked};
+      dims:$('#shDims').checked,offs:$('#shOffs').value,bw:$('#shBw').checked,data:$('#shData').checked};
     saveLocal();renderSheet();
   }
-  ['#shPaper','#shScale','#shDims','#shOffs','#shBw'].forEach(function(id){$(id).addEventListener('change',read);});
+  ['#shPaper','#shScale','#shDims','#shOffs','#shBw','#shData'].forEach(function(id){$(id).addEventListener('change',read);});
+  $('#shPage').addEventListener('change',function(){S.sheetPage=+this.value;renderSheet();});
   ['#shTitle','#shSub','#shBy','#shNum'].forEach(function(id){$(id).addEventListener('input',read);});
   $('#xSheet').addEventListener('click',openSheet);
   $('#shClose').addEventListener('click',function(){$('#sheet').hidden=true;});
-  $('#shPdf').addEventListener('click',function(){download('site-plan.pdf',sheetPdf(sheetModel()),'application/pdf');});
+  $('#shPdf').addEventListener('click',function(){download('site-plan.pdf',sheetPdf(sheetPages()),'application/pdf');});
 })();
 
 
@@ -3966,12 +4169,13 @@ function projectFromGeoJSON(gj){
   by('road_centerline').forEach(function(f){
     var p=f.properties,r={id:o.nextId++,name:p.name||'Road',width:p.widthFt||S.roadW,pts:f.geometry.coordinates};
     if(/^(both|left|right)$/.test(p.sidewalks))r.sw={side:p.sidewalks,w:+p.sidewalkWidthFt||5,gap:+p.treeLawnFt||0};
+    if(p.laidOut===true)r.sub=1;
     o.roads.push(r);
   });
   o.counters.road=o.roads.length;
   by('sidewalk_centerline').forEach(function(f){o.roads.push({id:o.nextId++,name:f.properties.name||'Sidewalk',width:f.properties.widthFt||5,pts:f.geometry.coordinates,walk:true});});
   o.counters.walk=o.roads.length-o.counters.road;
-  o.splits=by('lot_line').map(function(f){var q=f.geometry.coordinates;return f.properties.shape?{id:o.nextId++,pts:q.slice(0,-1),shape:true}:{id:o.nextId++,pts:q};});
+  o.splits=by('lot_line').map(function(f){var q=f.geometry.coordinates;return f.properties.shape?(f.properties.laidOut?{id:o.nextId++,pts:q.slice(0,-1),shape:true,sub:1}:{id:o.nextId++,pts:q.slice(0,-1),shape:true}):{id:o.nextId++,pts:q};});
   by('building').forEach(function(f){
     var p=f.properties,type=Object.keys(TYPES).filter(function(k){return TYPES[k].name===p.type;})[0]||'com',ring=ringOf(f),b;
     if(p.freeform||p.widthFt==null||p.depthFt==null){b={id:o.nextId++,type:type,name:p.name,w:0,d:0,st:p.stories||1,rot:0,units:null,custom:true,pts:ring,c:[0,0]};recenter(b);}
@@ -3982,7 +4186,7 @@ function projectFromGeoJSON(gj){
     if(/^(court|n|e|s|w|k\d+)$/.test(p.entrancesFace))b.ent=p.entrancesFace;
     HOMES.forEach(function(h){if(h.name===p.homeStyle&&h.type===b.type){b.home=h.k;if(h.roof)b.roof=h.roof;}});
     if(ROOFS[p.roof])b.roof=p.roof;
-    if(ROOFM[p.roofing])b.rm=p.roofing;if(p.porch===true)b.porch=true;if(p.villageRow===true)b.row=true;
+    if(ROOFM[p.roofing])b.rm=p.roofing;if(p.laidOut===true)b.sub=1;if(p.porch===true)b.porch=true;if(p.villageRow===true)b.row=true;
     if(typeof p.model==='string'&&p.model)b.mod=p.model;
     var m=/-(\d+)$/.exec(p.name||'');o.counters[type]=Math.max((o.counters[type]||0)+1,m?+m[1]:0);
     o.buildings.push(b);
@@ -4016,6 +4220,7 @@ function projectFromGeoJSON(gj){
     var p=f.properties,kind=Object.keys(AREAS).filter(function(k){return AREAS[k].name===p.areaType;})[0]||'land';
     var na={id:o.nextId++,kind:kind,name:p.name||AREAS[kind].name,ring:ringOf(f)};if(p.plant)na.pm={m:p.plant,d:p.plantPer1000||6};
     if(LS_USE[p.landscapePurpose])na.ls={use:p.landscapePurpose};
+    if(p.laidOut===true)na.sub=1;
     if(kind==='load'){na.lb={w:+p.bayWidthFt||LOAD_DEF.w,l:+p.bayLengthFt||LOAD_DEF.l};o.counters.load=(o.counters.load||0)+1;}
     if(kind==='park'&&p.stallWidthFt){
       na.pk={ang:p.stallAngleBestFit?'auto':(+p.stallAngleDeg||90),w:+p.stallWidthFt,d:+p.stallDepthFt||PARK_DEF.d,aisle:+p.aisleWidthFt||PARK_DEF.aisle};if(p.stallsOnRoad)na.pk.road=true;if(p.parallelFill===false)na.pk.par=false;
@@ -4316,10 +4521,10 @@ function renderPlots(){
   $('#splitClear').hidden=!S.splits.length;
   if(pi.rows.length){
     h='<table id="plotTable"><thead><tr><th>Lot</th><th>Area sf</th><th>Acres</th><th>Buildings</th><th>Coverage</th><th>Units</th></tr></thead><tbody>'+pi.rows.map(function(r){
-      return '<tr><td>'+esc(r.name)+'</td><td>'+n0(r.sf)+'</td><td>'+(r.sf/ACRE).toFixed(2)+'</td><td style="font-family:var(--font)">'+(esc(r.names.join(', '))||'—')+'</td><td>'+(r.n?n1(r.fp/r.sf*100)+'%':'—')+'</td><td>'+r.units+'</td></tr>';}).join('')+'</tbody></table>';
+      return '<tr'+(r.rem?' style="opacity:.7"':'')+'><td>'+esc(r.name)+'</td><td>'+n0(r.sf)+'</td><td>'+(r.sf/ACRE).toFixed(2)+'</td><td style="font-family:var(--font)">'+(esc(r.names.join(', '))||'—')+'</td><td>'+(r.n?n1(r.fp/r.sf*100)+'%':'—')+'</td><td>'+r.units+'</td></tr>';}).join('')+'</tbody></table>';
   }else if(S.splits.length)h='<div class="flag">'+(S.site?'No lot line crosses the site from edge to edge yet, so it is still one lot.':'Pick the site parcels to see the lots.')+'</div>';
-  if(S.splits.length)h+='<div id="splitList" class="row" style="margin-top:6px">'+S.splits.map(function(s,i){return '<button class="btn small" data-split="'+s.id+'" title="Remove this lot '+(s.shape?'shape':'line')+'">'+(s.shape?'Shape ':'Line ')+(i+1)+' ✕</button>';}).join('')+'</div>';
-  $('#plotList').innerHTML=h;
+  if(S.splits.some(function(s){return !s.sub;}))h+='<div id="splitList" class="row" style="margin-top:6px">'+S.splits.map(function(s,i){return s.sub?'':'<button class="btn small" data-split="'+s.id+'" title="Remove this lot '+(s.shape?'shape':'line')+'">'+(s.shape?'Shape ':'Line ')+(i+1)+' ✕</button>';}).join('')+'</div>';
+  $('#plotList').innerHTML=h;renderYield();
 }
 $('#splitBtn').addEventListener('click',function(){S.splitMode='line';setTool('split');});
 $('#splitShapeBtn').addEventListener('click',function(){S.splitMode='shape';setTool('split');});
@@ -4411,6 +4616,343 @@ $('#pbFence').addEventListener('click',function(){
   S.fences.push(f);S.plotSel=null;S.sel={k:'f',id:f.id};S.multi=[];renderAll();showTab('build');
 });
 $('#splitClear').addEventListener('click',function(){if(!S.splits.length)return;pushUndo();S.splits=[];siteChanged();});
+// ---------- most lots that fit ----------
+// A test fit. From a point on the edge of the site a street is run into it, lots are set out along both of its sides
+// (each at least the minimum width and area, and deep enough for the chosen home inside its front, side and rear
+// setbacks) and a home is put on every lot. It is tried as one straight street and as a street with one to three
+// cross streets; the layout with the most lots is kept, and of two with the same number the one with less new street.
+// What it draws is ordinary: lots are cut-out lot shapes, the street is a road, the homes are buildings and the
+// driveways are parking areas, each marked sub so that running it again replaces them. All in local feet.
+function yUnits(h){return h.type==='th'?Math.max(1,Math.round(h.w/TYPES.th.unitW)):1;}
+function yHomes(){return HOMES.filter(function(h){return (h.type==='sf'||h.type==='th')&&h.k!=='adu';});}
+function yHome(){return homeOf(S.set.yHome)||homeOf('colonial');}
+function yParams(h){
+  var s=S.set,side=Math.max(0,+s.setback||0),F=Math.max(side,+s.yFront||0),Rr=Math.max(side,+s.yRear||0),RW=Math.max(20,+s.rowW||50),PW=Math.min(RW,Math.max(10,+s.paveW||24));
+  return {h:h,hw:h.w,hd:h.d,Sd:side,F:F,Rr:Rr,RW:RW,PW:PW,A0:Math.max(0,+s.lotMin||0),needW:Math.max(+s.lotW||0,h.w+2*side,12),needD:F+h.d+Rr};
+}
+// corners that lie on a straight run (where two parcels were merged, say) are dropped, so an edge is a whole side
+function ySimp(r){
+  var P=r.slice(0,-1),n=P.length,out=[];
+  for(var i=0;i<n;i++){
+    var a=P[(i+n-1)%n],b=P[i],c=P[(i+1)%n],x1=b[0]-a[0],y1=b[1]-a[1],x2=c[0]-b[0],y2=c[1]-b[1],l1=Math.hypot(x1,y1),l2=Math.hypot(x2,y2);
+    if(l1<0.05)continue;
+    if(l2>0&&x1*x2+y1*y2>0&&Math.abs(x1*y2-y1*x2)/(l1*l2)<0.002)continue;
+    out.push(b);
+  }
+  if(out.length<3)return r;
+  out.push(out[0]);return out;
+}
+function ySitePolys(){return polysOf(S.site).map(function(p){return p.map(function(r){return ySimp(r.map(toLocal));});});}
+// the point on the outline of the site nearest a click, and the way into the site from there
+function yEntry(ll,RW){
+  var p=toLocal(ll),best=null;
+  ySitePolys().forEach(function(poly){var r=poly[0];for(var i=0;i<r.length-1;i++){
+    var a=r[i],b=r[i+1],len=Math.hypot(b[0]-a[0],b[1]-a[1]);if(len<1)continue;
+    var q=ptSegDist(p,a,b);if(!best||q.d<best.d)best={d:q.d,pt:q.pt,a:a,b:b,len:len,poly:poly};
+  }});
+  if(!best)return null;
+  var e=[(best.b[0]-best.a[0])/best.len,(best.b[1]-best.a[1])/best.len],t=(best.pt[0]-best.a[0])*e[0]+(best.pt[1]-best.a[1])*e[1];
+  t=best.len>RW?Math.max(RW/2,Math.min(best.len-RW/2,t)):best.len/2;   // the whole width of the street stays on this edge
+  var pt=[best.a[0]+e[0]*t,best.a[1]+e[1]*t],n=[-e[1],e[0]];
+  if(!pointInPoly([pt[0]+n[0]*2,pt[1]+n[1]*2],best.poly))n=[-n[0],-n[1]];
+  return {d:best.d,pt:pt,n:n,e:e,poly:best.poly};
+}
+// a ring cut down to what lies inside a convex shape whose corners run counter-clockwise (Sutherland-Hodgman)
+function yClip(ring,box){
+  var out=ring.slice();if(out.length>1&&out[0][0]===out[out.length-1][0]&&out[0][1]===out[out.length-1][1])out.pop();
+  for(var i=0;i<box.length&&out.length;i++){
+    var a=box[i],b=box[(i+1)%box.length],inp=out;out=[];
+    for(var j=0;j<inp.length;j++){
+      var p=inp[j],q=inp[(j+1)%inp.length],sp=(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]),sq=(b[0]-a[0])*(q[1]-a[1])-(b[1]-a[1])*(q[0]-a[0]);
+      if(sp>=0)out.push(p);
+      if((sp>=0)!==(sq>=0)){var t=sp/(sp-sq);out.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);}
+    }
+  }
+  return out;
+}
+// do two convex shapes overlap by more than a hair?
+function yOverlap(A,B){
+  var both=[A,B];
+  for(var k=0;k<2;k++){var Q=both[k];for(var i=0;i<Q.length;i++){
+    var a=Q[i],b=Q[(i+1)%Q.length],nx=b[1]-a[1],ny=a[0]-b[0],l=Math.hypot(nx,ny)||1,a0=Infinity,a1=-Infinity,b0=Infinity,b1=-Infinity,j,v;
+    nx/=l;ny/=l;
+    for(j=0;j<A.length;j++){v=A[j][0]*nx+A[j][1]*ny;if(v<a0)a0=v;if(v>a1)a1=v;}
+    for(j=0;j<B.length;j++){v=B[j][0]*nx+B[j][1]*ny;if(v<b0)b0=v;if(v>b1)b1=v;}
+    if(a1<=b0+0.05||b1<=a0+0.05)return false;
+  }}
+  return true;
+}
+function ySeg(a,b){var dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return {a:a,b:b,len:l,u:[dx/l,dy/l],n:[-dy/l,dx/l]};}
+// the box from x0 to x1 along a street and from y0 to y1 out from its centre line toward n, corners counter-clockwise
+function yQuad(s,n,x0,x1,y0,y1){
+  function Q(x,y){return [s.a[0]+s.u[0]*x+n[0]*y,s.a[1]+s.u[1]*x+n[1]*y];}
+  var q=[Q(x0,y0),Q(x1,y0),Q(x1,y1),Q(x0,y1)];if(polyAreaSigned(q)<0)q.reverse();return q;
+}
+// The lots along a set of streets. Each street is taken side by side; the frontage that lies in the site and clear of
+// the other streets is found, and lots are stepped along it, each as narrow as the rules and the home allow.
+function yEval(poly,segs,q){
+  var H=q.RW/2,rows=segs.map(function(s){return yQuad(s,s.n,0,s.len,-H,H);}),lots=[],E=[];
+  poly.forEach(function(r){for(var i=0;i<r.length-1;i++)E.push([r[i],r[i+1]]);});
+  function rayOut(p,d){var best=Infinity;for(var i=0;i<E.length;i++){var t=segRay(p,d,E[i][0],E[i][1]);if(t!==null&&t<best)best=t;}return best;}
+  segs.forEach(function(s,si){[1,-1].forEach(function(sd){
+    var n=[s.n[0]*sd,s.n[1]*sd];
+    function at(x,y){return [s.a[0]+s.u[0]*x+n[0]*(H+y),s.a[1]+s.u[1]*x+n[1]*(H+y)];}
+    // how deep a lot can be at a point along the street: to the edge of the site, to another street, or half way to
+    // a street that runs alongside (lots back to back). null where there is no frontage at all.
+    function depth(x){
+      var p=at(x,0.05),i,j,t;
+      if(!pointInPoly(p,poly))return null;
+      for(i=0;i<rows.length;i++)if(i!==si&&pointInRing(p,rows[i]))return null;
+      var d=rayOut(p,n),edge=true;
+      for(i=0;i<rows.length;i++){
+        if(i===si)continue;
+        var par=Math.abs(segs[i].u[0]*s.u[0]+segs[i].u[1]*s.u[1])>0.7;
+        for(j=0;j<4;j++){t=segRay(p,n,rows[i][j],rows[i][(j+1)%4]);if(t!==null){if(par)t=t/2;if(t<d){d=t;edge=false;}}}
+      }
+      return isFinite(d)?{d:d+0.05,edge:edge}:null;
+    }
+    // one lot, x to x+W along the street: null when it cannot be one, {fail:'area'} when only its area falls short
+    function tryLot(x,W,placed){
+      var xs=[x+0.3,x+W*0.25,x+W*0.5,x+W*0.75,x+W-0.3],D=0,dmin=Infinity,edge=true,i,j,dd;
+      for(i=0;i<xs.length;i++){dd=depth(xs[i]);if(!dd)return null;if(dd.d>D)D=dd.d;if(dd.d<dmin)dmin=dd.d;if(!dd.edge)edge=false;}
+      if(!edge)D=dmin;   // a back line shared with the lots behind is straight
+      var quad=yQuad(s,n,x,x+W,H,H+D);
+      for(i=0;i<rows.length;i++)if(i!==si&&yOverlap(quad,rows[i]))return null;
+      for(i=0;i<lots.length;i++)if(yOverlap(quad,lots[i].quad))return null;
+      for(i=0;i<placed.length;i++)if(yOverlap(quad,placed[i].quad))return null;
+      // the home: against the front setback line, in the middle of the width
+      var hx=x+W/2,hr=[at(hx-q.hw/2,q.F),at(hx+q.hw/2,q.F),at(hx+q.hw/2,q.F+q.hd),at(hx-q.hw/2,q.F+q.hd)];
+      for(i=0;i<4;i++){var m=[(hr[i][0]+hr[(i+1)%4][0])/2,(hr[i][1]+hr[(i+1)%4][1])/2];if(!pointInPoly(hr[i],poly)||!pointInPoly(m,poly))return null;}
+      for(i=0;i<E.length;i++)for(j=0;j<4;j++){
+        if(ptSegDist(hr[j],E[i][0],E[i][1]).d<q.Sd-0.01||ptSegDist(E[i][0],hr[j],hr[(j+1)%4]).d<q.Sd-0.01)return null;
+      }
+      var back=[hx-q.hw/2+0.1,hx,hx+q.hw/2-0.1];
+      for(i=0;i<3;i++){dd=depth(back[i]);if(!dd||dd.d-(q.F+q.hd)<q.Rr-0.01)return null;}
+      var a=Math.abs(polyAreaSigned(yClip(poly[0],quad)));for(i=1;i<poly.length;i++)a-=Math.abs(polyAreaSigned(yClip(poly[i],quad)));
+      if(a<q.A0-0.01)return {fail:'area'};
+      return {x:x,W:W,D:D,edge:edge,quad:quad,area:a,c:at(hx,q.F+q.hd/2),rot:Math.atan2(s.u[1],s.u[0])*180/Math.PI,s:s,n:n};
+    }
+    // the runs of frontage
+    var N=Math.max(1,Math.ceil(s.len/2)),st=s.len/N,prev=false,x0=0,iv=[],i,xx,g;
+    function refine(bad,good){for(var k=0;k<12;k++){var m=(bad+good)/2;if(depth(m))good=m;else bad=m;}return good;}
+    for(i=0;i<=N;i++){
+      xx=i*st;g=!!depth(xx);
+      if(g&&!prev)x0=i?refine(xx-st,xx):xx;
+      if(!g&&prev)iv.push([x0,refine(xx,xx-st)]);
+      prev=g;
+    }
+    if(prev)iv.push([x0,s.len]);
+    iv.forEach(function(v){
+      var placed=[],x=v[0],lim=v[1],k,got,W,dd;
+      while(x+q.needW<=lim+0.01){
+        got=null;W=q.needW;dd=depth(x+q.needW/2);
+        if(dd&&q.A0>0&&dd.d>1)W=Math.max(W,Math.min(q.needW*4,q.A0/dd.d*0.97));   // start near the width the area asks for
+        for(k=0;k<40;k++){
+          var lastTry=x+W>lim+0.01;if(lastTry)W=lim-x;
+          got=tryLot(x,W,placed);
+          if(got&&!got.fail)break;
+          if(!got||lastTry){got=null;break;}
+          got=null;W=W*1.03+0.5;
+        }
+        if(got){placed.push(got);x+=got.W;}else x+=2;
+      }
+      if(!placed.length)return;
+      // spread the lots over the whole run, so that no strip is left over at the end of it
+      var used=0,last=placed[placed.length-1];placed.forEach(function(l){used+=l.W;});
+      if(Math.abs(last.x+last.W-placed[0].x-used)<0.01&&(v[1]-v[0])-used>0.05){
+        var f=(v[1]-v[0])/used,alt=[],ok=true;xx=v[0];
+        for(k=0;k<placed.length;k++){var l2=tryLot(xx,placed[k].W*f,alt);if(!l2||l2.fail){ok=false;break;}alt.push(l2);xx+=l2.W;}
+        if(ok)placed=alt;
+      }
+      // the shape that is cut out for a lot runs on past the edge of the site (the site trims it), so that a lot at
+      // the end of a run, or backing onto the boundary, takes in all of the land there
+      placed.forEach(function(l,j){
+        var eA=j===0&&Math.abs(l.x-v[0])<0.01&&!pointInPoly(at(v[0]-1,0.05),poly),eB=j===placed.length-1&&Math.abs(l.x+l.W-v[1])<0.01&&!pointInPoly(at(v[1]+1,0.05),poly);
+        function shape(side,rear){return yQuad(s,n,l.x-(eA?side:0),l.x+l.W+(eB?side:0),H,H+l.D+(l.edge?rear:0));}
+        var big=shape(30,4),clash=false,z;
+        if(eA||eB){
+          for(z=0;z<rows.length&&!clash;z++)if(z!==si&&yOverlap(big,rows[z]))clash=true;
+          for(z=0;z<lots.length&&!clash;z++)if(yOverlap(big,lots[z].quad))clash=true;
+        }
+        l.shape=clash?shape(4,4):big;
+      });
+      placed.forEach(function(l){lots.push(l);});
+    });
+  });});
+  var len=0,minA=Infinity,area=0;segs.forEach(function(s){len+=s.len;});lots.forEach(function(l){area+=l.area;if(l.area<minA)minA=l.area;});
+  return {lots:lots,n:lots.length,len:len,minA:minA,area:area,segs:segs};
+}
+// the layouts tried from one way in, and the best of them
+function yPlan(ent,q,pat){
+  var poly=ent.poly,E=[],top=null,longest=null;
+  poly.forEach(function(r){for(var i=0;i<r.length-1;i++)E.push([r[i],r[i+1]]);});
+  function rayOut(p,d){var best=Infinity;for(var i=0;i<E.length;i++){var t=segRay(p,d,E[i][0],E[i][1]);if(t!==null&&t<best)best=t;}return best;}
+  function consider(segs,kind){
+    var r=yEval(poly,segs,q);r.kind=kind;
+    // most lots; then the most land in lots (the least street and leftover); then the most even lots
+    if(!top||r.n>top.n||(r.n===top.n&&(r.area>top.area+50||(Math.abs(r.area-top.area)<=50&&r.minA>top.minA+1))))top=r;
+  }
+  function lin(a,b,n){var o=[];if(b<a-0.01)return o;if(n<2||b-a<1)return [(a+b)/2];for(var i=0;i<n;i++)o.push(a+(b-a)*i/(n-1));return o;}
+  // straight in from the edge, and also along the longest side of the site when that runs nearly the same way
+  var dirs=[ent.n];
+  for(var i=0;i<poly[0].length-1;i++){var a=poly[0][i],b=poly[0][i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!longest||l>longest.l)longest={l:l,u:[(b[0]-a[0])/l,(b[1]-a[1])/l]};}
+  if(longest){var u=longest.u,dot=u[0]*ent.n[0]+u[1]*ent.n[1];if(dot<0){u=[-u[0],-u[1]];dot=-dot;}if(dot>0.866&&dot<0.9998)dirs.push(u);}
+  dirs.forEach(function(d){
+    var Lf=rayOut([ent.pt[0]+d[0]*0.1,ent.pt[1]+d[1]*0.1],d);if(!isFinite(Lf))return;Lf+=0.1;
+    function end(t){return [ent.pt[0]+d[0]*t,ent.pt[1]+d[1]*t];}
+    if(pat!=='cross'&&Lf>=q.needW)consider([ySeg(ent.pt,end(Lf))],'spine');
+    if(pat==='spine')return;
+    var p=[-d[1],d[0]],t0=q.needD+q.RW/2,tEnd=Lf-q.RW/2,gmin=2*q.needD+q.RW;
+    function cross(t){
+      var c=end(t);if(!pointInPoly(c,poly))return null;
+      var e1=rayOut(c,p),e2=rayOut(c,[-p[0],-p[1]]);if(!isFinite(e1)||!isFinite(e2)||e1+e2<q.needW)return null;
+      return ySeg([c[0]-p[0]*e2,c[1]-p[1]*e2],[c[0]+p[0]*e1,c[1]+p[1]*e1]);
+    }
+    for(var k=1;k<=3;k++){
+      if(t0+(k-1)*gmin>tEnd+0.01)break;
+      var gs=k===1?[0]:lin(gmin,(tEnd-t0)/(k-1),k===2?5:4);
+      gs.forEach(function(g){
+        var ts=lin(t0,tEnd-(k-1)*g,k===1?9:(k===2?5:4));
+        if(k===1&&Lf-t0>t0+1)ts.push(Lf-t0);   // the deepest cross street that still has lots behind it
+        ts.forEach(function(t1){
+          var segs=[],j,cs;
+          for(j=0;j<k;j++){cs=cross(t1+j*g);if(!cs)return;segs.push(cs);}
+          segs.push(ySeg(ent.pt,end(t1+(k-1)*g)));consider(segs,k===1?'cross':'cross'+k);
+        });
+      });
+    }
+  });
+  return top;
+}
+function yCompute(ll,h,pat){
+  if(!S.site)return null;
+  var q=yParams(h),ent=yEntry(ll,q.RW);if(!ent)return null;
+  var top=yPlan(ent,q,pat);return top?{top:top,q:q,ent:ent}:null;
+}
+// the way in that gives the most lots: the middle and quarter points of each side (the eight longest) are tried
+function yBestEntry(){
+  if(!S.site)return null;
+  var h=yHome(),q=yParams(h),best=null,edges=[];
+  ySitePolys().forEach(function(poly){var r=poly[0];for(var i=0;i<r.length-1;i++){var a=r[i],b=r[i+1],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>=q.RW)edges.push({a:a,b:b,l:l});}});
+  edges.sort(function(x,y){return y.l-x.l;});
+  edges.slice(0,8).forEach(function(e){[0.5,0.25,0.75].forEach(function(t){
+    var ll=toLL([e.a[0]+(e.b[0]-e.a[0])*t,e.a[1]+(e.b[1]-e.a[1])*t]),r=yCompute(ll,h,S.set.yPat||'best');
+    if(r&&r.top.n&&(!best||r.top.n>best.n||(r.top.n===best.n&&r.top.area>best.area+50)))best={n:r.top.n,area:r.top.area,ll:ll};
+  });});
+  return best;
+}
+function yHasLayout(){return S.splits.some(function(s){return s.sub;})||S.roads.some(function(r){return r.sub;});}
+function yClearLayout(){
+  S.splits=S.splits.filter(function(s){return !s.sub;});S.roads=S.roads.filter(function(r){return !r.sub;});
+  S.buildings=S.buildings.filter(function(b){return !b.sub;});S.areas=S.areas.filter(function(a){return !a.sub;});
+}
+// lay it out on the plan from the clicked point; false when nothing fits
+function yApply(ll){
+  var h=yHome(),res=yCompute(ll,h,S.set.yPat||'best');
+  if(!res||!res.top.n)return false;
+  pushUndo();yClearLayout();
+  var q=res.q,top=res.top,H=q.RW/2,ck='home:'+h.k,un=yUnits(h),names='ABCDEFGH',stem=top.segs[top.segs.length-1];
+  [stem].concat(top.segs.slice(0,-1)).forEach(function(s,i){
+    S.roads.push({id:S.nextId++,name:'Street '+names.charAt(i%8),width:q.PW,pts:[toLL(s.a),toLL(s.b)],sub:1});
+  });
+  S.counters[ck]=S.buildings.filter(function(b){return b.home===h.k;}).length;
+  var kept=0,mine=S.buildings.map(function(b){return polyCentroid(bldgRingLocal(b));});
+  top.lots.forEach(function(l){
+    S.splits.push({id:S.nextId++,pts:l.shape.map(toLL),shape:true,sub:1});
+    if(mine.some(function(c){return pointInRing(c,l.quad);})){kept++;return;}   // a lot with a building already on it keeps that building
+    var b=newBuilding(h.type,h.w,h.d,h.st,Math.round(normAngle(l.rot)*1000)/1000,toLL(l.c));
+    S.counters[ck]++;S.counters[b.type]=Math.max(0,(S.counters[b.type]||1)-1);
+    b.name=h.name+' '+S.counters[ck];b.home=h.k;if(h.roof)b.roof=h.roof;b.sub=1;S.buildings.push(b);
+    if(S.set.yDrive){
+      var dw=Math.min(h.w-2,18*un),x0=l.x+l.W/2-h.w/2+1,y0=-(q.RW-q.PW)/2;
+      var at=function(x,y){return toLL([l.s.a[0]+l.s.u[0]*x+l.n[0]*(H+y),l.s.a[1]+l.s.u[1]*x+l.n[1]*(H+y)]);};
+      S.areas.push({id:S.nextId++,kind:'park',name:'Driveway',ring:[at(x0,y0),at(x0+dw,y0),at(x0+dw,q.F),at(x0,q.F)],sub:1});
+    }
+  });
+  S.set.yAt=ll.slice();S.sel=null;S.multi=[];S.plotSel=null;
+  S.yield={kind:top.kind,home:h.k,kept:kept,table:null};
+  siteChanged();
+  // each new home takes the number of the lot it stands on
+  S.buildings.forEach(function(b){
+    if(!b.sub)return;
+    var c=toLocal(b.c),p=S.plots.filter(function(pl){return !pl.rem&&pointInPoly(c,pl.coords.map(function(r){return r.map(toLocal);}));})[0];
+    if(p)b.name=h.name+' '+p.name.replace(/^Lot /,'');
+  });
+  var lotNo=function(b){return +b.name.replace(/^.* /,'')||0;};
+  S.buildings=S.buildings.filter(function(b){return !b.sub;}).concat(S.buildings.filter(function(b){return b.sub;}).sort(function(a,b){return lotNo(a)-lotNo(b);}));
+  return true;
+}
+// what each home style would give from the same way in, for the table
+function yTable(){
+  if(!S.set.yAt||!S.site)return [];
+  return yHomes().map(function(h){
+    var r=yCompute(S.set.yAt,h,S.set.yPat||'best'),n=r?r.top.n:0,q=yParams(h);
+    return {k:h.k,name:h.name,w:h.w,d:h.d,needW:q.needW,lots:n,units:n*yUnits(h)};
+  });
+}
+function yLots(){return S.plots.filter(function(p){return !p.rem;});}
+function renderYield(){
+  var has=yHasLayout(),out=$('#yOut');if(!out)return;
+  $('#yAgain').hidden=!(has&&S.set.yAt);$('#yClear').hidden=!has;
+  if(!has){out.innerHTML='';return;}
+  var lots=yLots(),homes=S.buildings.filter(function(b){return b.sub;}),units=0,sfs=lots.map(function(p){return p.sf;}),tot=0,rem=0,len=0,ac=S.stats?S.stats.acres:0,h;
+  homes.forEach(function(b){units+=unitsOf(b);});sfs.forEach(function(v){tot+=v;});
+  S.plots.forEach(function(p){if(p.rem)rem+=p.sf;});S.roads.forEach(function(r){if(r.sub)len+=lineLen(r.pts);});
+  var site=tot+rem;
+  h='<div class="flag ok" id="yRes"><b>'+lots.length+(lots.length===1?' lot':' lots')+'</b> · '+homes.length+(homes.length===1?' new home':' new homes')+(units!==homes.length?' ('+units+' dwellings)':'')+(ac?' · '+n1(units/ac)+' per acre':'')+'</div>';
+  if(lots.length)h+='<div class="note">Lots from '+n0(Math.min.apply(null,sfs))+' to '+n0(Math.max.apply(null,sfs))+' sf, '+n0(tot/lots.length)+' sf on average · '+n0(len)+' ft of new street'+(site?' · street right-of-way and leftover land '+n0(rem)+' sf ('+n1(rem/site*100)+'% of the site)':'')+(S.yield&&S.yield.kept?' · '+S.yield.kept+(S.yield.kept===1?' lot keeps the building':' lots keep the buildings')+' already on '+(S.yield.kept===1?'it':'them'):'')+'.</div>';
+  var T=S.yield&&S.yield.table;
+  if(T&&T.length){
+    var mx=Math.max.apply(null,T.map(function(r){return r.units;})),cur=S.set.yHome;
+    h+='<table id="yTable"><thead><tr><th>Home</th><th title="The least width a lot for this home can have: the wider of the minimum lot width and the home plus its two side setbacks">Lot ft</th><th>Lots</th><th title="Dwellings: a duplex counts two to a lot">Homes</th><th>Per acre</th></tr></thead><tbody>'+T.map(function(r){
+      var nm=esc(r.name)+(r.units===mx&&mx>0?' ★':''),tip=r.w+' × '+r.d+' ft';
+      return '<tr'+(r.k===cur?' class="on"':'')+'><td style="font-family:var(--font)">'+(r.k===cur?'<b title="'+tip+' · shown on the plan">'+nm+'</b>':(r.lots?'<button class="btn small" data-yhome="'+r.k+'" title="'+tip+' · show this home on the plan">'+nm+'</button>':'<span title="'+tip+'">'+nm+'</span>'))+'</td><td>'+n0(r.needW)+'</td><td>'+r.lots+'</td><td>'+r.units+'</td><td>'+(ac?n1(r.units/ac):'—')+'</td></tr>';
+    }).join('')+'</tbody></table><div class="note">★ the most homes. Press a home to lay the site out for it. Lot ft is the least width its lot can have: the wider of the minimum and the home plus its two side setbacks; lots get wider still where they must to reach the minimum area.</div>';
+  }else if(S.set.yAt)h+='<div class="row" style="margin-top:6px"><button class="btn small" id="yCompare">Compare home styles</button></div>';
+  out.innerHTML=h;
+}
+function yRun(ll){
+  if(!S.site){toast('Pick the parcels that make up the site first.',true);return false;}
+  if(!yApply(ll)){toast('No lot fits from there with these rules: the home, its setbacks and the minimum lot width need more room than the street leaves. Try another place on the edge, a smaller home or narrower lots.',true);return false;}
+  S.yield.table=yTable();renderAll();
+  var n=yLots().length;toast(n+(n===1?' lot':' lots')+' laid out. Compare home styles and adjust the rules under Most lots that fit, on the Site tab.');
+  return true;
+}
+(function(){
+  var sel=$('#yHome');
+  yHomes().forEach(function(h){var o=document.createElement('option'),u=yUnits(h);o.value=h.k;o.textContent=h.name+' · '+h.w+' × '+h.d+' ft'+(u>1?' · '+u+' homes':'');sel.appendChild(o);});
+  sel.addEventListener('change',function(){S.set.yHome=this.value;saveLocal();});
+  $('#yPat').addEventListener('change',function(){S.set.yPat=this.value;saveLocal();});
+  $('#yDrive').addEventListener('change',function(){S.set.yDrive=this.checked?1:0;saveLocal();});
+  $('#yGo').addEventListener('click',function(){
+    if(!S.site){toast('Pick the parcels that make up the site first.',true);return;}
+    setTool('yield');
+  });
+  $('#yAgain').addEventListener('click',function(){if(S.set.yAt)yRun(S.set.yAt);});
+  $('#yAuto').addEventListener('click',function(){
+    if(!S.site){toast('Pick the parcels that make up the site first.',true);return;}
+    var b=yBestEntry();
+    if(!b){toast('No lot fits on this site with these rules: the home, its setbacks and the minimum lot width need more room. Try a smaller home or narrower lots.',true);return;}
+    if(S.tool!=='select')setTool('select');yRun(b.ll);
+  });
+  $('#yClear').addEventListener('click',function(){if(!yHasLayout())return;pushUndo();yClearLayout();S.yield=null;delete S.set.yAt;siteChanged();});
+  $('#yOut').addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    if(b.id==='yCompare'){if(!S.yield)S.yield={};S.yield.table=yTable();renderYield();return;}
+    var k=b.getAttribute('data-yhome');if(!k||!S.set.yAt)return;
+    S.set.yHome=k;$('#yHome').value=k;yRun(S.set.yAt);
+  });
+})();
+function fillYield(){$('#yHome').value=yHome().k;$('#yPat').value=S.set.yPat||'best';$('#yDrive').checked=!!S.set.yDrive;}
+// while the tool is up: where the street would come in, and the way it would run
+function yGhost(ll){
+  gGhost.clearLayers();if(S.tool!=='yield'||!ll||!S.site)return;
+  var q=yParams(yHome()),e=yEntry([ll.lng,ll.lat],q.RW);if(!e||e.d>400)return;
+  var a=e.pt,b=[a[0]+e.n[0]*80,a[1]+e.n[1]*80],H=q.RW/2;
+  L.polygon([[a[0]-e.e[0]*H,a[1]-e.e[1]*H],[a[0]+e.e[0]*H,a[1]+e.e[1]*H],[b[0]+e.e[0]*H,b[1]+e.e[1]*H],[b[0]-e.e[0]*H,b[1]-e.e[1]*H]].map(toLL).map(ll2),{pane:'pDraw',color:'#ffffff',weight:1,dashArray:'5 4',fillColor:'#74c0fc',fillOpacity:.35,interactive:false}).addTo(gGhost);
+  L.polyline([a,b].map(toLL).map(ll2),{pane:'pDraw',color:'#ffffff',weight:2,interactive:false}).addTo(gGhost);
+  L.circleMarker(ll2(toLL(a)),{pane:'pDraw',radius:6,color:'#ffffff',weight:2,fillColor:'#1c7ed6',fillOpacity:1,interactive:false}).addTo(gGhost);
+}
 $('#plotList').addEventListener('click',function(e){
   var b=e.target.closest('button[data-split]');if(!b)return;
   var id=+b.getAttribute('data-split');pushUndo();S.splits=S.splits.filter(function(s){return s.id!==id;});siteChanged();

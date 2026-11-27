@@ -11,7 +11,7 @@ G('01 startup and sample project',async()=>{
   ok(!t.$('#banner').hidden,'sample banner visible');
   ok(/All 4 building/.test(t.$('#checks').textContent),'sample passes all checks');
   ok(t.$$('#types .typebtn').length===6,'six building type buttons');
-  ok(t.$$('.tool').length===17,'seventeen toolbar tools');
+  ok(t.$$('.tool').length===18,'eighteen toolbar tools');
   ok(/Loading: 2 spaces drawn, 1 required \(§1183\.20\(f\)\)/.test(t.$('#checks').textContent),'the sample has the loading space its 5,400 sf of shops needs ('+(t.$('#checks').textContent.match(/Loading[^.]*\./)||[''])[0]+')');
 });
 

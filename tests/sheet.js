@@ -87,10 +87,12 @@ t.click(t.$('#shBw'));
 
 // ---- the PDF
 const p=pdf();
-ok(/^%PDF-1\.4\n/.test(p)&&/%%EOF\n$/.test(p),'Download PDF saves site-plan.pdf, a PDF file');
-ok(/\/MediaBox \[0 0 1224 792\]/.test(p)&&/\/BaseFont \/Helvetica /.test(p)&&/\/BaseFont \/Helvetica-Bold /.test(p),'one Tabloid page, in the built-in Helvetica fonts');
+ok(/^%PDF-1\.6\n/.test(p)&&/%%EOF\n$/.test(p),'Download PDF saves site-plan.pdf, a PDF file');
+ok((p.match(/\/MediaBox \[0 0 1224 792\]/g)||[]).length===2&&/\/Kids \[3 0 R 8 0 R\] \/Count 2 /.test(p)&&/\/BaseFont \/Helvetica /.test(p)&&/\/BaseFont \/Helvetica-Bold /.test(p),'two Tabloid pages (the plan, and the data sheet), in the built-in Helvetica fonts');
+ok(/\/ViewerPreferences << \/PrintScaling \/None >>/.test(p),'it asks the viewer to print at actual size, so the scale holds on paper');
+ok(/\/Type \/Outlines \/First 11 0 R \/Last 12 0 R \/Count 2/.test(p)&&/\/Title \(C-2 Site plan\) \/Parent 10 0 R \/Dest \[3 0 R \/Fit\]/.test(p)&&/\/Title \(C-3 Site data and schedules\) \/Parent 10 0 R \/Dest \[8 0 R \/Fit\]/.test(p),'and has a bookmark for each sheet');
 ok(!/[^\x0a\x20-\x7e]/.test(p),'it is plain ASCII throughout, so byte positions can be counted as characters');
-{const xr=+p.match(/startxref\n(\d+)\n%%EOF/)[1],tab=p.slice(xr).split('\n'),n=+tab[1].split(' ')[1];let good=tab[0]==='xref'&&n===8;
+{const xr=+p.match(/startxref\n(\d+)\n%%EOF/)[1],tab=p.slice(xr).split('\n'),n=+tab[1].split(' ')[1];let good=tab[0]==='xref'&&n===13;
  for(let i=1;i<n;i++){const off=+tab[2+i].slice(0,10);if(p.substr(off,(i+' 0 obj').length)!==i+' 0 obj'||tab[2+i].length!==19)good=false;}
  ok(good,'its cross-reference table points at every one of its '+(n-1)+' objects');
  const len=+p.match(/\/Length (\d+) >>\nstream\n/)[1],s0=p.indexOf('stream\n')+7;
@@ -98,7 +100,18 @@ ok(!/[^\x0a\x20-\x7e]/.test(p),'it is plain ASCII throughout, so byte positions 
 const ps=strs(p);
 ok(ps.includes('Maple Court')&&ps.includes('SITE DATA')&&ps.includes('SCALE: 1 in = 40 ft')&&ps.includes(siteTxt.split('·').join('\\267')),'the PDF carries the same title, scale and site figures as the page on screen');
 ok(ps.includes("400.0'")&&ps.includes("5.0' \\(min 10.0'\\)")&&ps.includes('88 \\327 42'),'and the same dimensions, with the special characters (×, ·, the foot mark) encoded for the PDF');
-ok(ps.length===texts().length,'every piece of text on screen is in the PDF, no more and no fewer ('+ps.length+')');
+const n1=texts().length;t.set('#shPage','2','change');const t2=texts(),n2=t2.length;
+ok(ps.length===n1+n2,'every piece of text on the two sheets on screen is in the PDF, no more and no fewer ('+ps.length+')');
+// ---- the second sheet
+ok(!t.$('#shPage').parentNode.hidden&&t2.includes('SITE DATA AND SCHEDULES')&&t2.includes('Maple Court')&&t2.includes('C-3')&&t2.includes('2 of 2'),'Showing: Sheet 2 puts the data sheet on screen, numbered one on from the plan (C-3, 2 of 2)');
+ok(['SITE DATA','ZONING CHECK','ITEMS FLAGGED ON THE CHECK TAB','BUILDING SCHEDULE','PARKING'].every(s=>t2.includes(s))&&!t2.includes('LOT SCHEDULE'),'it carries the site data, the zoning check, what is flagged, and the building and parking schedules');
+ok(t2.includes(siteTxt)&&t2.some(x=>/property line/.test(x)&&/5\.0/.test(x)),'with the same site figures, and each flagged item in words ('+t2.filter(x=>/property line/.test(x)).slice(0,2).join(' | ')+')');
+ok(t2.some(x=>/dwelling.* × 2/.test(x))&&t2.includes('Required')&&t2.includes('Shown on the plan'),'the parking table says what each building asks for, and why');
+t.set('#shPage','1','change');ok(texts().includes('1 of 2')&&texts().length===n1,'and the plan is marked 1 of 2');
+t.click(t.$('#shData'));
+{const q=pdf(),xr=+q.match(/startxref\n(\d+)\n%%EOF/)[1];
+ ok(t.$('#shPage').parentNode.hidden&&/\/Kids \[3 0 R\] \/Count 1 /.test(q)&&!/Outlines/.test(q)&&q.slice(xr).split('\n')[1]==='0 8'&&!texts().includes('1 of 2'),'with Data sheet unticked the PDF is the plan alone');}
+t.click(t.$('#shData'));
 ok(/\/Title \(Maple Court\)/.test(p)&&/q [\d.]+ [\d.]+ [\d.]+ [\d.]+ re W n/.test(p)&&/ B\*\n/.test(p),'it is titled, and the drawing is clipped to its frame');
 t.set('#shPaper','letter','change');ok(/\/MediaBox \[0 0 792 612\]/.test(pdf()),'the PDF follows the paper size chosen');
 t.set('#shPaper','tabloid','change');
@@ -118,7 +131,7 @@ t.click(t.$('#shClose'));
 // ---- lots, and an empty plan
 t.tab('site');await t.draw('split',[[-100,-240],[-100,90]]);t.tool('select');t.key('Escape');
 t.click(t.$('#xSheet'));
-ok(texts().some(x=>/^LOT 1 · [\d,]+ sf$/.test(x))&&texts().some(x=>/^LOT 2 · /.test(x))&&has('Lot line')&&(rowOf('Lots')||[]).join()==='2','with the site split in two, each lot is named with its area, and the lot line is in the legend');
+ok(texts().some(x=>/^LOT 1 · [\d,]+ sf$/.test(x))&&texts().some(x=>/^LOT 2 · /.test(x))&&has('Lot line')&&/^2 · smallest [\d,]+ sf$/.test((rowOf('Lots')||[]).join()),'with the site split in two, each lot is named with its area, and the lot line is in the legend');
 ok(dims().filter(x=>x==='300.0′').length>=3&&dims().includes('200.0′'),'each lot has its own sides dimensioned: the 300 ft lot line once, and 200 ft frontages ('+dims().filter(x=>/00\.0′$/.test(x)).join(', ')+')');
 t.click(t.$('#shClose'));
 t.click(t.$('#newBtn'));t.click(t.$('#xSheet'));
